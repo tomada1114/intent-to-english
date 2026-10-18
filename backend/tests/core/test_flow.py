@@ -13,6 +13,7 @@ from intent_to_english.core.coaching import (
     PieceGiven,
     ReadingQuestion,
     RetryAccepted,
+    WrapUp,
 )
 from intent_to_english.core.errors import InvalidInputError
 from intent_to_english.core.models import (
@@ -57,7 +58,7 @@ EXPECTED = {
     "answer_shown": {"typed_copy", "skip", "restate", "rewrite_intent", "ask", "end"},
     "partner_turn": {"partner_reply", "ask", "end"},
     "check_in": {"partner_reply", "ask", "end"},
-    "ended": set(),
+    "ended": {"wrap_up"},
 }
 
 
@@ -187,3 +188,19 @@ def test_reading_input_has_no_text_action_length_limit():
     assert flow.check_input(Action.READING, ReadingInput("読" * 1001)) == ReadingInput(
         "読" * 1001
     )
+
+
+def test_wrap_up_is_no_input_and_only_allowed_when_an_ended_session_is_due(
+    fixed_now, nth_id
+):
+    due = Session(
+        nth_id(1),
+        fixed_now,
+        ended_at=fixed_now,
+        status=SessionStatus.ENDED,
+        stage=Stage.ENDED,
+    )
+    assert flow.allowed_actions(due) == (Action.WRAP_UP,)
+    assert flow.check_input(Action.WRAP_UP, NoInput()) == NoInput()
+    assert flow.allowed_actions(replace(due, wrap_up=WrapUp(items=()))) == ()
+    assert Action.WRAP_UP not in flow.allowed_actions(Session(nth_id(2), fixed_now))

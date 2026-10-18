@@ -59,6 +59,7 @@ ACTION_STAGES: dict[Action, frozenset[Stage]] = {
     Action.PRACTICE_AGAIN: frozenset({Stage.CHECK_IN, Stage.INTENT}),
     Action.ASK: frozenset(Stage) - {Stage.ENDED},
     Action.END: frozenset(Stage) - {Stage.ENDED},
+    Action.WRAP_UP: frozenset({Stage.ENDED}),
 }
 TEXT_ACTIONS = frozenset(
     {
@@ -79,6 +80,8 @@ def allowed_actions(session: Session) -> tuple[Action, ...]:
     allowed = {
         action for action, stages in ACTION_STAGES.items() if session.stage in stages
     }
+    if session.wrap_up is not None:
+        allowed.discard(Action.WRAP_UP)
     if session.turn_state.practice is None:
         allowed.discard(Action.PRACTICE_AGAIN)
     if session.turn_state.intent is None:

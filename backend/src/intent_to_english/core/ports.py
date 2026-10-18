@@ -296,8 +296,8 @@ class SessionRepository(Protocol):
         Raises:
             SessionNotFoundError: No session exists.
             StaleSessionError: The base version differs.
-            ActionInProgressError: A live submission occupies that version.
-            SessionEndedError: The session ended.
+            ActionInProgressError: A live submission occupies that version, except for end.
+            SessionEndedError: The session ended and the action is not wrap_up.
             ActionNotAllowedError: The stage is not allowed.
         """
 
@@ -319,8 +319,10 @@ class SessionRepository(Protocol):
     ) -> None:
         """Fail only a pending submission; keep the session and timeline unchanged."""
 
-    async def cancel_submission(self, session_id: UUID, finished_at: datetime) -> bool:
-        """Cancel a pending submission; return False when none is pending."""
+    async def cancel_submission(
+        self, session_id: UUID, base_version: int, finished_at: datetime
+    ) -> bool:
+        """Cancel only pending work at base_version; otherwise return False."""
 
     async def record_model_call(self, record: ModelCallRecord) -> None:
         """Append a call independently of action success; duplicate ids raise ValueError."""

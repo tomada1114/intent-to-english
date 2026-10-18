@@ -24,6 +24,7 @@ from intent_to_english.core.errors import (
     TodoNotFoundError,
 )
 from intent_to_english.core.models import (
+    Action,
     SessionStatus,
     SessionSummary,
     StoredSession,
@@ -225,13 +226,17 @@ class InMemorySessionRepository:
             ),
             None,
         )
-        if (
+        is_live = (
             pending is not None
             and pending.boot_id == submission.boot_id
             and pending.created_at >= interrupted_before
-        ):
+        )
+        if is_live and submission.action is not Action.END:
             raise ActionInProgressError
-        if session.status is SessionStatus.ENDED:
+        if (
+            session.status is SessionStatus.ENDED
+            and submission.action is not Action.WRAP_UP
+        ):
             raise SessionEndedError
         if session.stage not in allowed_stages:
             raise ActionNotAllowedError(submission.action, session.stage)
@@ -241,8 +246,10 @@ class InMemorySessionRepository:
         if pending is not None:
             self._submissions[pending.id] = replace(
                 pending,
-                status=SubmissionStatus.FAILED,
-                failure_code="interrupted",
+                status=SubmissionStatus.CANCELLED
+                if is_live
+                else SubmissionStatus.FAILED,
+                failure_code=None if is_live else "interrupted",
                 finished_at=submission.created_at,
             )
         self._submissions[submission.id] = submission
@@ -292,14 +299,18 @@ class InMemorySessionRepository:
                 finished_at=finished_at,
             )
 
-    async def cancel_submission(self, session_id: UUID, finished_at: datetime) -> bool:
-        """Cancel only pending work; no pending work is a harmless no-op."""
+    async def cancel_submission(
+        self, session_id: UUID, base_version: int, finished_at: datetime
+    ) -> bool:
+        """A stale cancel never affects the pending action at another version."""
         self._require_session(session_id)
         pending = next(
             (
                 s
                 for s in self._submissions.values()
-                if s.session_id == session_id and s.status is SubmissionStatus.PENDING
+                if s.session_id == session_id
+                and s.base_version == base_version
+                and s.status is SubmissionStatus.PENDING
             ),
             None,
         )

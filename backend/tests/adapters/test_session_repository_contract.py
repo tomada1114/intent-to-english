@@ -135,9 +135,15 @@ async def test_cancel_discards_late_output_without_changing_the_session(
     repository, session, submission, fixed_now
 ):
     await repository.create(session)
-    assert await repository.cancel_submission(session.id, fixed_now) is False
+    assert (
+        await repository.cancel_submission(session.id, session.version, fixed_now)
+        is False
+    )
     await repository.begin_submission(submission, frozenset({Stage.OPENING}), fixed_now)
-    assert await repository.cancel_submission(session.id, fixed_now) is True
+    assert (
+        await repository.cancel_submission(session.id, session.version, fixed_now)
+        is True
+    )
     with pytest.raises(ActionCancelledError, match="cancelled"):
         await repository.finish_submission(
             submission.id, replace(session, version=1), (), fixed_now
@@ -255,7 +261,7 @@ async def test_record_model_calls_survive_cancel_and_keep_accounting(
         fixed_now,
     )
     await repository.record_model_call(record)
-    await repository.cancel_submission(session.id, fixed_now)
+    await repository.cancel_submission(session.id, session.version, fixed_now)
     assert await repository.model_calls(session.id) == (record,)
     with pytest.raises(ValueError, match="already stored"):
         await repository.record_model_call(record)
@@ -292,3 +298,73 @@ async def test_list_rejects_nonpositive_limit_but_allows_large_positive_limit(
     with pytest.raises(InvalidCursorError, match="Invalid page cursor"):
         await repository.list_page(None, 0)
     assert (await repository.list_page(None, 1001)).items == ()
+
+
+async def test_cancel_names_the_pending_version_and_ignores_other_versions(
+    repository, session, submission, fixed_now
+):
+    await repository.create(session)
+    await repository.begin_submission(submission, frozenset({Stage.OPENING}), fixed_now)
+    assert await repository.cancel_submission(session.id, 1, fixed_now) is False
+    assert (await repository.get(session.id)).last_submission == submission
+    assert await repository.cancel_submission(session.id, 0, fixed_now) is True
+    assert (
+        await repository.get(session.id)
+    ).last_submission.status is SubmissionStatus.CANCELLED
+
+
+async def test_end_supersedes_live_pending_and_discards_its_late_output(
+    repository, session, submission, fixed_now, nth_id
+):
+    await repository.create(session)
+    await repository.begin_submission(submission, frozenset({Stage.OPENING}), fixed_now)
+    ending = replace(submission, id=nth_id(3), action=Action.END)
+    await repository.begin_submission(ending, frozenset({Stage.OPENING}), fixed_now)
+    assert (await repository.get(session.id)).last_submission == ending
+    with pytest.raises(ActionCancelledError, match="cancelled"):
+        await repository.finish_submission(
+            submission.id, replace(session, version=1), (), fixed_now
+        )
+    assert (await repository.get(session.id)).session == session
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [pytest.param("stale", id="stale-end"), pytest.param("stage", id="disallowed-end")],
+)
+async def test_refused_end_never_cancels_a_live_submission(
+    repository, session, submission, nth_id, reason
+):
+    now = submission.created_at
+    await repository.create(session)
+    await repository.begin_submission(submission, frozenset({Stage.OPENING}), now)
+    ending = replace(
+        submission,
+        id=nth_id(3),
+        action=Action.END,
+        base_version={"stale": 1, "stage": 0}[reason],
+    )
+    allowed = {"stale": frozenset({Stage.OPENING}), "stage": frozenset()}[reason]
+    error = {"stale": StaleSessionError, "stage": ActionNotAllowedError}[reason]
+    with pytest.raises(error, match=r"version|not allowed"):
+        await repository.begin_submission(ending, allowed, now)
+    assert (await repository.get(session.id)).last_submission == submission
+    stored = await repository.finish_submission(
+        submission.id, replace(session, version=1), (), now
+    )
+    assert stored.session.version == 1
+
+
+async def test_ended_allows_wrap_up_but_a_refused_end_keeps_it_pending(
+    repository, session, submission, fixed_now, nth_id
+):
+    ended = replace(
+        session, status=SessionStatus.ENDED, stage=Stage.ENDED, ended_at=fixed_now
+    )
+    await repository.create(ended)
+    wrapping = replace(submission, action=Action.WRAP_UP)
+    await repository.begin_submission(wrapping, frozenset({Stage.ENDED}), fixed_now)
+    ending = replace(submission, id=nth_id(3), action=Action.END)
+    with pytest.raises(SessionEndedError, match="ended"):
+        await repository.begin_submission(ending, frozenset({Stage.ENDED}), fixed_now)
+    assert (await repository.get(session.id)).last_submission == wrapping

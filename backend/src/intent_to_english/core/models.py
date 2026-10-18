@@ -156,6 +156,7 @@ class Action(StrEnum):
     PRACTICE_AGAIN = "practice_again"
     ASK = "ask"
     END = "end"
+    WRAP_UP = "wrap_up"
 
 
 class EntryKind(StrEnum):
