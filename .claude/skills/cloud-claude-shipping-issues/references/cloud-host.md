@@ -1,0 +1,176 @@
+# The cloud host
+
+What a Claude Code cloud session gives this workflow and what it refuses. Read it once
+before the first run in a cloud session, and again when a GitHub call, a push, or a
+network request fails in a way the workflow does not name. Each item says what to
+expect and what to do instead of working around it.
+
+## Table of Contents
+
+- [Telling the host apart](#telling-the-host-apart)
+- [What the session starts with](#what-the-session-starts-with)
+- [How GitHub is reached](#how-github-is-reached)
+- [A 403 from the proxy](#a-403-from-the-proxy)
+- [A push or every GitHub call fails](#a-push-or-every-github-call-fails)
+- [Branch deletion and tags are refused](#branch-deletion-and-tags-are-refused)
+- [Auto-fix stays off](#auto-fix-stays-off)
+- [Hosts the network level blocks](#hosts-the-network-level-blocks)
+- [Command time limits](#command-time-limits)
+- [Run state lives on the VM](#run-state-lives-on-the-vm)
+
+## Telling the host apart
+
+The session VM's environment carries `CLAUDE_CODE_REMOTE=true`, and it is never `true`
+on a local machine
+([cloud environments, SessionStart hook](https://code.claude.com/docs/en/cloud-environments#install-dependencies-with-a-sessionstart-hook),
+checked 2026-10-07). That one variable is the host test of step 1. Sub-agents work in a
+cloud session as they do locally
+([manage context](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context),
+checked 2026-10-07), so running serially and inline is this skill's choice, not a
+limit of the host.
+
+## What the session starts with
+
+The repository's `.claude/settings.json` holds a SessionStart hook that runs
+`just install` when `CLAUDE_CODE_REMOTE` is `true`, so the environment and the git
+hooks are in place before step 1. It runs the `just` on `PATH` only when that is
+1.42.3 or later, and otherwise `uvx --from 'rust-just>=1.42.3' just install`: the root
+justfile depends on module recipes (`lint: backend::lint`), which Just accepts from
+[1.42.0](https://github.com/casey/just/releases/tag/1.42.0) and runs in the module's
+directory from [1.42.3](https://github.com/casey/just/releases/tag/1.42.3)
+("Run recipes from submodules in correct directory", checked 2026-10-09).
+
+A single-repository cloud session reads that file, and reads neither `~/.claude/settings.json` nor `.claude/settings.local.json`
+([settings in cloud sessions](https://code.claude.com/docs/en/settings#settings-in-cloud-sessions),
+checked 2026-10-07): only what the repository commits applies. When `.venv` is missing
+anyway, run `just install` once before the baseline.
+
+`just install` also runs `pnpm install --frozen-lockfile`, under the root `package.json`'s
+`devEngines.runtime` (`node` `^24.19.0`, `onFail: download`) and
+`"packageManager": "pnpm@11.18.0"`. The image's default Node is 22: "Node.js versions
+are installed at `/opt/node20`, `/opt/node21`, and `/opt/node22`, with 22 on PATH by
+default"
+([installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools),
+checked 2026-10-13), and the docs give no pnpm version. The route to Node 24 is the
+`devEngines` download, with nothing to configure:
+
+- the image's `pnpm` (`/opt/node22/bin/pnpm`, 10.28.0 on 2026-10-13) reads
+  `packageManager` and hands the command to pnpm 11.18.0, which it downloads into
+  `~/.local/share/pnpm/.tools/pnpm/11.18.0/` and runs on the image's Node 22;
+- `pnpm install` downloads the Node release `pnpm-lock.yaml` pins (`runtime:24.21.0`,
+  with its checksum) from `nodejs.org`, on the default allowlist
+  ([default allowed domains](https://code.claude.com/docs/en/cloud-environments),
+  checked 2026-10-13), and links it as `node_modules/.bin/node`: "Scripts use the local
+  runtime" ([`devEngines.runtime`](https://pnpm.io/package_json), checked 2026-10-08 in
+  #3 › D8; `pnpm.io` itself is refused from a session);
+- `pnpm exec` puts that directory ahead of `/opt/node22/bin`, so every frontend recipe
+  runs on Node 24 while the `node` on `PATH` stays 22. The check is therefore
+  `pnpm --dir frontend exec node --version`, never `node --version`.
+
+Verified in a real cloud session on 2026-10-13 (the default image, no setup script,
+#40): the SessionStart hook's `just install` exited 0 and installed `node 24.21.0`;
+`pnpm --version` printed 11.18.0, `pnpm --dir frontend exec node --version` v24.21.0,
+and `just verify` passed. If that ever stops holding, the run stops
+([stop conditions](../SKILL.md#stop-conditions)); an environment setup script that
+installs Node 24, or any other route, is the owner's decision.
+
+## How GitHub is reached
+
+All GitHub traffic goes through Anthropic's GitHub proxy, which swaps in the owner's
+real credentials on the server side
+([GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
+checked 2026-10-07). `gh` is pre-installed and reads the proxy's placeholder token on
+its own; `gh api` calls and `gh` subcommands that use REST work, and the session's
+built-in GitHub tools reach the same REST operations
+([work with GitHub issues and pull requests](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests),
+checked 2026-10-07). This skill spells every operation as a `gh api` call
+([rest-calls.md](rest-calls.md)); a built-in tool doing the same REST operation is an
+equal substitute, never a different operation.
+
+`gh api` fills `{owner}` and `{repo}` from the current directory's repository or from
+`GH_REPO` (`gh api --help`, gh 2.92.0, observed 2026-10-07). Run every call from the
+checkout's root; if `gh` cannot tell the repository from the remote, export
+`GH_REPO=<owner>/<repo>` (the owner and name the session was started on) for the rest
+of the run, so the `gh` calls `review_watch.py` makes itself see it too.
+
+## A 403 from the proxy
+
+The proxy answers three kinds of request with a 403
+([GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
+checked 2026-10-07):
+
+- **GraphQL**, whatever the token: the message starts with
+  `GitHub GraphQL is not available from Claude Code sessions` and names
+  `gh api repos/{owner}/{repo}/...`. `gh pr`, `gh issue`, and every other subcommand
+  built on GraphQL get the same 403, and so does a request with a `GH_TOKEN` you set.
+- **A repository not attached to the session**: the message starts with
+  `GitHub access to` and contains `is not enabled for this session`.
+- **`search/issues`**, refused as out of scope for the session (tomada1114/uv-template#179 › Observed,
+  2026-10-07).
+
+Each one is a stop: report the call and the message, and stop the run. Never retry the
+same operation through another route — a different `gh` subcommand, a hand-built
+GraphQL query, another token, or a browser. The workflow never needs one of these
+calls; reaching one means a step was spelled wrong, and the fix is in this skill.
+
+## A push or every GitHub call fails
+
+A `git push` answered `remote: Internal Server Error` on every retry was cured by the
+owner reconnecting GitHub at <https://claude.ai/connect-github>, after which the same
+push went through (observed 2026-10-07). So when a push, or every `gh api` call, fails
+the same way after a retry: stop, report which operation failed, and ask the owner to
+reconnect there. Never route around it — no REST Git Data API commit, no `--no-verify`
+probe commit. Both are the denied action re-spelled (AGENTS.md "Security and human
+approval"), and the host's permission check refused them anyway (observed 2026-10-07).
+
+## Branch deletion and tags are refused
+
+The proxy rejects branch deletions and pushes of anything other than a branch, such as
+a tag; it does not limit which branch a push updates
+([GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
+checked 2026-10-07). The one-branch rule therefore comes from the session's own
+instructions, and this skill keeps it without a force-push
+([branch upkeep](review-ci-merge.md#branch-upkeep-after-the-merge)). This skill
+deletes no branch. With the repository's `delete_branch_on_merge` on, GitHub removes
+the merged head branch itself; otherwise the branch stays and the next push to it is a
+fast-forward.
+
+## Auto-fix stays off
+
+Auto-fix is a per-pull-request toggle. While it is on, Claude reacts to review comments
+and CI failures on the PR and may reply to review threads, under the owner's GitHub
+account
+([Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests),
+checked 2026-10-07). This skill never replies to or resolves a review thread, so it
+never turns Auto-fix on for a PR it opens. If the session shows Auto-fix on for one of
+the run's PRs, stop and ask the owner to clear the toggle.
+
+## Hosts the network level blocks
+
+Under the default Trusted level, `api.osv.dev` answered 403 (observed 2026-10-07), so a
+local vulnerability lookup for a new dependency cannot run. Say so in the review record
+and let CI's OSV-Scanner and Dependency Review judge the pull request.
+**BACKGROUND:** `managing-dependencies`. A red baseline caused by a refused host is the
+environment's, not the issue's: name the host and the failing check in the report.
+
+## Command time limits
+
+A foreground command gets 2 minutes by default and up to 10 minutes on request; one that
+reaches its timeout moves to the background, where it can run up to 30 more minutes
+([time limits](https://code.claude.com/docs/en/cloud-environments#time-limits),
+checked 2026-10-07). Every wait in this skill is a foreground slice under 10 minutes,
+with the call's own timeout raised to cover it, repeated until a verdict or the step's
+total cap — never a background command, which the next item can lose.
+
+## Run state lives on the VM
+
+After a few minutes idle the VM pauses with its files saved, and a paused VM can be
+reclaimed
+([time limits](https://code.claude.com/docs/en/cloud-environments#time-limits),
+checked 2026-10-07). Reopening a reclaimed session restores the conversation, not the
+background work that was running — sub-agents and shell commands
+([environment expired](https://code.claude.com/docs/en/claude-code-on-the-web#environment-expired),
+checked 2026-10-07). `<runstate>` is on that VM: a run that resumes on a fresh one
+starts with no `run.md`, no review logs, and no `<pr>-rounds.json`. Rebuild what it
+knows from GitHub — the open PR from the session's branch, its review summary, its
+check runs, and the issue's state — before writing anything.

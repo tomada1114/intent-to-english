@@ -1,0 +1,190 @@
+---
+name: writing-tests
+description: >
+  Covers how one test is written: a pytest test under backend/tests/ or tests/ (its
+  test_<what>_<scenario>_<expected> name, Arrange-Act-Assert, the public surface, edge
+  cases, pytest.raises with match=, parametrize ids, factory fixtures, fakes over
+  mocks) or a Vitest test under frontend/tests/ (the it sentence, Testing
+  Library queries by role, user-event, jest-dom matchers, MSW handlers typed from the
+  generated client, findBy over timers); no sleep, skip, .only, or order dependency.
+  Use when writing or reviewing a test, choosing what to assert or fake, or fixing a
+  flaky or skipped test.
+---
+
+# Writing Tests
+
+**Owns:** how one test case is written, pytest or Vitest — its name, the interface it
+goes through, what it asserts, how it fakes the world, and what to reject in review.
+**Does not own:** which file and directory a test lives in, the fixtures' homes, and the
+coverage floor (`placing-tests`); the order of work that puts the test first (`tdd`);
+the mechanics of each seam (`building-api-routes`, `designing-core-logic`); the error
+classes a test asserts against (`designing-errors`); a script's tests
+(`writing-repo-scripts`); how a screen's test renders it and which states it covers
+(`building-screens`).
+
+The sections below are written for pytest. Their principles hold for a frontend test
+too — behavior over implementation, expected values from outside the code, the edge
+cases, fakes over mocks, independence — while its mechanics differ.
+
+## A frontend test
+
+A Vitest test under `frontend/tests/` replaces the pytest mechanics: it is named by the
+behavior sentence passed to `it`, queries in Testing Library's priority order
+(`getByRole` first, `getByTestId` last), drives input with `userEvent.setup()`,
+asserts with the `jest-dom` matchers, answers every request with an MSW handler
+typed from the generated types, and waits with `findBy...` or `waitFor`, never a
+timer. The rules, the MSW server's unhandled-request behavior, and why the client's
+`baseUrl` is `window.location.origin` under `jsdom`:
+[references/frontend-tests.md](references/frontend-tests.md).
+
+## Naming and shape
+
+- Name a test `test_<what>_<scenario>_<expected_result>`:
+  `test_parse_config_empty_string_raises_value_error`. The suite's own
+  `test_unmapped_app_error_returns_400_not_500` reads the same way.
+- Arrange, Act, Assert, in that order. One logical behavior per test; several `assert`
+  statements are fine when they all check that one behavior.
+- Branching inside a test body belongs in a separate test or a parametrized case, never
+  an `if` in the test.
+
+## Test behavior through a public surface
+
+- Test *behavior and contracts*, not implementation details. A test that breaks on a
+  refactor while behavior is unchanged was testing the implementation.
+- Go through each layer's public modules —
+  `from my_app.core.services import TodoService` — never a private helper directly.
+  Wanting to reach a private helper means the module is the wrong shape, not that the
+  test needs an exception.
+- Cover the happy path **and** the error path of every public function.
+- Each layer has one seam, and its skill owns the mechanics:
+  - a route — **REQUIRED:** `building-api-routes` ("Testing a route": the `client`
+    fixture);
+  - a service, a port, or an adapter — **REQUIRED:** `designing-core-logic` (the one
+    repository contract suite, the in-memory fake, and containers built through the
+    composition root rather than wired by hand).
+
+## Async tests
+
+The repository path is async (`designing-core-logic`), so a test of a service, a port, an
+adapter, or a `Container` is an `async def` that awaits it. AnyIO's pytest plugin runs
+it; it ships with AnyIO, which Starlette already depends on, so no test dependency is
+added for it.
+
+- Mark every async test module with `pytestmark = pytest.mark.anyio` below its imports
+  (or one test with `@pytest.mark.anyio`). The marker does nothing to the module's plain
+  `def` tests. An unmarked `async def` test fails, never silently passes: pytest 8.4 and
+  later fail an async test no plugin runs.
+- `anyio_backend` in `backend/tests/conftest.py` is session-scoped and returns
+  `"asyncio"`, so every marked test runs once, on asyncio, even if `trio` is ever
+  installed. Do not redefine it in a module.
+- Run concurrent work in a task group, `async with anyio.create_task_group() as tg:`
+  with `tg.start_soon(...)` per task, as the contract suite's concurrent-adds test does;
+  never worker threads and never `asyncio.sleep` to wait for something.
+- A cleanup callback a test registers on an `AsyncExitStack` is an `async def` passed
+  with its arguments, `resources.push_async_callback(record, closed, "name")`; never a
+  coroutine object, which `aclose()` then tries to call and fails with
+  `TypeError: 'coroutine' object is not callable`.
+- `TestClient` tests stay plain `def`: the client is synchronous and runs the app on its
+  own loop (`building-api-routes`).
+- An async fixture yields what it opens and releases it after the `yield`, on the
+  test's loop. A plain `def` test gets an async fixture only when the fixture takes
+  `anyio_backend` (as `make_container` does) or the test is in an `anyio`-marked
+  module and itself `async def`.
+
+## Expected values come from outside the code
+
+An expected value is a literal, a worked example, or the spec — never recomputed the way
+the implementation computes it. `assert add(a, b) == a + b` passes by construction and
+cannot disagree with a wrong implementation. Write the value you expect by hand. The
+`fixed_now` fixture exists so a timestamp in an assertion is exact rather than
+"whatever the clock said".
+
+Do not write `assert True` or `assert result is not None` when a specific value can be
+checked.
+
+## Edge cases — consider these every time
+
+- **Empty inputs:** empty string, empty list, empty dict, `None` where optional.
+- **Boundary values:** 0, 1, -1, the largest and smallest values the code accepts,
+  `float("inf")`, `float("nan")`; one past every documented limit
+  (`MAX_TITLE_LENGTH` + 1).
+- **Type boundaries:** very long strings, unicode and emoji, mixed encodings,
+  surrounding whitespace.
+- **Collection boundaries:** a single element, duplicate elements, the largest expected
+  size.
+- **Concurrency:** for async code, cancellation and timeouts.
+- **State transitions:** the initial state, after one operation, after repeated
+  operations, and after recovery from an error.
+
+## Errors and exceptions
+
+- `pytest.raises(XError, match=r"expected message")` — always with `match=`. The pattern
+  proves the error was raised for the reason the test claims, not merely that some error
+  of that class surfaced.
+- Test that cleanup runs when an exception occurs: a context manager's exit, a `finally`,
+  a transaction rolled back.
+- Test recovery: after an error, is the object still consistent and usable? Repeat a
+  successful operation after the failed one.
+- An `AppError` crossing the API is asserted as the API reports it — the status and
+  exact body. **BACKGROUND:** `designing-errors`.
+
+## Parametrize instead of copying
+
+- `@pytest.mark.parametrize` for input/output variations; never copy-paste a test body
+  to change one value.
+- Give each case a readable id, `pytest.param(..., id="descriptive-name")`, whenever the
+  raw values would not read as a test name in a failure report.
+- `hypothesis` fits a function with a well-defined invariant over a large input space —
+  a round trip, an idempotent normalization. It is not a dependency here; adding it to
+  the `dev` group is a new dependency. **REQUIRED:** `managing-dependencies`.
+
+## Fixtures
+
+- Prefer a factory fixture to a static one: it returns a callable that builds a
+  customizable object (`def make_user(**overrides)`). `make_container` and
+  `backend/tests/api/test_todos.py`'s `make_todo` are the shape.
+- `tmp_path` for every file the test writes; never write into the repository tree.
+- `monkeypatch` for environment variables and attributes — `monkeypatch.setenv`,
+  never `os.environ[...] =` — so the change is undone after the test.
+- A fixture that opens a resource `yield`s it and cleans up after the `yield`, so the
+  teardown runs even when the test fails.
+- Scope a fixture `function` (the default) for isolation; `session` only for setup that
+  is truly expensive and never mutated.
+
+## Fakes over mocks
+
+- Mock only at a boundary: I/O, network, clock, a subprocess, an external service —
+  never the unit under test and never an internal collaborator.
+- Prefer a fake (a real in-memory implementation) to a mock for a repository or a store.
+  `InMemoryTodoRepository` is the core's fake, `fixed_clock` fixes time, and `new_id`
+  fixes ids; all are real code paths, so the code under test runs as in production.
+- Assert on outcomes and captured arguments, not on how many times something was called
+  — except when the call itself is the contract: retry or rate-limit behavior, a step
+  that must be skipped, proving that no network call happened.
+- A test needing more than two mocks usually means the code under test has too many
+  dependencies; reshape the code rather than the test.
+
+## Independence and reliability
+
+- No shared mutable state and no ordering dependency. Each test passes alone
+  (`uv run --locked --directory backend pytest tests/<layer>/test_<module>.py::test_<name>`
+  for an app test, `uv run --locked pytest tests/test_<module>.py::test_<name>` for a root one),
+  in any order, in any process: `just test` runs the suite with `pytest-xdist`
+  (`-n auto`) and CI also runs it across processes, so a hidden dependency surfaces as
+  an intermittent failure.
+- No `time.sleep()`: inject the clock (`fixed_clock`) or patch it with `monkeypatch`.
+- No `@pytest.mark.skip`, `xfail`, or TODO test on `main`, and no `.only`, `.skip`, or
+  `.todo` in a Vitest file — fix the test or delete it. Skipping a test is weakening a
+  gate (AGENTS.md's "Security and human approval").
+- A flaky test is fixed immediately, never retried or ignored.
+
+## Anti-patterns to reject in review
+
+- Testing getters and setters while a business rule's edge cases go untested.
+- A vague assertion where a specific value is checkable.
+- Testing that a dependency works (that `json.loads` parses JSON) rather than how this
+  code uses it.
+- Mocking so much that the real code under test never runs — tests against real
+  collaborators catch real bugs.
+- A trivial test written only to move the coverage number. **BACKGROUND:**
+  `placing-tests` on what the floor measures.

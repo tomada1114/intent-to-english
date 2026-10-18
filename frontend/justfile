@@ -1,0 +1,51 @@
+# The React app's recipes, a just module of the root justfile: run them as
+# `just frontend <recipe>` from anywhere in the repository. Each runs in this
+# directory, where pnpm finds the workspace root (pnpm-workspace.yaml) by
+# walking up, and `pnpm exec` refuses a node_modules that no longer matches
+# pnpm-lock.yaml (verifyDepsBeforeRun).
+
+# Install the workspace's locked JavaScript dependencies
+install:
+    pnpm install --frozen-lockfile
+
+# Format and apply safe lint fixes to the frontend (Biome)
+fmt:
+    pnpm exec biome check --write .
+
+# Lint the frontend (biome ci) and type-check it (tsc under the strict flags)
+lint:
+    uv run --locked python ../scripts/check_generated_client.py --scope-only
+    pnpm exec biome ci .
+    pnpm exec tsc --noEmit
+
+# Run the frontend tests with coverage (80% lines, functions, statements, branches)
+test:
+    pnpm exec vitest run --coverage
+
+# vite build regenerates src/routeTree.gen.ts from src/routes/. The check after
+# it compares the tree with the Git index, not the commit, so a regenerated tree
+# that is staged passes; `git status --porcelain` would also list a staged file.
+# When it fails, the build has already rewritten the tree: review and stage it.
+# Build the frontend into frontend/dist; fail when the route tree is unstaged
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pnpm exec vite build
+    tree=src/routeTree.gen.ts
+    if ! git ls-files --error-unmatch -- "$tree" >/dev/null 2>&1; then
+      echo "error: frontend/$tree is not tracked by Git." >&2
+      echo "The build generated it from src/routes/: review it, then git add it." >&2
+      exit 1
+    fi
+    if ! git diff --quiet -- "$tree"; then
+      echo "error: frontend/$tree differs from the Git index." >&2
+      echo "The build regenerated it from src/routes/: review it, then git add it." >&2
+      exit 1
+    fi
+
+# Never ends on its own; an agent runs it only inside its own `just dev` pair on
+# free ports (running-the-app). VITE_PORT moves it; MY_APP_API_PORT moves the
+# API that /api and /healthz are proxied to (vite.config.ts).
+# Human-run: serve the frontend with Vite's dev server on http://localhost:${VITE_PORT:-5173}
+dev:
+    pnpm exec vite

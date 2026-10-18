@@ -1,0 +1,163 @@
+# Contributing
+
+Thank you for considering a contribution! This document explains how to set up
+your development environment and submit changes.
+
+## Prerequisites
+
+Install these tools:
+
+- [Python 3.14+](https://www.python.org/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.11.8 or later
+  (`pyproject.toml`'s `required-version`; the relative `exclude-newer` and its lockfile form need it)
+- [Node.js 24](https://nodejs.org/) (`.node-version`). `pnpm install`
+  downloads the Node.js 24 release `pnpm-lock.yaml` pins when the `node` on
+  your `PATH` is another version, and runs the frontend's tools on it.
+- [pnpm](https://pnpm.io/) 11, through `corepack enable` (Node.js 24 ships
+  Corepack); any pnpm 11 fetches the version `package.json`'s `packageManager` pins. pnpm is the
+  only JavaScript package manager here: no `npm`, `yarn`, or `bun`.
+- [Just](https://just.systems/man/en/installation.html) 1.42.3 or later
+  (optional — you can run the `uv run` and `pnpm` commands directly). The root
+  `justfile` loads `backend/justfile` and `frontend/justfile` as modules
+  (`just backend <recipe>`, `just frontend <recipe>`), and its `lint` and
+  `test` recipes depend on module recipes (`lint: backend::lint
+  frontend::lint`). Just accepts such a dependency from 1.42.0, and from 1.42.3
+  runs it in the module's directory (`backend/`, `frontend/`) as it must; an
+  older Just fails to parse the `justfile` or runs an area's commands from the
+  repository root.
+
+No Docker is needed: the development database is a SQLite file.
+
+Then install the dependencies and the git hooks (without Just, run the
+`install` recipe's commands from the `justfile`):
+
+```bash
+just install
+```
+
+The hooks are required: they carry the secret gate that refuses a commit
+staging a secret, and `just install` fails if one is missing (README's
+"Development" section has the details).
+
+## Development Workflow
+
+```bash
+# Install the Python and JavaScript dependencies and the git hooks
+just install
+
+# Human-run: migrate backend/var/dev.db, then serve the screen on
+# http://localhost:5173 and the API on http://127.0.0.1:8000 until Ctrl-C
+just dev
+
+# Format and auto-fix
+just fmt
+
+# Lint + type check
+just lint
+
+# Run tests
+just test
+
+# Run only the backend's tests, with its coverage floor (`just --list backend` lists the rest)
+just backend test
+
+# Run only the frontend's tests, with its coverage floor (`just --list frontend` lists the rest)
+just frontend test
+
+# Regenerate frontend/openapi.json and the typed API client after an API change
+just contract
+
+# Run the browser test: the built screen against the real API on a throwaway SQLite
+# file, on free ports (download Chromium once: pnpm --dir e2e exec playwright install chromium)
+just e2e
+
+# Mutating development check (format → lint → test)
+just check
+
+# Non-mutating PR/completion gate (its steps: AGENTS.md's Quick Reference)
+just verify
+```
+
+**Without Just**, run the `uv run` and `pnpm` commands the `justfile` gives each
+recipe (`just verify` runs the recipes its own line in the `justfile` names),
+and a `backend::` or `frontend::` recipe's commands from that area's `justfile`
+inside its directory.
+
+## Worktrees
+
+Install the Git hooks once in the primary checkout with `just install`. For a
+manually managed issue worktree, provision it from the primary checkout under a
+directory outside that checkout:
+
+```bash
+just worktree-setup 123 codex/123-short-description origin/main "$HOME/.local/state/linked-worktrees" 'just verify'
+```
+
+The existing `shipping-issues` provisioner creates the linked worktree, recreates its
+`.venv` from `uv.lock` and, once `pnpm-lock.yaml` exists, its `node_modules` with
+`pnpm install --frozen-lockfile`, checks the shared hook, and runs the requested
+baseline. It never copies `.env*`, personal settings, or the primary checkout's `.venv`
+or `node_modules`.
+
+When Codex has already created a linked worktree, run `just worktree-prepare` from
+that checkout to recreate its locked environment. This runs `uv sync` and, once
+`pnpm-lock.yaml` exists, `pnpm install --frozen-lockfile`; it does not reinstall the
+shared hook. A fresh, independent checkout should use `just install`
+instead.
+
+Cleanup requires an explicit worktree root and branch. Preview first:
+
+```bash
+just worktree-clean "$HOME/.local/state/linked-worktrees" codex/123-short-description
+```
+
+Only after reviewing the paths, apply it with `just worktree-clean-apply` and the same
+arguments. The cleaner delegates to the `shipping-issues` helper, which keeps a branch
+unless its exact tip is the head of a merged PR, no PR is open for the branch, and the
+worktree has no uncommitted changes. It does not delete remote branches or bypass those
+checks. Applying cleanup also removes ignored files such as `.venv` and caches; copy
+anything worth keeping before applying. For worktrees whose lifecycle is owned by
+Codex itself and is not visible to `git worktree list`, use Codex's worktree controls
+after checking the work is preserved.
+
+## Pull Request Process
+
+1. Fork the repository and create a branch from `main`
+2. Make your changes
+3. Apply formatting with `just fmt`, commit the result, then ensure `just verify` passes
+4. Write or update tests for your changes
+5. Open a pull request using the PR template
+
+### Code Standards
+
+- All public functions and methods must have type annotations
+- mypy strict mode must pass
+- Ruff must pass with no warnings
+- Maintain or improve test coverage (minimum 80%)
+
+### Commit Messages
+
+Use Conventional Commits for both commits and PR titles:
+
+```
+<type>(<optional-scope>): <short summary>
+```
+
+Examples:
+
+- `feat: add JSON export support`
+- `fix(api): handle empty input`
+- `docs: update installation guide`
+
+The accepted types are declared in
+[the PR title workflow](.github/workflows/check-pr-title.yml) under `types:`.
+
+### Shipped Changes
+
+Merged pull requests and closed issues record what has shipped. Use `git log`
+for the local history and the repository's pull request and issue lists for context.
+
+## Getting Help
+
+If something is unclear, open an issue or start a discussion. We're happy to
+help you get started.

@@ -1,0 +1,68 @@
+# The JavaScript side of the repository: a pnpm workspace whose members each
+# carry their own package.json. pnpm-lock.yaml beside this file locks them all.
+packages:
+  - "frontend"
+  - "e2e"
+
+# The pnpm supply-chain policy, declared here so it is reviewable in a diff and
+# applies to every install (local, CI, a shipping worktree) without relying on
+# per-developer configuration. Loosening any key below weakens a gate
+# (`changing-gates`), which is the owner's decision.
+
+# Reproduce the pnpm version package.json's packageManager pins when the local
+# pnpm differs, instead of failing the install or running another version.
+pmOnFail: download
+
+# Refuse to run a script (`pnpm run`, `pnpm exec`) against a node_modules that no
+# longer matches the lockfile, instead of letting a gate pass on stale
+# dependencies.
+verifyDepsBeforeRun: error
+
+# Supply-chain window: refuse dependency versions published less than 7 days
+# (10080 minutes) ago, so a compromised or broken release has time to be found
+# before it can enter this project. Equal to the root pyproject.toml's
+# `[tool.uv] exclude-newer = "7 days"`: one window for the whole repository.
+minimumReleaseAge: 10080
+# Apply the window to every version, including ones already in the lockfile.
+minimumReleaseAgeStrict: true
+# Fail closed when registry metadata has no publish time, rather than assuming
+# the version is old enough.
+minimumReleaseAgeIgnoreMissingTime: false
+
+# Reject a dependency whose provenance or trusted-publisher level regressed
+# compared with a previously published version.
+trustPolicy: no-downgrade
+# Never trust the trust metadata recorded in a lockfile a contributor produced
+# under a weaker policy; re-verify it against the registry.
+trustLockfile: false
+# Refuse transitive dependencies fetched from git or arbitrary tarball URLs.
+blockExoticSubdeps: true
+
+# One reviewed trust exception, decided by the owner on 2026-10-13 (#20).
+# semver@6.3.1 carries no provenance while earlier-published semver releases
+# do, so trustPolicy: no-downgrade refuses it. It is reached only through
+# @tanstack/router-plugin (a build-time dev dependency) -> @babel/core 7 and its
+# Babel siblings, whose `^6.3.1` range no other version satisfies. Exempting
+# this one version keeps every other trust check. Drop it once semver 6.3.1
+# regains provenance or nothing reaches for semver@6 (e.g. router-plugin moves
+# to Babel 8, which no longer depends on semver).
+trustPolicyExclude:
+  - semver@6.3.1
+
+# Unmet or conflicting peer ranges are errors, not warnings.
+strictPeerDependencies: true
+# Fail the install when a dependency wants to run a lifecycle script that is
+# not ruled on in allowBuilds below.
+strictDepBuilds: true
+
+# Install-script allowlist. Every entry is a reviewed exception, with a comment
+# saying what the script does and why: `false` when the package works without
+# it, `true` only with the owner's sign-off, like a new package.
+allowBuilds: {}
+
+# Owner-approved (#27, 2026-10-13): the generator's parser pins vulnerable
+# js-yaml 4.2.0. This scoped override selects the 4.3.2 security fix, released
+# 2026-08-26 and admitted by the seven-day window, without changing policy.
+# Remove when the parser itself uses js-yaml >=4.3.2.
+overrides:
+  "@hey-api/json-schema-ref-parser@1.4.4>js-yaml": "4.3.2"

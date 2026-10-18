@@ -1,0 +1,220 @@
+"""Runtime configuration from ``MY_APP_`` environment variables and backend/.env."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Annotated, Literal
+from urllib.parse import parse_qs, parse_qsl, unquote, urlsplit
+
+from pydantic import AnyHttpUrl, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+ENV_PREFIX = "MY_APP_"
+ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+SQLITE_URL_PREFIX = "sqlite+aiosqlite:///"
+POSTGRESQL_URL_PREFIX = "postgresql+asyncpg://"
+# The blocking driver's form, refused with a pointer to the async one.
+SYNC_SQLITE_URL_PREFIX = "sqlite:///"
+SQLITE_MEMORY_PATH = ":memory:"
+# SQLAlchemy separates these Python driver options from native SQLite URI options:
+# https://docs.sqlalchemy.org/en/21/dialects/sqlite.html#uri-connections
+# Checked 2026-10-13 against the pinned 2.1.1 driver's create_connect_args.
+SQLITE_DRIVER_OPTIONS = frozenset(
+    {
+        "uri",
+        "timeout",
+        "isolation_level",
+        "detect_types",
+        "check_same_thread",
+        "cached_statements",
+    }
+)
+SQLITE_TRUE_VALUES = frozenset({"true", "yes", "on", "y", "t", "1"})
+CORS_ORIGIN_PATTERN = re.compile(r"^https?://[^/\s?#]+$")
+
+
+class Settings(BaseSettings):
+    """Configuration shared by every entry point.
+
+    Pydantic belongs here because this is a deserialization boundary: strings
+    from the environment or optional backend/.env become typed values before the
+    composition root sees them.
+
+    Attributes:
+        database_url: A SQLAlchemy URL for an async driver —
+            ``sqlite+aiosqlite:///<path>`` for a SQLite file or
+            ``postgresql+asyncpg://...`` for a PostgreSQL server — selects the
+            SQL repository; unset (or set to an empty string) keeps to-dos in
+            memory for the life of the process. Read from
+            ``MY_APP_DATABASE_URL``. The database must already be migrated
+            (``just backend db-upgrade``): the app never creates its schema.
+        cors_origins: Exact HTTP(S) origins allowed to call the API, from
+            comma-separated ``MY_APP_CORS_ORIGINS``; empty disables CORS.
+        log_level: DEBUG, INFO, WARNING or ERROR, case-insensitive; blank uses INFO.
+        log_format: text or JSON lines; blank uses text.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix=ENV_PREFIX,
+        env_file=ENV_FILE,
+        env_file_encoding="utf-8",
+        dotenv_filtering="match_prefix",
+    )
+
+    database_url: str | None = None
+    cors_origins: Annotated[list[str], NoDecode] = []
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_format: Literal["text", "json"] = "text"
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _parse_log_level(cls, value: str) -> str:
+        """Keep levels case-insensitive and blank values at the default."""
+        return value.upper() if value else "INFO"
+
+    @field_validator("log_format", mode="before")
+    @classmethod
+    def _parse_log_format(cls, value: str) -> str:
+        """Treat an empty environment value as the text default."""
+        return value or "text"
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _parse_cors_origins(cls, value: str | list[str]) -> list[str]:
+        """Accept exact browser origins, with blanks meaning CORS is disabled.
+
+        Raises:
+            ValueError: If an item has no HTTP scheme or includes a path.
+        """
+        items = value.split(",") if isinstance(value, str) else value
+        origins: list[str] = []
+        for item in items:
+            origin = item.strip()
+            if not origin:
+                continue
+            normalized = _normalize_browser_origin(origin)
+            if normalized is None:
+                msg = f"invalid CORS origin {origin!r}: use http(s)://host[:port] without a path"
+                raise ValueError(msg)
+            if normalized not in origins:
+                origins.append(normalized)
+        return origins
+
+    @field_validator("database_url")
+    @classmethod
+    def _require_async_database_url(cls, value: str | None) -> str | None:
+        """Reject any URL the SQL repository could not open.
+
+        String rules only, so this module imports no database library. Failing
+        here, at startup, beats failing on the first request. An empty value
+        counts as unset: ``MY_APP_DATABASE_URL=`` in a shell or an env file
+        usually means "no database", not a malformed one.
+
+        Raises:
+            ValueError: If the URL names no supported async driver, or a
+                SQLite target that is not a file.
+        """
+        if not value:
+            return None
+        if value.startswith(SQLITE_URL_PREFIX):
+            _check_sqlite_path(value, value.removeprefix(SQLITE_URL_PREFIX))
+        elif value.startswith(POSTGRESQL_URL_PREFIX):
+            if value == POSTGRESQL_URL_PREFIX:
+                msg = (
+                    f"must name a server after '{POSTGRESQL_URL_PREFIX}', got {value!r}"
+                )
+                raise ValueError(msg)
+        elif value.startswith(SYNC_SQLITE_URL_PREFIX):
+            msg = (
+                f"{value!r} names the blocking sqlite driver; use "
+                f"'{SQLITE_URL_PREFIX}<path>' instead"
+            )
+            raise ValueError(msg)
+        else:
+            msg = (
+                f"must start with '{SQLITE_URL_PREFIX}' or "
+                f"'{POSTGRESQL_URL_PREFIX}', got {value!r}"
+            )
+            raise ValueError(msg)
+        return value
+
+
+def _check_sqlite_path(url: str, path: str) -> None:
+    """Refuse a SQLite target that is not a file the pool can share.
+
+    Raises:
+        ValueError: If ``path`` is empty, the in-memory database, or a
+            directory.
+    """
+    path, memory = _sqlite_target(path)
+    if not path:
+        msg = f"must name a file after '{SQLITE_URL_PREFIX}', got {url!r}"
+        raise ValueError(msg)
+    if memory:
+        msg = (
+            f"{url!r} is not supported: migrations and the application use separate "
+            "engine/process lifetimes, so the migrated in-memory schema would not "
+            "persist. Unset the variable to use the in-memory store."
+        )
+        raise ValueError(msg)
+    if path.endswith("/"):
+        msg = f"must name a file, not a directory, got {url!r}"
+        raise ValueError(msg)
+
+
+def _sqlite_target(target: str) -> tuple[str, bool]:
+    """Interpret the SQLAlchemy database component before native URI validation.
+
+    Split query options before decoding a literal filename: an escaped question
+    mark is part of that filename. In URI mode, SQLAlchemy forwards non-Python
+    options into the native file URI; SQLite then decodes its path/query again.
+    Keep this boundary in stdlib strings and confirm it with driver-level tests.
+    """
+    database, _, query = target.partition("?")
+    path = unquote(database)
+    options = parse_qs(query)
+    uri_values = options.get("uri", [])
+    # SQLAlchemy coerces a repeated option's tuple with bool(), hence True even
+    # for repeated false strings; one string uses its normal boolean vocabulary.
+    uri = len(uri_values) > 1 or any(
+        value.strip().lower() in SQLITE_TRUE_VALUES for value in uri_values
+    )
+    memory = path == SQLITE_MEMORY_PATH
+    if uri and path.startswith("file:"):
+        forwarded = "&".join(
+            f"{key}={values[0] if len(values) == 1 else tuple(values)}"
+            for key, values in sorted(options.items())
+            if key not in SQLITE_DRIVER_OPTIONS
+        )
+        filename = path + (f"?{forwarded}" if forwarded else "")
+        parsed = urlsplit(filename)
+        path = unquote(parsed.path)
+        memory = path == SQLITE_MEMORY_PATH or ("mode", "memory") in parse_qsl(
+            parsed.query
+        )
+    return path, memory
+
+
+def _normalize_browser_origin(origin: str) -> str | None:
+    """Reject origin strings a browser cannot send in its Origin header."""
+    if CORS_ORIGIN_PATTERN.fullmatch(origin) is None or "*" in origin or "\\" in origin:
+        return None
+    try:
+        parsed = urlsplit(origin)
+        # Access validates both the port range and its numeric spelling.
+        _ = parsed.port
+    except ValueError:
+        return None
+    if not parsed.hostname or (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.netloc.endswith(":")
+    ):
+        return None
+    try:
+        return str(AnyHttpUrl(origin)).removesuffix("/")
+    except ValueError:
+        return None

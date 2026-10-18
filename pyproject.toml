@@ -1,0 +1,247 @@
+# The uv workspace root. It is virtual: no `[project]` and no `[build-system]`,
+# so there is no root package. The app is the `backend` member
+# (backend/pyproject.toml); the workspace shares this file's `[tool.uv]`, its
+# `dev` group (the repository's tooling, and everything the app's tests need),
+# and one uv.lock. The tool tables below configure the repository's own code:
+# scripts/, the root tests/, and the skill scripts under .agents/skills/.
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "httpx2>=2.13",
+    "mypy>=2.3.1",
+    "pre-commit>=4.6.2",
+    "pytest>=8.0",
+    "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.6",
+    "pyyaml>=6.0",
+    "ruff>=0.16.8",
+]
+
+# --------------------------------------------------------------------------- #
+#  uv
+# --------------------------------------------------------------------------- #
+
+[tool.uv]
+# A relative `exclude-newer` needs uv 0.9.17 or later ("Add support for
+# relative durations in `exclude-newer`", uv changelogs/0.9.x.md), and uv.lock
+# records it the way 0.11.8 and later write it ("Use a sentinel timestamp for
+# relative `exclude-newer` ... values in lockfiles", changelogs/0.11.x.md), so an
+# older uv could rewrite the lock and fail `uv lock --check`.
+required-version = ">=0.11.8"
+# `uv lock` and `uv sync` ignore any release younger than 7 days. It must equal
+# the `uv` entry's `cooldown.default-days` in .github/dependabot.yml, so
+# Dependabot almost never proposes a version this window refuses to lock.
+exclude-newer = "7 days"
+
+[tool.uv.workspace]
+members = ["backend"]
+
+# --------------------------------------------------------------------------- #
+#  Ruff – linter & formatter
+# --------------------------------------------------------------------------- #
+
+[tool.ruff]
+line-length = 88
+# Ruff infers its target from `requires-python`, which this virtual root has
+# none of (the app's is in backend/pyproject.toml), so it is stated here. It
+# must agree with that floor (tests/harness/test_python_baseline.py).
+target-version = "py314"
+src = ["scripts", "tests"]
+# The generated skills mirror is linted through its source, .agents/skills.
+extend-exclude = [".claude/skills"]
+
+# Skill scripts run under whatever `python3` the host provides, which may be
+# older than the project's own 3.14 floor: the floor is 3.9, macOS's
+# /usr/bin/python3 (CI's `Skill Scripts (Python 3.9)` job runs them there). Pin them below the project
+# target-version so neither the formatter nor version-specific lint rules
+# introduce syntax (e.g. PEP 758 unparenthesized `except`) that would be a
+# SyntaxError there. `**` so a skill's bundled `scripts/tests/` is pinned too:
+# those tests import the scripts and run under the same interpreters.
+[tool.ruff.per-file-target-version]
+".agents/skills/*/scripts/**/*.py" = "py39"
+# pre-commit runs the secret gate with its own interpreter (`language: python`),
+# and pre-commit supports Python 3.10+.
+"scripts/check_staged.py" = "py310"
+
+[tool.ruff.lint]
+select = [
+    # --- Core ---
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    # --- Modern Python ---
+    "UP",   # pyupgrade
+    # --- Bug prevention ---
+    "B",    # flake8-bugbear
+    "S",    # flake8-bandit (security)
+    "A",    # flake8-builtins
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    # --- Code quality ---
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+    "RET",  # flake8-return
+    "ARG",  # flake8-unused-arguments
+    "ERA",  # eradicate (commented-out code)
+    "PL",   # pylint
+    # --- Performance ---
+    "PERF", # perflint
+    "FURB", # refurb
+    # --- Type checking ---
+    "TC",   # flake8-type-checking
+    # --- Style ---
+    "COM",  # flake8-commas
+    "PTH",  # flake8-use-pathlib
+    "SLF",  # flake8-self
+    "T20",  # flake8-print
+    "LOG",  # flake8-logging
+    # --- Documentation ---
+    "D",    # pydocstyle
+    # --- Testing ---
+    "PT",   # flake8-pytest-style
+    # --- Naming ---
+    "N",    # pep8-naming
+    # --- Error handling ---
+    "TRY",  # tryceratops
+    "EM",   # flake8-errmsg
+    # --- Datetime safety ---
+    "DTZ",  # flake8-datetimez
+    # --- Exception hygiene ---
+    "RSE",  # flake8-raise
+    # --- pygrep hooks ---
+    "PGH",  # pygrep-hooks
+    # --- Ruff-specific ---
+    "RUF",  # ruff-specific rules
+    # --- Layer boundaries ---
+    "TID251", # backend/ extends this selection with its banned-api table
+]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "COM812", # missing trailing comma — conflicts with formatter
+    "ISC001", # implicit string concatenation — conflicts with formatter
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# Pydantic and FastAPI read annotations at run time, so the types they
+# name must stay real imports rather than move under `if TYPE_CHECKING:`.
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
+]
+runtime-evaluated-decorators = [
+    "fastapi.APIRouter.get",
+    "fastapi.APIRouter.post",
+    "fastapi.APIRouter.put",
+    "fastapi.APIRouter.patch",
+    "fastapi.APIRouter.delete",
+    "fastapi.FastAPI.get",
+    "fastapi.FastAPI.post",
+    "fastapi.FastAPI.put",
+    "fastapi.FastAPI.patch",
+    "fastapi.FastAPI.delete",
+    "fastapi.FastAPI.exception_handler",
+]
+
+# backend/pyproject.toml replaces this table with the app's own entries and
+# its banned-api layer boundary.
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # assert is fine in tests
+    "ARG001",  # unused arguments (fixtures)
+    "PLR2004", # magic numbers in tests
+    "T20",     # print in tests
+    "D1",      # missing docstrings — test names are self-documenting
+]
+"scripts/**" = [
+    "D1",  # missing docstrings — scripts are not a public API
+    "T20", # print is the expected output channel for CLI scripts
+]
+# Skill scripts belong here; authoring-skills' "Scripts bundled inside a skill"
+# section records ownership and deliberate per-change porting to other templates.
+# They are stdlib-only CLI tools run with the system `python3` and tested with
+# unittest, never part of the package's public API. These scoped waivers do not
+# affect backend/, scripts/ or tests/.
+".agents/skills/**/scripts/**" = [
+    "D1",      # missing docstrings — CLI helpers, not a public API
+    "T20",     # print is the CLI's output channel
+    "S603",    # subprocess with an argv list built from fixed commands (gh, git)
+    "S607",    # `gh`/`git` resolved from PATH on purpose, like a shell would
+    "PLW1510", # subprocess.run callers check returncode themselves
+    "B904",    # re-raised SystemExit carries the user-facing message on its own
+    "E402",    # sys.path set up before a sibling-script import
+    "PLR0911", # long dispatch functions mirror the documented exit codes
+    "PLR0912", # dispatch branches mirror documented CLI outcomes
+    "PLR0915", # sequential CLI steps retain the documented workflow
+    "PLR2004", # exit codes and limits are documented in each script's header
+    "PLW0603", # module-level CLI state set once from argv
+    "RUF001",  # deliberate typographic characters in user-facing output
+    "TC003",   # runtime imports kept simple in stdlib-only scripts
+    "DTZ011",  # an issue's age in local days is approximate by design
+]
+".agents/skills/**/scripts/tests/**" = [
+    "D",       # test names are self-documenting
+    "PT",      # unittest.TestCase style: the tests run without pytest
+    "S108",    # fixture paths under /tmp are never written
+    "SLF001",  # tests reach a script's private helpers on purpose
+    "N802",    # unittest's setUp/tearDown-style method names
+    "PLC0415", # imports inside a test keep a fixture's module load local
+    "PLR0913", # fake command runners expose independent response and exit fixtures
+    "PLW2901", # fixture loops deliberately rebind values for each scenario
+    "RUF005", # list concatenation keeps command argv fixtures explicit
+    "RUF059",  # unpacked-but-unused results document the call's shape
+    "SIM117", # nested contexts preserve the upstream unittest fixture layout
+]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# --------------------------------------------------------------------------- #
+#  mypy – strict type checking
+# --------------------------------------------------------------------------- #
+
+[tool.mypy]
+# One target list for local verification, CI and the non-shell pre-commit entry.
+# Authored production modules only; skill unittest fixtures keep their own runner.
+# The app is checked by its own run from backend/ (`uv run --locked --directory
+# backend mypy`), whose `tests` package would collide with this one.
+files = ["scripts", "tests", ".agents/skills/*/scripts/*.py"]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+show_error_codes = true
+enable_error_code = ["ignore-without-code", "redundant-cast", "truthy-bool"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+
+# --------------------------------------------------------------------------- #
+#  pytest
+# --------------------------------------------------------------------------- #
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--import-mode=importlib",
+    "--strict-markers",
+    "--strict-config",
+]
+# Any warning fails the run, so a deprecation surfaces here before the upgrade
+# that removes the deprecated path. Silence one only by a narrow entry with a
+# reason comment and a follow-up issue (changing-gates).
+filterwarnings = ["error"]
