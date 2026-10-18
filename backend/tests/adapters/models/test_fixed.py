@@ -387,3 +387,39 @@ async def test_refreshing_template_replaces_the_whole_word_match_not_an_earlier_
     assert isinstance(output, c.Feedback)
     assert output.template == "It was refreshingly cool, but I feel (①) ____ today."
     assert c.check_feedback(request, output) == ()
+
+
+@pytest.mark.parametrize(
+    "english",
+    [
+        "I went to __ yesterday.",
+        "I feel refreshing at (②) ____.",
+        "① I went yesterday.",
+        "I wrote ⑳ in my notes.",
+    ],
+    ids=["underscores", "existing-blank", "first-number", "last-number"],
+)
+async def test_reserved_learner_markers_do_not_become_invalid_retry_templates(english):
+    request = c.FeedbackRequest(None, english, None, (), ())
+    coach = fixed.FixedCoachModel()
+    result = await coach.feedback(request)
+    assert result.output == c.Feedback("いいですね\uff01そのままで伝わります")
+    assert c.check_feedback(request, result.output) == ()
+    assert result == await coach.feedback(request, m.Repair(()))
+
+
+async def test_reserved_marker_fallback_keeps_reading_question_and_chosen_note():
+    coach = fixed.FixedCoachModel()
+    request = c.FeedbackRequest(None, "I leave at (②) ____.", None, (), ())
+    assert (await coach.feedback(request)).output == c.ReadingQuestion(
+        "leave", ("leave", "live")
+    )
+    chosen = c.FeedbackRequest(
+        None, request.english, c.ReadingChoice("leave", "live"), (), ()
+    )
+    output = (await coach.feedback(chosen)).output
+    assert output == c.Feedback(
+        "いいですね\uff01そのままで伝わります",
+        readings_noted=(c.ReadingNote("leave", "live"),),
+    )
+    assert c.check_feedback(chosen, output) == ()

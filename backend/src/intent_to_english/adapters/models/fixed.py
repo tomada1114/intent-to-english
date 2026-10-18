@@ -21,6 +21,9 @@ Unchosen leave asks leave/live; a choice never asks again. Choosing live records
 leave as live (「leave は live として読みました」) and interprets the English that way.
 Bang means no fix: 「いいですね\uff01そのままで伝わります」. A one-word default also
 uses that line so a single replacement cannot leak the whole completed sentence.
+After leave/!, learner text containing circled numbers ① through ⑳ or two consecutive
+underscores uses that no-fix line too: those reserved template markers cannot be
+copied into a retry without violating the core checks. Reading notes are retained.
 Refreshing gets one ミス fix to refreshed, with reason
 「自分の気分は -ed。-ing だと「人をさわやかにさせる」」. The default's first word
 gets an 改善 fix to ``Actually, <word>``, with reason
@@ -60,6 +63,7 @@ _OPENERS = (
 _LEAVE = re.compile(r"\bleave\b", re.IGNORECASE)
 _REFRESHING = re.compile(r"\brefreshing\b", re.IGNORECASE)
 _BLANK = re.compile(r"\(([①-⑳])\) ____")
+_RESERVED_MARKER = re.compile(r"[①-⑳]|_{2,}")
 _NO_FIX = "いいですね\uff01そのままで伝わります"
 _MISS_REASON = "自分の気分は -ed。-ing だと「人をさわやかにさせる」"
 _IMPROVEMENT_REASON = "元のままでも通じる。Actually, で始めると話を続ける感じが出る"
@@ -143,7 +147,7 @@ class FixedCoachModel:
         if _LEAVE.search(request.english) and request.reading is None:
             return _parsed(c.ReadingQuestion("leave", ("leave", "live")))
         english, notes = _read_english(request)
-        if english.rstrip().endswith("!"):
+        if english.rstrip().endswith("!") or _RESERVED_MARKER.search(english):
             return _parsed(c.Feedback(_NO_FIX, readings_noted=notes))
         refreshing = _REFRESHING.search(english)
         if refreshing is not None:
