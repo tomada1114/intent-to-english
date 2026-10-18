@@ -493,7 +493,9 @@ class ConversationService:
         normalized = flow.check_input(request.action, request.input)
         if isinstance(normalized, models.ReadingInput):
             reading = session.turn_state.reading
-            if reading is None or normalized.reading not in reading.readings:
+            if reading is None or normalized.reading not in tuple(
+                option.strip() for option in reading.readings
+            ):
                 field = "reading"
                 raise errors.InvalidInputError(
                     field, coaching.READING_OPTIONS, len(normalized.reading)
@@ -674,20 +676,24 @@ class ConversationService:
                     self._clock(),
                 )
             )
+            await self._require_pending(work)
 
+        await self._require_pending(work)
         result = await MODEL_TASKS[task].run(
             self._partner, self._coach, request, record=record
         )
         if result.error is not None:
-            current = (await self._repository.get(work.session.id)).last_submission
-            if (
-                current is None
-                or current.id != work.submission.id
-                or current.status is not models.SubmissionStatus.PENDING
-            ):
-                raise errors.ActionCancelledError
             raise result.error
         return result.output
+
+    async def _require_pending(self, work: _ActionWork) -> None:
+        current = (await self._repository.get(work.session.id)).last_submission
+        if (
+            current is None
+            or current.id != work.submission.id
+            or current.status is not models.SubmissionStatus.PENDING
+        ):
+            raise errors.ActionCancelledError
 
     async def _open(self, work: _ActionWork) -> None:
         previous = await self._repository.previous_opener(work.session.id)
@@ -996,4 +1002,7 @@ def _apply_reading(english: str, note: coaching.ReadingNote) -> str:
     def replacement(_match: re.Match[str]) -> str:
         return note.read_as
 
-    return re.sub(rf"(?<!\w){re.escape(note.written)}(?!\w)", replacement, english)
+    # An apostrophe joins word characters inside a contraction, but a quote
+    # surrounding a standalone word must not prevent its replacement.
+    pattern = rf"(?<!\w)(?<!\w['\u2019]){re.escape(note.written)}(?!\w)(?!['\u2019]\w)"
+    return re.sub(pattern, replacement, english)

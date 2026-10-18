@@ -555,19 +555,35 @@ async def test_conversation_core_turn_preserves_entries_and_final_english(
 
 
 @pytest.mark.parametrize(
-    ("choice", "english"),
-    [("leave", "I want to leave in Canada."), ("live", "I want to live in Canada.")],
-    ids=["written", "corrected-reading"],
+    ("reading_case", "english"),
+    [
+        pytest.param(
+            ("leave", "leave", ("leave", "live")),
+            "I want to leave in Canada.",
+            id="written",
+        ),
+        pytest.param(
+            ("live", "live", ("leave", "live")),
+            "I want to live in Canada.",
+            id="corrected-reading",
+        ),
+        pytest.param(
+            (" live ", "live", ("leave", " live ")),
+            "I want to live in Canada.",
+            id="offered-reading-whitespace",
+        ),
+    ],
 )
 async def test_conversation_reading_choice_is_used_by_feedback_and_final_english(
-    make_conversation, choice, english, nth_id
+    make_conversation, reading_case, english, nth_id
 ):
+    choice, normalized_choice, offered = reading_case
     h = make_conversation()
     session = m.Session(nth_id(50), h.clock.now, stage=m.Stage.INTENT)
     await h.repository.create(session)
     h.coach.feedback_call.outputs.extend(
         [
-            _parsed(coaching.ReadingQuestion("leave", ("leave", "live"))),
+            _parsed(coaching.ReadingQuestion("leave", offered)),
             _parsed(coaching.Feedback("いいですね")),
         ]
     )
@@ -594,7 +610,7 @@ async def test_conversation_reading_choice_is_used_by_feedback_and_final_english
         english, m.TurnEnd.NO_FIX_NEEDED
     )
     assert h.coach.feedback_call.requests[-1][0].reading == coaching.ReadingChoice(
-        "leave", choice
+        "leave", normalized_choice
     )
     assert h.coach.feedback_call.requests[-1][0].intent is None
 
@@ -809,6 +825,19 @@ async def _end_pending(service: services.ConversationService, session_id: UUID) 
             m.CallOutcome.TIMEOUT,
             id="late-model-error",
         ),
+        pytest.param(
+            Parsed(
+                partner.PartnerLine("Why? What?"),
+                Usage("test", "scripted", 10, 5, None, 7),
+            ),
+            m.CallOutcome.INVALID_OUTPUT,
+            id="late-invalid-output",
+        ),
+        pytest.param(
+            ParseFailure(Usage("test", "scripted", 10, 5, None, 7), "Invalid schema"),
+            m.CallOutcome.INVALID_OUTPUT,
+            id="late-parse-failure",
+        ),
     ],
 )
 async def test_conversation_cancel_or_end_discards_late_output_and_keeps_call_log(
@@ -853,6 +882,7 @@ async def test_conversation_cancel_or_end_discards_late_output_and_keeps_call_lo
     calls = await h.repository.model_calls(view.id)
     assert len(calls) == 1
     assert calls[0].call.outcome is expected_outcome
+    assert len(h.partner.open_call.requests) == 1
 
 
 async def test_run_model_task_registry_rejects_a_wrong_request_before_binding_ports(
@@ -1167,3 +1197,55 @@ async def test_conversation_skip_ends_without_a_model_and_sets_practice(
         await h.repository.get(session.id)
     ).session.turn_state.practice == m.PracticeTarget(1, "意図", turn_feedback)
     assert await h.repository.model_calls(session.id) == ()
+
+
+@pytest.mark.parametrize(
+    ("note", "english", "expected"),
+    [
+        pytest.param(
+            coaching.ReadingNote("can", "can't"),
+            "I can go but can't stay.",
+            "I can't go but can't stay.",
+            id="straight-contraction",
+        ),
+        pytest.param(
+            coaching.ReadingNote("can", "can't"),
+            "I can go but can\u2019t stay.",
+            "I can't go but can\u2019t stay.",
+            id="curly-contraction",
+        ),
+        pytest.param(
+            coaching.ReadingNote("can", "can't"),
+            "They said 'can'.",
+            "They said 'can't'.",
+            id="quoted-whole-word",
+        ),
+        pytest.param(
+            coaching.ReadingNote("can", "can't"),
+            "I can, not cannon or scan.",
+            "I can't, not cannon or scan.",
+            id="longer-words",
+        ),
+        pytest.param(
+            coaching.ReadingNote("can't", "cannot"),
+            "I can't stay; can't've been easy.",
+            "I cannot stay; can't've been easy.",
+            id="contraction-is-a-whole-word",
+        ),
+    ],
+)
+async def test_reading_notes_preserve_word_internal_apostrophes(
+    make_conversation, nth_id, note, english, expected
+):
+    h = make_conversation()
+    session = m.Session(nth_id(50), h.clock.now, stage=m.Stage.INTENT)
+    await h.repository.create(session)
+    h.coach.feedback_call.outputs.append(
+        _parsed(coaching.Feedback("いいですね", readings_noted=(note,)))
+    )
+    view = await h.service.act(
+        session.id, m.ActionRequest(m.Action.ENGLISH_DIRECT, 0, m.TextInput(english))
+    )
+    assert view.entries[-1].payload == m.TurnDonePayload(
+        expected, m.TurnEnd.NO_FIX_NEEDED
+    )
