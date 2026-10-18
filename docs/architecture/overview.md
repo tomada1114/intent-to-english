@@ -451,13 +451,20 @@ source of every value named here.
 - **Tokens:** design-direction's "Tokens (Tailwind CSS 4)" block, in `frontend/src/styles.css`
   after `@import "tailwindcss";`, with `color-scheme: light dark` and `light-dark()` pairs;
   markup uses the semantic utilities only, never a raw palette color.
+  Opacity modifiers on these tokens are allowed with tailwindcss 4.3.3 (checked
+  2026-10-18). The production build rewrites the ink token as
+  `--color-ink:var(--lightningcss-light,#1c1f24)var(--lightningcss-dark,#eceef1)`;
+  the root's fallback variables swap their initial/empty values in
+  `@media (prefers-color-scheme:dark)`. The `bg-ink/50` probe emits
+  `background-color:var(--lightningcss-light,#1c1f2480)var(--lightningcss-dark,#eceef180)`
+  and, inside its color-mix support query,
+  `background-color:color-mix(in oklab, var(--color-ink) 50%, transparent)`.
+  Both forms follow the OS scheme; the probe is absent from the source.
 - **Contrast:** the 49 light and dark pairs in `docs/design/contrast-pairs.json` pass WCAG 2.2
   AA (measured 2026-10-17); a token change re-measures them in the same pull request.
 
 ## Open
 
-- Tailwind 4 opacity modifiers on `light-dark()` tokens — the token issue checks it once;
-  until then no markup uses an opacity modifier on them (design-direction).
 - The unit of OpenRouter's reported cost: its usage accounting page says "credits"
   (https://openrouter.ai/docs/use-cases/usage-accounting, checked 2026-10-17); that a credit
   is one US dollar is unchecked. The report labels the column with the provider's unit until
