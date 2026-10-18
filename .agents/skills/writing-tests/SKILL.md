@@ -52,7 +52,7 @@ timer. The rules, the MSW server's unhandled-request behavior, and why the clien
 - Test *behavior and contracts*, not implementation details. A test that breaks on a
   refactor while behavior is unchanged was testing the implementation.
 - Go through each layer's public modules —
-  `from my_app.core.services import TodoService` — never a private helper directly.
+  `from intent_to_english.core.services import TodoService` — never a private helper directly.
   Wanting to reach a private helper means the module is the wrong shape, not that the
   test needs an exception.
 - Cover the happy path **and** the error path of every public function.

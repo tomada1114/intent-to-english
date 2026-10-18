@@ -14,7 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
-    from my_app.core.models import Page, Todo
+    from intent_to_english.core.models import Page, Todo
 
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"

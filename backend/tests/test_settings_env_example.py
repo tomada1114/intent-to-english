@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, AliasPath
 
-from my_app.settings import ENV_FILE, ENV_PREFIX, Settings
+from intent_to_english.settings import ENV_FILE, ENV_PREFIX, Settings
 from tests.settings_env import settings_from_env_file
 
 EXAMPLE = ENV_FILE.with_name(".env.example")

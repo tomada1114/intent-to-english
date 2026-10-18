@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Request
 
-from my_app.core.services import TodoService
+from intent_to_english.core.services import TodoService
 
 if TYPE_CHECKING:
-    from my_app.composition import Container
+    from intent_to_english.composition import Container
 
 
 def get_todo_service(request: Request) -> TodoService:

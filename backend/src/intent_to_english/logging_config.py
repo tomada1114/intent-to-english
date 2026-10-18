@@ -55,7 +55,7 @@ class _AppHandler(_StreamHandler):
 
 def configure_logging(level: str, fmt: Literal["text", "json"]) -> None:
     """Replace our stderr handler without taking ownership of other logging."""
-    logger = logging.getLogger("my_app")
+    logger = logging.getLogger("intent_to_english")
     for handler in tuple(logger.handlers):
         if isinstance(handler, _AppHandler):
             logger.removeHandler(handler)

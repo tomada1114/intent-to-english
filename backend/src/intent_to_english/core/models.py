@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from my_app.core.errors import InvalidPageLimitError, InvalidTodoError
+from intent_to_english.core.errors import InvalidPageLimitError, InvalidTodoError
 
 if TYPE_CHECKING:
     from datetime import datetime

@@ -16,17 +16,17 @@ from typing import TYPE_CHECKING, Self
 from anyio import CancelScope
 from anyio.lowlevel import checkpoint_if_cancelled
 
-from my_app.adapters.memory import InMemoryTodoRepository
-from my_app.adapters.sql.engine import make_engine
-from my_app.adapters.sql.repository import SqlTodoRepository
-from my_app.core.services import TodoService
+from intent_to_english.adapters.memory import InMemoryTodoRepository
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.repository import SqlTodoRepository
+from intent_to_english.core.services import TodoService
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from types import TracebackType
 
-    from my_app.core.ports import Clock, IdFactory, TodoRepository
-    from my_app.settings import Settings
+    from intent_to_english.core.ports import Clock, IdFactory, TodoRepository
+    from intent_to_english.settings import Settings
 
 
 @dataclass(slots=True)

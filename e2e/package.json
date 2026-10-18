@@ -1,5 +1,5 @@
 {
-  "name": "my-app-e2e",
+  "name": "intent-to-english-e2e",
   "private": true,
   "type": "module",
   "scripts": {

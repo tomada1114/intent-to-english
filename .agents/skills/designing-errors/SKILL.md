@@ -1,7 +1,7 @@
 ---
 name: designing-errors
 description: >
-  Covers the AppError hierarchy in backend/src/my_app/core/errors.py and how the API reports
+  Covers the AppError hierarchy in backend/src/intent_to_english/core/errors.py and how the API reports
   it: when a failure earns a subclass, what its message and attributes carry,
   translating a driver error in an adapter, and the HTTP status _status_for in
   api/app.py gives it with a ProblemDetails body and stable code (404, 422, 400 fallback). Use when adding a failure mode, choosing a status,
@@ -40,7 +40,7 @@ caller needs data it carries. Otherwise raise an existing class with a new messa
 
 - Each class, including `AppError`, declares its own `code: ClassVar[str]`, unique
   in the hierarchy and matching `^[a-z][a-z0-9_]*$`. The recursive core test checks
-  every class defined under `my_app`, excluding test-local subclasses.
+  every class defined under `intent_to_english`, excluding test-local subclasses.
 - Keep the data a caller needs as attributes, so nobody parses the message.
 - Pass exactly the constructor's arguments to `super().__init__`, so pickling (process
   pools, task queues) rebuilds an equal error. `backend/tests/core/test_errors.py`
@@ -167,7 +167,7 @@ the first request (`designing-core-logic`).
 An `AppError` is expected, so it is mapped at the API boundary to an HTTP status, and
 not logged with `logging.exception()`. An
 unexpected error keeps its stack and exception type. The API handler logs on
-`my_app.api.errors` with a sanitized exception that omits the original message
+`intent_to_english.api.errors` with a sanitized exception that omits the original message
 and cause chain, because a driver can put SQL parameters or credentials there;
 the structured `exception_type` field preserves the original module-qualified
 type for monitoring handlers and JSON consumers.

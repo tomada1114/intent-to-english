@@ -105,24 +105,24 @@ exit 98
 
 # Every Settings field, with the value `just e2e` gives it.
 E2E_SETTINGS = {
-    "MY_APP_CORS_ORIGINS": "",
-    "MY_APP_LOG_LEVEL": "INFO",
-    "MY_APP_LOG_FORMAT": "text",
+    "INTENT_TO_ENGLISH_CORS_ORIGINS": "",
+    "INTENT_TO_ENGLISH_LOG_LEVEL": "INFO",
+    "INTENT_TO_ENGLISH_LOG_FORMAT": "text",
 }
 HOSTILE = {
-    "MY_APP_DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
-    "MY_APP_CORS_ORIGINS": "https://hostile.example",
-    "MY_APP_LOG_LEVEL": "DEBUG",
-    "MY_APP_LOG_FORMAT": "json",
-    "MY_APP_API_PORT": "8000",
-    "MY_APP_FUTURE_SETTING": "hostile",
+    "INTENT_TO_ENGLISH_DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
+    "INTENT_TO_ENGLISH_CORS_ORIGINS": "https://hostile.example",
+    "INTENT_TO_ENGLISH_LOG_LEVEL": "DEBUG",
+    "INTENT_TO_ENGLISH_LOG_FORMAT": "json",
+    "INTENT_TO_ENGLISH_API_PORT": "8000",
+    "INTENT_TO_ENGLISH_FUTURE_SETTING": "hostile",
 }
 _DATABASE = re.compile(r"database in (?P<tmp>\S+)")
 _PORTS = re.compile(r"API port (?P<api>\d+), screen port (?P<web>\d+)")
 
 SETTINGS_PROBE = """\
 import json, sys
-from my_app.settings import Settings
+from intent_to_english.settings import Settings
 settings = Settings(_env_file=sys.argv[1])
 print(json.dumps({"fields": sorted(Settings.model_fields), "values": settings.model_dump(mode="json")}))
 """
@@ -229,7 +229,8 @@ def e2e(tmp_path: Path) -> Iterator[Fixture]:
     inherited = {
         name: value
         for name, value in os.environ.items()
-        if not name.startswith(("MY_APP_", "E2E_", "FAKE_")) and name != "JUST"
+        if not name.startswith(("INTENT_TO_ENGLISH_", "E2E_", "FAKE_"))
+        and name != "JUST"
     }
     env = inherited | {
         "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
@@ -302,7 +303,7 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
     dotenv.write_text(
         "".join(
             f"{name}={HOSTILE[name]}\n"
-            for name in ("MY_APP_DATABASE_URL", *E2E_SETTINGS)
+            for name in ("INTENT_TO_ENGLISH_DATABASE_URL", *E2E_SETTINGS)
         ),
         encoding="utf-8",
     )
@@ -315,8 +316,8 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
     env = recorded["env"]
     assert isinstance(env, dict)
     database_url = f"sqlite+aiosqlite:///{run.tmp}/e2e.db"
-    assert {k: v for k, v in env.items() if k.startswith("MY_APP_")} == {
-        "MY_APP_DATABASE_URL": database_url,
+    assert {k: v for k, v in env.items() if k.startswith("INTENT_TO_ENGLISH_")} == {
+        "INTENT_TO_ENGLISH_DATABASE_URL": database_url,
         **E2E_SETTINGS,
     }
     # Settings, built under that environment with a hostile dotenv file,
@@ -329,8 +330,8 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
         check=True,
     )
     settings = json.loads(probe.stdout)
-    assert {f"MY_APP_{field.upper()}" for field in settings["fields"]} == {
-        name for name in env if name.startswith("MY_APP_")
+    assert {f"INTENT_TO_ENGLISH_{field.upper()}" for field in settings["fields"]} == {
+        name for name in env if name.startswith("INTENT_TO_ENGLISH_")
     }
     assert settings["values"] == {
         "database_url": database_url,

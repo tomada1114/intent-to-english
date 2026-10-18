@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import Integer, bindparam, delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
-from my_app.adapters.cursor import decode_after, page_of
-from my_app.adapters.sql.tables import todos
-from my_app.core.errors import TodoNotFoundError
-from my_app.core.models import Todo
+from intent_to_english.adapters.cursor import decode_after, page_of
+from intent_to_english.adapters.sql.tables import todos
+from intent_to_english.core.errors import TodoNotFoundError
+from intent_to_english.core.models import Todo
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from sqlalchemy import Row
     from sqlalchemy.ext.asyncio import AsyncEngine
 
-    from my_app.core.models import Page
+    from intent_to_english.core.models import Page
 
 # Built once at import, never per call: each is compiled and cached by its
 # shape, and only the bound values change. The bound names differ from the

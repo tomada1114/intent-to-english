@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from my_app.api.schemas import HealthResponse
+from intent_to_english.api.schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
 

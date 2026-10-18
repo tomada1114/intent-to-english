@@ -7,31 +7,31 @@ from pydantic import ValidationError
 from sqlalchemy import make_url
 from sqlalchemy.dialects.sqlite.aiosqlite import SQLiteDialect_aiosqlite
 
-import my_app
-from my_app import composition
-from my_app import settings as settings_module
-from my_app.settings import Settings
+import intent_to_english
+from intent_to_english import composition
+from intent_to_english import settings as settings_module
+from intent_to_english.settings import Settings
 from tests.settings_env import settings_from_env_file
 
 
 @pytest.mark.parametrize("value", ["", "INFO", "info", "DEBUG", "warning", "ERROR"])
 def test_settings_log_level_normalizes_or_defaults(monkeypatch, value):
-    monkeypatch.setenv("MY_APP_LOG_LEVEL", value)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_LOG_LEVEL", value)
     assert Settings().log_level == (value.upper() or "INFO")
 
 
 @pytest.mark.parametrize("value", ["", "text", "json"])
 def test_settings_log_format_defaults_or_preserves(monkeypatch, value):
-    monkeypatch.setenv("MY_APP_LOG_FORMAT", value)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_LOG_FORMAT", value)
     assert Settings().log_format == (value or "text")
 
 
 @pytest.mark.parametrize(
     ("name", "value"),
     [
-        ("MY_APP_LOG_LEVEL", "TRACE"),
-        ("MY_APP_LOG_FORMAT", "xml"),
-        ("MY_APP_LOG_FORMAT", "JSON"),
+        ("INTENT_TO_ENGLISH_LOG_LEVEL", "TRACE"),
+        ("INTENT_TO_ENGLISH_LOG_FORMAT", "xml"),
+        ("INTENT_TO_ENGLISH_LOG_FORMAT", "JSON"),
     ],
 )
 def test_settings_invalid_logging_value_fails(monkeypatch, name, value):
@@ -56,7 +56,7 @@ def test_settings_database_url_unset_selects_in_memory_store():
     ],
 )
 def test_settings_supported_database_url_from_env_is_kept_as_given(monkeypatch, url):
-    monkeypatch.setenv("MY_APP_DATABASE_URL", url)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", url)
 
     assert Settings().database_url == url
 
@@ -183,7 +183,7 @@ def test_settings_unprefixed_env_var_is_ignored(monkeypatch):
 
 
 def test_settings_database_url_empty_counts_as_unset(monkeypatch):
-    monkeypatch.setenv("MY_APP_DATABASE_URL", "")
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", "")
 
     assert Settings().database_url is None
 
@@ -236,7 +236,7 @@ def test_settings_database_url_empty_counts_as_unset(monkeypatch):
 def test_settings_unsupported_database_url_raises_validation_error(
     monkeypatch, url, pattern
 ):
-    monkeypatch.setenv("MY_APP_DATABASE_URL", url)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", url)
 
     with pytest.raises(ValidationError, match=pattern):
         Settings()
@@ -246,14 +246,14 @@ def test_settings_unsupported_database_url_raises_validation_error(
     "value", [pytest.param("", id="blank"), pytest.param(" , ", id="empty-items")]
 )
 def test_settings_blank_cors_origins_disable_cors(monkeypatch, value):
-    monkeypatch.setenv("MY_APP_CORS_ORIGINS", value)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_CORS_ORIGINS", value)
 
     assert Settings().cors_origins == []
 
 
 def test_settings_cors_origins_are_stripped_and_deduplicated(monkeypatch):
     monkeypatch.setenv(
-        "MY_APP_CORS_ORIGINS",
+        "INTENT_TO_ENGLISH_CORS_ORIGINS",
         "http://localhost:5173, https://app.example.com, ,http://localhost:5173",
     )
 
@@ -286,7 +286,7 @@ def test_settings_cors_origins_are_stripped_and_deduplicated(monkeypatch):
     ],
 )
 def test_settings_invalid_cors_origin_names_the_item(monkeypatch, origin):
-    monkeypatch.setenv("MY_APP_CORS_ORIGINS", origin)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_CORS_ORIGINS", origin)
 
     with pytest.raises(ValidationError, match="invalid CORS origin") as caught:
         Settings()
@@ -336,7 +336,7 @@ def test_settings_cors_origins_deduplicate_after_normalization():
 def test_settings_env_file_value_is_read(tmp_path):
     file = tmp_path / ".env"
     file.write_text(
-        'MY_APP_DATABASE_URL="sqlite+aiosqlite:///./var/from-file.db"\nMY_APP_CORS_ORIGINS="https://app.example.com"\n',
+        'INTENT_TO_ENGLISH_DATABASE_URL="sqlite+aiosqlite:///./var/from-file.db"\nINTENT_TO_ENGLISH_CORS_ORIGINS="https://app.example.com"\n',
         encoding="utf-8",
     )
 
@@ -350,9 +350,10 @@ def test_settings_env_file_value_is_read(tmp_path):
 def test_settings_environment_wins_over_env_file(tmp_path, monkeypatch, value):
     file = tmp_path / ".env"
     file.write_text(
-        "MY_APP_DATABASE_URL=sqlite+aiosqlite:///from-file.db\n", encoding="utf-8"
+        "INTENT_TO_ENGLISH_DATABASE_URL=sqlite+aiosqlite:///from-file.db\n",
+        encoding="utf-8",
     )
-    monkeypatch.setenv("MY_APP_DATABASE_URL", value)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", value)
 
     assert settings_from_env_file(file).database_url == (value or None)
 
@@ -360,7 +361,7 @@ def test_settings_environment_wins_over_env_file(tmp_path, monkeypatch, value):
 def test_settings_env_file_unknown_prefixed_key_fails(tmp_path):
     file = tmp_path / ".env"
     file.write_text(
-        "MY_APP_DATABASE_LINK=sqlite+aiosqlite:///x.db\nVITE_PORT=5174\n",
+        "INTENT_TO_ENGLISH_DATABASE_LINK=sqlite+aiosqlite:///x.db\nVITE_PORT=5174\n",
         encoding="utf-8",
     )
 
@@ -384,7 +385,7 @@ def test_settings_env_file_unknown_unprefixed_key_is_ignored(tmp_path):
 
 
 def test_settings_env_file_path_is_backend_relative_after_chdir(tmp_path, monkeypatch):
-    expected = Path(my_app.__file__).resolve().parents[2] / ".env"
+    expected = Path(intent_to_english.__file__).resolve().parents[2] / ".env"
     assert expected == settings_module.ENV_FILE
     monkeypatch.chdir(tmp_path)
     assert expected == settings_module.ENV_FILE
@@ -403,7 +404,10 @@ def test_settings_missing_env_file_uses_defaults(tmp_path):
 
 def test_settings_blank_env_file_values_use_defaults(tmp_path):
     file = tmp_path / ".env"
-    file.write_text("MY_APP_DATABASE_URL=\nMY_APP_CORS_ORIGINS=\n", encoding="utf-8")
+    file.write_text(
+        "INTENT_TO_ENGLISH_DATABASE_URL=\nINTENT_TO_ENGLISH_CORS_ORIGINS=\n",
+        encoding="utf-8",
+    )
 
     assert (
         settings_from_env_file(file).model_dump()

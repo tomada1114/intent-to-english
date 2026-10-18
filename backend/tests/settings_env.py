@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import AliasChoices, AliasPath
 
-from my_app.settings import ENV_PREFIX, Settings
+from intent_to_english.settings import ENV_PREFIX, Settings
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

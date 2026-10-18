@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import AliasChoices, AliasPath, Field
 
-from my_app.settings import Settings
+from intent_to_english.settings import Settings
 from tests.settings_env import without_settings_env
 
 
@@ -16,8 +16,8 @@ def test_settings_env_prefix_and_model_aliases_are_removed(monkeypatch):
         Field(validation_alias=AliasChoices("VENDOR_FUTURE", "vendor_fallback")),
     )
     environment = {
-        "MY_APP_FUTURE_SETTING": "1",
-        "my_app_database_url": "postgresql://x",
+        "INTENT_TO_ENGLISH_FUTURE_SETTING": "1",
+        "intent_to_english_database_url": "postgresql://x",
         "VENDOR_FUTURE": "future",
         "VENDOR_FALLBACK": "fallback",
         "UNRELATED": "preserved",
@@ -26,7 +26,7 @@ def test_settings_env_prefix_and_model_aliases_are_removed(monkeypatch):
     cleaned = without_settings_env(environment)
 
     assert cleaned == {"UNRELATED": "preserved"}
-    assert environment["MY_APP_FUTURE_SETTING"] == "1"
+    assert environment["INTENT_TO_ENGLISH_FUTURE_SETTING"] == "1"
 
 
 @pytest.mark.parametrize(

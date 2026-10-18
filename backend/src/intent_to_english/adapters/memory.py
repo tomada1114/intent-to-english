@@ -5,13 +5,13 @@ from __future__ import annotations
 from bisect import bisect_right
 from typing import TYPE_CHECKING
 
-from my_app.adapters.cursor import decode_after, page_of
-from my_app.core.errors import TodoNotFoundError
+from intent_to_english.adapters.cursor import decode_after, page_of
+from intent_to_english.core.errors import TodoNotFoundError
 
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from my_app.core.models import Page, Todo
+    from intent_to_english.core.models import Page, Todo
 
 
 class InMemoryTodoRepository:

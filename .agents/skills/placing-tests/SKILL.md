@@ -2,7 +2,7 @@
 name: placing-tests
 description: >
   Decides where a new test file goes (backend/tests/<layer>/test_<module>.py for
-  backend/src/my_app/<layer>/, the root tests/ for scripts and the harness,
+  backend/src/intent_to_english/<layer>/, the root tests/ for scripts and the harness,
   frontend/tests/ mirroring frontend/src/ as *.test.tsx, e2e/tests/ for a Playwright
   spec), where a fixture, helper, or MSW handler goes, which command runs one test, one
   file, or the suite (pytest, vitest run), and the coverage floors: 80% branches over
@@ -29,7 +29,7 @@ Both hold a `tests` package, so each tree runs on its own.
 
 | Code under test | Its test file |
 |---|---|
-| `backend/src/my_app/<layer>/<module>.py` (`core`, `adapters`, `api`) | `backend/tests/<layer>/test_<module>.py` |
+| `backend/src/intent_to_english/<layer>/<module>.py` (`core`, `adapters`, `api`) | `backend/tests/<layer>/test_<module>.py` |
 | A top-level app module (`settings.py`, `composition.py`) | `backend/tests/test_<module>.py` |
 | `scripts/<script>.py` | `tests/test_<script>.py` |
 | Agent tier definitions in `.claude/agents/` and `.codex/agents/` | `tests/test_agent_tiers.py` |
@@ -58,7 +58,7 @@ rather than by a new file:
   (predictable ids), `sqlite_url`, `alembic_config`, and `migrated_sqlite_url` (a
   SQLite file migrated to head; `persisting-data`), the session-scoped `anyio_backend`
   that runs async tests on asyncio (`writing-tests`' "Async tests"), and the autouse
-  fixture that keeps a developer's `MY_APP_*` variables out of every test. `backend/tests/settings_env.py` derives the
+  fixture that keeps a developer's `INTENT_TO_ENGLISH_*` variables out of every test. `backend/tests/settings_env.py` derives the
   cleanup from the settings prefix and model aliases.
 - Used by one layer: that layer's `conftest.py` — `backend/tests/api/conftest.py`
   holds `client`.

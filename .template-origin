@@ -1,0 +1,11 @@
+# Written once by the template's bootstrap. Keep it committed: the
+# bootstrap refuses a second run while it exists, and
+# tests/test_product_section.py reads it to know this is an app, whose
+# AGENTS.md Product section must be filled in.
+# commit is the template commit this app was cut from, or
+# "unknown" when this history does not start at the template's first commit
+# (GitHub's "Use this template" starts a new one). Then find it by tree:
+#   git log --format='%H %T' <template remote>/main | grep <tree>
+template: https://github.com/tomada1114/fastapi-react-template
+commit: unknown
+tree: aaa44bf4355cef59ab6d97065afe96a2d3f42c47

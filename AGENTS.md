@@ -7,7 +7,7 @@ by area. The sample domain is a to-do list — replace it with your own.
 
 | Area | Holds |
 |---|---|
-| `backend/` | The FastAPI app, a uv workspace member: its `pyproject.toml`, `src/my_app/`, `tests/`, a `justfile` module (`just backend <recipe>`), and its own `AGENTS.md` |
+| `backend/` | The FastAPI app, a uv workspace member: its `pyproject.toml`, `src/intent_to_english/`, `tests/`, a `justfile` module (`just backend <recipe>`), and its own `AGENTS.md` |
 | `frontend/` | The React app (Vite, TypeScript), a pnpm workspace member: its `package.json`, `src/`, `tests/`, Biome, `tsc`, and Vitest config, a `justfile` module (`just frontend <recipe>`), and its own `AGENTS.md` |
 | `e2e/` | The browser test (Playwright, Chromium only), a pnpm workspace member: its `package.json`, `playwright.config.ts`, `tests/`, Biome and `tsc` config, and `verify_persistence.py`, the backend process that checks the database; run by the root `just e2e` and `just e2e-lint` |
 | The root | The workspaces (`pyproject.toml`, `uv.lock`; `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.node-version`) and the repository's tooling: the `justfile` with the aggregate gates, `scripts/`, the harness and script tests under `tests/`, `.agents/skills/`, `.github/` |
@@ -31,29 +31,44 @@ Every task here:
 
 ## Product
 
-<!-- template-only -->
-In the template every entry below stays a `TODO:` on purpose: each repository cut
-from it writes its own, and `tests/test_product_section.py` fails here if one is
-filled in.
-<!-- /template-only -->
-
 This section is about the application rather than the harness: without it, an
 agent implementing an issue has no in-repo answer to "is this in scope?". The owner
 decides every entry; an agent drafts one only from what the owner has said. Once the
 bootstrap has run (`.template-origin` exists), `tests/test_product_section.py` — and
 so `just verify` — fails while any entry below is still a placeholder.
 
-- **What it is, and who it is for** — TODO: one paragraph: the problem it solves,
-  and whose problem that is.
-- **The core interaction** — TODO: the one thing a user does most. If the app does
-  not do this well, nothing else about it matters.
-- **Non-goals** — TODO: what this app deliberately does not do, even where it would
-  be easy. Moving anything from here to a goal is a human's decision, not an
-  implementer's.
-- **Why it is shaped this way** — TODO: the reasoning behind the three entries above,
-  in the present tense — why this audience, why this interaction comes first, and why
-  each non-goal stays out — so a reader finds why and not only what. It is rewritten
-  when the reasoning changes, not appended to ("Before changing the architecture").
+- **What it is, and who it is for** — Intent to English is a web app for practicing English
+  small talk, run locally by its one user. It is for a Japanese speaker around CEFR B1 who can
+  think of what to say in Japanese and build simple English, but who, in a live conversation,
+  shrinks what they say to the English they already know — the same reactions and short
+  answers, and the thing they meant given up. An AI Partner chats in short English lines;
+  before answering, the learner writes what they really want to say in Japanese and builds the
+  English themselves, and an AI Coach helps only where they are stuck. The full requirements
+  are `docs/product/requirements.md`.
+- **The core interaction** — one turn: the Partner's line → the learner's Japanese intent → the
+  learner's own English (hints only for the gap they name) → feedback that checks the English
+  against the intent (fixes in sentence order, the learner's sentence, a numbered fill-in
+  template) → the fill-in retry, which they may skip → the Partner replies to the learner's
+  English. If this turn is not good, nothing else matters.
+- **Non-goals** — scores, CEFR levels, level diagnosis, streaks, or "mastered" labels; own
+  recording, speech recognition, or pronunciation assessment; topic pickers, scenarios,
+  missions, target expressions, role-play scripts, or a choice of Partner personas; a model
+  answer before the learner tries; more than one user, accounts, or sharing in the MVP;
+  notifications, reminders, or practice quotas; links to the owner's vault, Daily notes, or
+  Anki; live model calls in automated tests or CI.
+- **Why it is shaped this way** — The Japanese comes first because it keeps what the learner
+  really meant before their English shrinks it, and the part they cannot say is the
+  vocabulary they actually need. The learner builds the English before any answer appears,
+  because a finished sentence shown first removes both the practice and the evidence of where
+  they got stuck. Feedback ends in a fill-in retry because reading a fix is not saying it,
+  and in the prototype a template made the retry possible where free rewriting was too hard.
+  The Partner never sees the Japanese, so its reply shows what the English alone conveyed.
+  Grades and level labels stay out because they judge the learner instead of helping them
+  say what they mean. Recording and pronunciation stay out because the input is text, typed
+  or dictated by the OS. Topic pickers and missions stay out because the Partner opens like a
+  friend and the learner should never have to invent a situation. One local user keeps
+  sign-in, billing protection, and hosting out of the MVP until the model provider moves to
+  Amazon Bedrock. Live model calls stay out of tests because they bill, flake, and need a key.
 
 ## Quick Reference
 
@@ -71,7 +86,7 @@ just backend lint    # Lint and type-check the backend (ruff, ruff format --chec
 just backend fmt     # Format the backend
 just backend test    # Run the backend tests in parallel with branch coverage (80% floor)
 just backend test-postgres # Run the shared contract and migrations on a disposable PostgreSQL database
-just backend db-upgrade # Migrate MY_APP_DATABASE_URL's database (default: backend/var/dev.db) to the newest revision
+just backend db-upgrade # Migrate INTENT_TO_ENGLISH_DATABASE_URL's database (default: backend/var/dev.db) to the newest revision
 just backend db-revision MESSAGE # db-upgrade, then autogenerate a revision from a change to adapters/sql/tables.py
 just frontend install # Install the locked JavaScript dependencies (pnpm install --frozen-lockfile)
 just frontend lint   # Lint the frontend (biome ci) and type-check it (tsc --noEmit, strict flags)
@@ -105,16 +120,16 @@ just backend dev     # Run db-upgrade, then serve the API on http://127.0.0.1:80
 just frontend dev    # Serve the frontend with Vite's dev server on http://localhost:5173, proxying /api and /healthz to the API; runs until stopped
 ```
 
-`MY_APP_API_PORT` (default 8000) moves the API and the port Vite proxies to;
+`INTENT_TO_ENGLISH_API_PORT` (default 8000) moves the API and the port Vite proxies to;
 `VITE_PORT` (default 5173) moves the screen. Both are process variables, never
 `Settings` fields or `backend/.env` keys.
 
 The developer's `just dev`, `just backend dev`, and `just frontend dev` are
 theirs: never start, stop, or restart one, and never bind 8000 or 5173. To see
 what only a running server shows, prefer a `TestClient` test, else your own
-`uv run --locked uvicorn my_app.api.app:create_app --factory --port <free port>`,
+`uv run --locked uvicorn intent_to_english.api.app:create_app --factory --port <free port>`,
 or, for the screen, your own pair on two free ports with a scratch database,
-`MY_APP_API_PORT=<port> VITE_PORT=<port> just dev`; stop either before your
+`INTENT_TO_ENGLISH_API_PORT=<port> VITE_PORT=<port> just dev`; stop either before your
 turn ends (`running-the-app`).
 
 ### Writes to GitHub
@@ -180,11 +195,6 @@ replaces, never as a dated entry beside them:
 Writing the reasoning down grants nothing: a new dependency or a remote write still
 needs the sign-off "Security and human approval" asks for, and the owner reviews the
 rewritten description with the change.
-<!-- template-only -->
-In the template itself, the reasoning behind the layers every app starts with lives in
-`TEMPLATE.md`'s "Design Philosophy"; a design change to the template rewrites that
-entry, rather than leaving the old reason beside the new one.
-<!-- /template-only -->
 
 ## Skills
 
@@ -201,11 +211,11 @@ Skills are authored under `.agents/skills/` (Codex CLI) and mirrored into
 | `cloud-claude-shipping-issues` | Claude Code cloud sessions only (`CLAUDE_CODE_REMOTE=true`): shipping the next issue or the backlog over REST `gh api` calls, serially — rank, implement, PR, the PR's review, CI, merge, follow-ups |
 | `codex-shipping-issues` | shipping one GitHub issue from a Codex-managed checkout through a regular PR, up to three Codex review rounds with their findings addressed, current-head CI, and an explicitly authorized merge |
 | `create-pr` | opening or updating a pull request by hand |
-| `designing-core-logic` | adding a use case, domain rule, port, adapter, or `MY_APP_*` setting, or wiring the composition root |
+| `designing-core-logic` | adding a use case, domain rule, port, adapter, or `INTENT_TO_ENGLISH_*` setting, or wiring the composition root |
 | `designing-errors` | adding a failure mode, or choosing the HTTP status a domain error becomes |
 | `managing-dependencies` | adding, bumping, or removing a Python or JavaScript package, or changing the `exclude-newer` or `minimumReleaseAge` window, a Dependabot cooldown, a one-package exception, or another `pnpm-workspace.yaml` exception |
 | `merging-dependency-prs` | landing open Dependabot pull requests (GitHub Actions, pre-commit, `uv`, and `npm_and_yarn` bumps) |
-| `persisting-data` | changing a table in `backend/src/my_app/adapters/sql/`, writing or reviewing an Alembic revision under `backend/migrations/`, running `just backend db-upgrade` or `db-revision`, a SQL repository's statements, or the `AsyncEngine`'s lifecycle |
+| `persisting-data` | changing a table in `backend/src/intent_to_english/adapters/sql/`, writing or reviewing an Alembic revision under `backend/migrations/`, running `just backend db-upgrade` or `db-revision`, a SQL repository's statements, or the `AsyncEngine`'s lifecycle |
 | `placing-tests` | adding a test file or a fixture (pytest, Vitest, or the browser test), running one test, or a coverage run below a floor |
 | `running-the-app` | running a server of your own to observe a change, and stopping that server afterwards |
 | `shipping-issues` | Claude Code only: shipping the next issue or the whole backlog: rank, implement, PR, the PR's own review and its findings, CI, merge |

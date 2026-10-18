@@ -88,9 +88,6 @@ What the scripts share, read from `scripts/*.py`:
 
 `sync_agents.py`, `sync_labels.py`, and `apply_ruleset.py` follow this reporting
 contract. `check_staged.py` uses a hook message read at commit time instead.
-<!-- template-only -->
-`bootstrap.py` uses one-shot error messages because it deletes itself after setup.
-<!-- /template-only -->
 The remaining shape and subprocess rules still apply to those exceptions.
 
 A failure is read by an agent at least as often as by a person, so a report says what

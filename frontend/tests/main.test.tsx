@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 // On a line of its own: the bootstrap rewrites it to a display name of up to
 // 60 characters, which must not push any line past Biome's 88 columns.
-const APP_NAME = "My App";
+const APP_NAME = "Intent to English";
 
 beforeEach(() => {
   // main.tsx runs on import, so each test imports a fresh copy.

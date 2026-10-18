@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from datetime import datetime
     from uuid import UUID
 
-    from my_app.core.models import Page, Todo
+    from intent_to_english.core.models import Page, Todo
 
 
 class Clock(Protocol):

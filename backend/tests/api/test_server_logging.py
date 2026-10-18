@@ -24,8 +24,8 @@ import json
 import logging
 import os
 from urllib.parse import parse_qs
-from my_app.api.app import create_app
-from my_app.settings import Settings
+from intent_to_english.api.app import create_app
+from intent_to_english.settings import Settings
 
 class Faults:
     def __init__(self, app):
@@ -70,12 +70,12 @@ class ResponseStarts:
         try:
             await self.app(scope, receive, count)
         finally:
-            logging.getLogger("my_app.probe").info("Response starts=%d", starts)
+            logging.getLogger("intent_to_english.probe").info("Response starts=%d", starts)
 
 def factory():
     settings = Settings(_env_file=None,
-                        database_url=os.environ["MY_APP_DATABASE_URL"],
-                        log_format=os.environ["MY_APP_LOG_FORMAT"],
+                        database_url=os.environ["INTENT_TO_ENGLISH_DATABASE_URL"],
+                        log_format=os.environ["INTENT_TO_ENGLISH_LOG_FORMAT"],
                         log_level="INFO", cors_origins=["https://app.example"])
     app = create_app(settings)
     app.add_middleware(Faults)
@@ -120,15 +120,17 @@ async def owned_server(tmp_path, database_url, fmt):
     evidence = ServerEvidence(port)
     (tmp_path / "privacy_probe.py").write_text(APP_SOURCE, encoding="utf-8")
     env = {
-        key: value for key, value in os.environ.items() if not key.startswith("MY_APP_")
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("INTENT_TO_ENGLISH_")
     }
     env.update(
         {
             "PYTHONPATH": str(tmp_path),
-            "MY_APP_DATABASE_URL": database_url,
-            "MY_APP_CORS_ORIGINS": "https://app.example",
-            "MY_APP_LOG_LEVEL": "INFO",
-            "MY_APP_LOG_FORMAT": fmt,
+            "INTENT_TO_ENGLISH_DATABASE_URL": database_url,
+            "INTENT_TO_ENGLISH_CORS_ORIGINS": "https://app.example",
+            "INTENT_TO_ENGLISH_LOG_LEVEL": "INFO",
+            "INTENT_TO_ENGLISH_LOG_FORMAT": fmt,
         }
     )
     process = await anyio.open_process(
@@ -205,11 +207,11 @@ def assert_safe_diagnostics(evidence, fmt, path, group):
         access = [
             r
             for r in records
-            if r["logger"] == "my_app.access" and r.get("path") == path
+            if r["logger"] == "intent_to_english.access" and r.get("path") == path
         ]
         assert len(access) == 1
         assert access[0]["request_id"] == "privacy-request"
-        errors = [r for r in records if r["logger"] == "my_app.api.errors"]
+        errors = [r for r in records if r["logger"] == "intent_to_english.api.errors"]
         assert len(errors) == 1
         assert errors[0]["exception_type"] == expected_type
         assert errors[0]["request_id"] == "privacy-request"
@@ -217,11 +219,11 @@ def assert_safe_diagnostics(evidence, fmt, path, group):
         access = [
             line
             for line in output.splitlines()
-            if "my_app.access [privacy-request]" in line
+            if "intent_to_english.access [privacy-request]" in line
         ]
         assert len(access) == 1
         assert path in access[0]
-        assert "my_app.api.errors [privacy-request]" in output
+        assert "intent_to_english.api.errors [privacy-request]" in output
     assert output.count("Response starts=1") == 1
     assert "Response starts=2" not in output
 

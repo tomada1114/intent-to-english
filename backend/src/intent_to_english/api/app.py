@@ -16,25 +16,28 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.middleware.exceptions import ExceptionMiddleware
 
-from my_app.api.middleware import RequestIdMiddleware, ServerDiagnosticMiddleware
-from my_app.api.routers import health, todos
-from my_app.api.schemas import (
+from intent_to_english.api.middleware import (
+    RequestIdMiddleware,
+    ServerDiagnosticMiddleware,
+)
+from intent_to_english.api.routers import health, todos
+from intent_to_english.api.schemas import (
     PROBLEM_MEDIA_TYPE,
     ProblemDetails,
     ProblemFieldError,
     problem_responses,
     status_phrase,
 )
-from my_app.composition import Container, build_container
-from my_app.core.errors import (
+from intent_to_english.composition import Container, build_container
+from intent_to_english.core.errors import (
     AppError,
     InvalidCursorError,
     InvalidPageLimitError,
     InvalidTodoError,
     TodoNotFoundError,
 )
-from my_app.logging_config import configure_logging, request_id_var
-from my_app.settings import Settings
+from intent_to_english.logging_config import configure_logging, request_id_var
+from intent_to_english.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Mapping
@@ -43,9 +46,9 @@ if TYPE_CHECKING:
     from starlette.datastructures import Headers
     from starlette.types import ASGIApp
 
-APP_TITLE = "My App"
+APP_TITLE = "Intent to English"
 API_PREFIX = "/api"
-logger = logging.getLogger("my_app.api.errors")
+logger = logging.getLogger("intent_to_english.api.errors")
 
 
 class _ProblemCorsMiddleware(CORSMiddleware):

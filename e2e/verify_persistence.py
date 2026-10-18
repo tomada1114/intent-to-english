@@ -6,7 +6,7 @@ an API that keeps to-dos in memory; this process builds its own container on the
 same SQLite file, so it sees only what the API stored there.
 
 Every ``Settings`` field is passed explicitly and ``backend/.env`` is not read, so
-neither an inherited ``MY_APP_*`` variable nor the developer's dotenv file can
+neither an inherited ``INTENT_TO_ENGLISH_*`` variable nor the developer's dotenv file can
 point it at another database. The container, and so its engine, is closed
 before the process exits.
 
@@ -27,14 +27,14 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from my_app.composition import build_container
-from my_app.core.models import MAX_PAGE_LIMIT
-from my_app.settings import SQLITE_URL_PREFIX, Settings
+from intent_to_english.composition import build_container
+from intent_to_english.core.models import MAX_PAGE_LIMIT
+from intent_to_english.settings import SQLITE_URL_PREFIX, Settings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from my_app.core.models import Todo
+    from intent_to_english.core.models import Todo
 
 USAGE_ERROR = 2
 

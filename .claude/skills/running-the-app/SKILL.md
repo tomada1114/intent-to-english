@@ -36,7 +36,7 @@ Stop at the first tier that shows what the change does.
 
 - The developer's `just dev` (API on 8000, Vite on 5173) is theirs: never start, stop,
   or restart it, and never bind 8000 or 5173 — uvicorn's and the recipes' defaults, so
-  always pass `--port`, and an own pair always sets `MY_APP_API_PORT` and `VITE_PORT`.
+  always pass `--port`, and an own pair always sets `INTENT_TO_ENGLISH_API_PORT` and `VITE_PORT`.
 - **Let the OS pick the port** (bind to port 0), then check that nothing accepts
   connections on it. If something does, or the check itself fails, abort: start
   nothing and send nothing. A sibling worktree's server may hold any port.
@@ -51,19 +51,19 @@ Stop at the first tier that shows what the change does.
 - **Loopback only.** uvicorn binds `127.0.0.1` (`just backend dev` passes it); never
   pass `--host 0.0.0.0`. Vite binds `localhost`, maybe `::1` alone: check both.
 
-## Set every `MY_APP_*` setting explicitly
+## Set every `INTENT_TO_ENGLISH_*` setting explicitly
 
-The developer's shell may export `MY_APP_*` variables — `MY_APP_DATABASE_URL` pointing
+The developer's shell may export `INTENT_TO_ENGLISH_*` variables — `INTENT_TO_ENGLISH_DATABASE_URL` pointing
 at their real data, for one. `Settings` also reads module-relative `backend/.env`.
 An unset variable can be filled from that file, so clear inherited prefixed variables
 and then set every current setting explicitly: database URL, CORS origins, log level, and log format. An
 empty value wins over the file and selects the default. Add each future setting here.
 
 ```bash
-env $(env | sed -n 's/^\(MY_APP_[^=]*\)=.*/-u \1/p') MY_APP_DATABASE_URL="$db" MY_APP_CORS_ORIGINS= MY_APP_LOG_LEVEL= MY_APP_LOG_FORMAT= uv run --locked uvicorn my_app.api.app:create_app --factory --no-access-log --port "$port"
+env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= uv run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port"
 ```
 
-Set `MY_APP_DATABASE_URL=` for the in-memory store, or point it at a file in a
+Set `INTENT_TO_ENGLISH_DATABASE_URL=` for the in-memory store, or point it at a file in a
 directory from `mktemp -d`, outside the checkout
 (`db="sqlite+aiosqlite:///$(mktemp -d)/todos.db"`); a relative path would create the
 file in the working directory. Never point it at `backend/var/dev.db`, the developer's
@@ -71,7 +71,7 @@ database. The app never creates its schema, so migrate the scratch file first, i
 same shell command (**BACKGROUND:** `persisting-data`):
 
 ```bash
-env $(env | sed -n 's/^\(MY_APP_[^=]*\)=.*/-u \1/p') MY_APP_DATABASE_URL="$db" MY_APP_CORS_ORIGINS= MY_APP_LOG_LEVEL= MY_APP_LOG_FORMAT= uv run --locked alembic -c backend/alembic.ini upgrade head
+env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= uv run --locked alembic -c backend/alembic.ini upgrade head
 ```
 
 Set the variable in the same shell command that starts the server: an agent's shell
@@ -88,7 +88,7 @@ exception-group members from application and Uvicorn output. A failure after hea
 have started terminates the body without sending another response. The real-process
 regression in `backend/tests/api/test_server_logging.py` captures all stdout/stderr in
 both application formats and verifies owned-process cleanup on success and failure.
-Set `MY_APP_LOG_LEVEL=` and `MY_APP_LOG_FORMAT=` explicitly in an isolated
+Set `INTENT_TO_ENGLISH_LOG_LEVEL=` and `INTENT_TO_ENGLISH_LOG_FORMAT=` explicitly in an isolated
 server's environment to retain the sample defaults rather than a developer's
 dotenv logging settings. Pass `--no-access-log` to uvicorn to keep one access line.
 
@@ -113,7 +113,7 @@ port=$(uv run --locked python -c 'import socket; s = socket.socket(); s.bind(("1
 log=$(mktemp)
 uv run --locked python -c "$probe" "$port"; rc=$?
 if [ "$rc" = 1 ]; then
-  env $(env | sed -n 's/^\(MY_APP_[^=]*\)=.*/-u \1/p') MY_APP_DATABASE_URL= MY_APP_CORS_ORIGINS= MY_APP_LOG_LEVEL= MY_APP_LOG_FORMAT= uv run --locked uvicorn my_app.api.app:create_app --factory --no-access-log --port "$port" >"$log" 2>&1 &
+  env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL= INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= uv run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port" >"$log" 2>&1 &
   pid=$!
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
   if uv run --locked python -c "$ready" "$log" "$port" && kill -0 "$pid" 2>/dev/null; then
@@ -174,13 +174,13 @@ INFO:     Finished server process [98971]
 ```
 
 The server command is the one `just backend dev` serves with, minus `--reload`, plus
-`--port`; unlike `just dev`, it migrates nothing and, with `MY_APP_DATABASE_URL`
+`--port`; unlike `just dev`, it migrates nothing and, with `INTENT_TO_ENGLISH_DATABASE_URL`
 explicitly empty, keeps to-dos in memory even when `backend/.env` sets a URL. That
 store starts empty on every start; create what a request needs with a `POST` first.
 
 ## Running a `just dev` pair of your own
 
-`MY_APP_API_PORT` moves the API and Vite's proxy target, `VITE_PORT` moves Vite
+`INTENT_TO_ENGLISH_API_PORT` moves the API and Vite's proxy target, `VITE_PORT` moves Vite
 (`strictPort`: a taken port fails); neither is a setting. Everything above holds, plus:
 two free ports checked on both `127.0.0.1` and `::1`; a scratch database file, never an
 empty URL, which the recipes turn into the developer's `backend/var/dev.db`; requests

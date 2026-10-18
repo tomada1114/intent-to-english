@@ -21,7 +21,7 @@ from sqlalchemy import (
     Uuid,
 )
 
-from my_app.core.models import MAX_TITLE_LENGTH
+from intent_to_english.core.models import MAX_TITLE_LENGTH
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Dialect

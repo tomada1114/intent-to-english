@@ -23,7 +23,7 @@ def test_database_recipe_installs_driver_only_for_postgres(
     fake.write_text(
         "#!/bin/sh\n"
         'printf "%s\\n" "$@" > "$FAKE_RECORD"\n'
-        'case "$MY_APP_DATABASE_URL" in\n'
+        'case "$INTENT_TO_ENGLISH_DATABASE_URL" in\n'
         '  postgresql+asyncpg:*) case " $* " in\n'
         '    *" --extra postgres "*) exit 0 ;;\n'
         '    *) echo "missing asyncpg" >&2; exit 3 ;;\n'
@@ -43,7 +43,7 @@ def test_database_recipe_installs_driver_only_for_postgres(
             body.append(line.strip())
     assert len(body) == 1
     url = (
-        "postgresql+asyncpg://localhost/my_app_test"
+        "postgresql+asyncpg://localhost/intent_to_english_test"
         if postgres
         else "sqlite+aiosqlite:///./var/dev.db"
     )

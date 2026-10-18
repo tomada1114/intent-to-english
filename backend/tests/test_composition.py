@@ -14,12 +14,12 @@ import pytest
 from alembic import command
 from sqlalchemy import event
 
-from my_app import composition
-from my_app.adapters.memory import InMemoryTodoRepository
-from my_app.adapters.sql.engine import make_engine
-from my_app.composition import Container, build_container, utc_now
-from my_app.core.models import Page
-from my_app.settings import Settings
+from intent_to_english import composition
+from intent_to_english.adapters.memory import InMemoryTodoRepository
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.composition import Container, build_container, utc_now
+from intent_to_english.core.models import Page
+from intent_to_english.settings import Settings
 
 PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
@@ -89,7 +89,7 @@ def migrated_query_file_url(request, alembic_config, sqlite_url, monkeypatch):
         url = f"sqlite+aiosqlite:///file:{filename}?mode=rwc&uri=true&timeout=5"
     else:
         url = f"{sqlite_url}?timeout=5"
-    monkeypatch.setenv("MY_APP_DATABASE_URL", url)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", url)
     command.upgrade(alembic_config, "head")
     return url
 

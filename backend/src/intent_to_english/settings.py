@@ -1,4 +1,4 @@
-"""Runtime configuration from ``MY_APP_`` environment variables and backend/.env."""
+"""Runtime configuration from ``INTENT_TO_ENGLISH_`` environment variables and backend/.env."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, parse_qsl, unquote, urlsplit
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-ENV_PREFIX = "MY_APP_"
+ENV_PREFIX = "INTENT_TO_ENGLISH_"
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 SQLITE_URL_PREFIX = "sqlite+aiosqlite:///"
 POSTGRESQL_URL_PREFIX = "postgresql+asyncpg://"
@@ -47,10 +47,10 @@ class Settings(BaseSettings):
             ``postgresql+asyncpg://...`` for a PostgreSQL server — selects the
             SQL repository; unset (or set to an empty string) keeps to-dos in
             memory for the life of the process. Read from
-            ``MY_APP_DATABASE_URL``. The database must already be migrated
+            ``INTENT_TO_ENGLISH_DATABASE_URL``. The database must already be migrated
             (``just backend db-upgrade``): the app never creates its schema.
         cors_origins: Exact HTTP(S) origins allowed to call the API, from
-            comma-separated ``MY_APP_CORS_ORIGINS``; empty disables CORS.
+            comma-separated ``INTENT_TO_ENGLISH_CORS_ORIGINS``; empty disables CORS.
         log_level: DEBUG, INFO, WARNING or ERROR, case-insensitive; blank uses INFO.
         log_format: text or JSON lines; blank uses text.
     """
@@ -108,7 +108,7 @@ class Settings(BaseSettings):
 
         String rules only, so this module imports no database library. Failing
         here, at startup, beats failing on the first request. An empty value
-        counts as unset: ``MY_APP_DATABASE_URL=`` in a shell or an env file
+        counts as unset: ``INTENT_TO_ENGLISH_DATABASE_URL=`` in a shell or an env file
         usually means "no database", not a malformed one.
 
         Raises:

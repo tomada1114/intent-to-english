@@ -1,1 +1,1 @@
-"""Tests for my_app.adapters."""
+"""Tests for intent_to_english.adapters."""

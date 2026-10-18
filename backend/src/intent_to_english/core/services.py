@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from my_app.core.models import (
+from intent_to_english.core.models import (
     DEFAULT_PAGE_LIMIT,
     Todo,
     check_page_limit,
@@ -15,8 +15,8 @@ from my_app.core.models import (
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from my_app.core.models import Page
-    from my_app.core.ports import Clock, IdFactory, TodoRepository
+    from intent_to_english.core.models import Page
+    from intent_to_english.core.ports import Clock, IdFactory, TodoRepository
 
 
 class TodoService:

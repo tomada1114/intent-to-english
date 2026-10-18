@@ -19,9 +19,9 @@ import anyio
 import pytest
 from sqlalchemy import event
 
-from my_app import composition
-from my_app.adapters.sql.engine import make_engine
-from my_app.settings import ENV_PREFIX, Settings
+from intent_to_english import composition
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.settings import ENV_PREFIX, Settings
 from tests.settings_env import without_settings_env
 
 if TYPE_CHECKING:
@@ -29,8 +29,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from types import ModuleType
 
-    from my_app.composition import Container
-    from my_app.core.models import Todo
+    from intent_to_english.composition import Container
+    from intent_to_english.core.models import Todo
 
 E2E = Path(__file__).resolve().parents[2] / "e2e"
 VERIFIER = E2E / "verify_persistence.py"
@@ -140,7 +140,9 @@ async def test_verifier_ignores_an_inherited_database_url(
         },
     )
 
-    result = await _verify(empty, todo.id, MY_APP_DATABASE_URL=migrated_sqlite_url)
+    result = await _verify(
+        empty, todo.id, INTENT_TO_ENGLISH_DATABASE_URL=migrated_sqlite_url
+    )
 
     assert result.returncode == 1
     assert f"no to-do {todo.id} is stored" in result.stderr.decode()

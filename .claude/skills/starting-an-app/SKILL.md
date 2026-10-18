@@ -46,13 +46,6 @@ example an agent skill that cuts repositories from templates) follows the same o
    checked 2026-10-06), so there it records `commit: unknown` and the tree, and its
    header gives the `git log … | grep <tree>` search that finds the template commit
    with the same files.
-   <!-- template-only -->
-   It rewrites the whole repository, so run it only on the owner's request, on a fresh
-   clone with a clean work tree. **REQUIRED:**
-   [references/bootstrap.md](references/bootstrap.md), for its flags, what it refuses,
-   what it removes, and how to recover from a failed write, before running it, changing
-   it, or chasing a leftover placeholder.
-   <!-- /template-only -->
 3. **Write `AGENTS.md`'s Product section**: what the app is and for whom, the core
    interaction, the non-goals, and why it is shaped this way, in the present tense. It is the one home of the app's non-goals. The
    owner decides every entry; an agent drafts one only from what the owner has said.
@@ -134,17 +127,17 @@ The to-do list is a deletable illustration, not the app. Replace it in the same 
 request that removes it, so the tests and the 80% coverage floor still measure real
 code:
 
-- the domain in `backend/src/my_app/core/` (`models.py`, `ports.py`, `services.py`, and
+- the domain in `backend/src/intent_to_english/core/` (`models.py`, `ports.py`, `services.py`, and
   the `TodoNotFoundError`, `InvalidTodoError`, `InvalidCursorError`, and
   `InvalidPageLimitError` in `errors.py`), and the adapters in
-  `backend/src/my_app/adapters/` that implement its repository port, with the cursor
+  `backend/src/intent_to_english/adapters/` that implement its repository port, with the cursor
   helper they share (`cursor.py`, which the app's own paged port can adapt);
-- the API's wrappers: `backend/src/my_app/api/routers/todos.py` and the to-do models
+- the API's wrappers: `backend/src/intent_to_english/api/routers/todos.py` and the to-do models
   in `api/schemas.py`;
 - their tests under `backend/tests/core/`, `backend/tests/adapters/`, and
   `backend/tests/api/`, and the contract suite's parameters in
   `backend/tests/adapters/test_repository_contract.py`;
-- the `todos` table in `backend/src/my_app/adapters/sql/tables.py` and its migration,
+- the `todos` table in `backend/src/intent_to_english/adapters/sql/tables.py` and its migration,
   `backend/migrations/versions/f58f944d0d8e_create_todos.py`: with no deployed
   database yet, replace that first revision with the app's own; once one is deployed,
   add a revision that drops the table instead (**REQUIRED:** `persisting-data`);

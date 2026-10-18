@@ -16,18 +16,18 @@ from starlette.exceptions import HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-import my_app
-from my_app.api import app as app_module
-from my_app.api.app import create_app
-from my_app.composition import Container, ResourceClosers
-from my_app.core.errors import (
+import intent_to_english
+from intent_to_english.api import app as app_module
+from intent_to_english.api.app import create_app
+from intent_to_english.composition import Container, ResourceClosers
+from intent_to_english.core.errors import (
     AppError,
     InvalidCursorError,
     InvalidPageLimitError,
     InvalidTodoError,
     TodoNotFoundError,
 )
-from my_app.settings import Settings
+from intent_to_english.settings import Settings
 
 UNMAPPED_MESSAGE = "a rule with no status of its own"
 
@@ -54,7 +54,7 @@ def test_testclient_runs_on_httpx2_not_the_deprecated_httpx():
 
 def test_openapi_uses_the_framework_default_version(make_container, monkeypatch):
     monkeypatch.setattr(metadata, "version", lambda _: "9.9.9")
-    reload(my_app)
+    reload(intent_to_english)
     reload(app_module)
     with TestClient(app_module.create_app(container=make_container())) as client:
         response = client.get("/openapi.json")
@@ -87,7 +87,7 @@ def test_unmapped_app_error_returns_400_problem(make_container):
 def test_create_app_without_settings_reads_the_environment(
     migrated_sqlite_url, monkeypatch
 ):
-    monkeypatch.setenv("MY_APP_DATABASE_URL", migrated_sqlite_url)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", migrated_sqlite_url)
 
     with TestClient(create_app()) as writer:
         created = writer.post("/api/todos", json={"title": "from env"})
@@ -293,7 +293,7 @@ def test_create_app_empty_cors_origins_add_no_middleware(
     monkeypatch, make_container, value
 ):
     if value is not None:
-        monkeypatch.setenv("MY_APP_CORS_ORIGINS", value)
+        monkeypatch.setenv("INTENT_TO_ENGLISH_CORS_ORIGINS", value)
     app = create_app(container=make_container())
 
     assert app.user_middleware == []
@@ -315,7 +315,8 @@ def test_cors_preflight_checks_origins_and_allows_json_post(
     monkeypatch, origin, status, allowed
 ):
     monkeypatch.setenv(
-        "MY_APP_CORS_ORIGINS", "http://localhost:5173, https://app.example.com"
+        "INTENT_TO_ENGLISH_CORS_ORIGINS",
+        "http://localhost:5173, https://app.example.com",
     )
     with TestClient(create_app()) as client:
         response = client.options(
@@ -466,8 +467,8 @@ def test_create_app_supplied_container_ignores_invalid_storage_env_but_reads_cor
     monkeypatch, make_container
 ):
     container = make_container()
-    monkeypatch.setenv("MY_APP_DATABASE_URL", "not-a-database-url")
-    monkeypatch.setenv("MY_APP_CORS_ORIGINS", "https://APP.EXAMPLE.COM:443")
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", "not-a-database-url")
+    monkeypatch.setenv("INTENT_TO_ENGLISH_CORS_ORIGINS", "https://APP.EXAMPLE.COM:443")
     with TestClient(create_app(container=container)) as client:
         response = client.get(
             "/api/todos", headers={"Origin": "https://app.example.com"}
@@ -578,7 +579,7 @@ def test_unhandled_exception_returns_500_problem_without_leaking(
         raise error
 
     with (
-        caplog.at_level("ERROR", logger="my_app.api.errors"),
+        caplog.at_level("ERROR", logger="intent_to_english.api.errors"),
         TestClient(app, raise_server_exceptions=False) as client,
     ):
         response = client.get("/unexpected")
@@ -595,7 +596,9 @@ def test_unhandled_exception_returns_500_problem_without_leaking(
     }
     assert "hunter2" not in response.text
     records = [
-        record for record in caplog.records if record.name == "my_app.api.errors"
+        record
+        for record in caplog.records
+        if record.name == "intent_to_english.api.errors"
     ]
     assert len(records) == 1
     assert records[0].getMessage() == "Unhandled exception"
@@ -689,7 +692,7 @@ def test_middleware_http_exception_returns_problem_without_server_error_log(
 
     app.add_middleware(BaseHTTPMiddleware, dispatch=reject)
     with (
-        caplog.at_level("ERROR", logger="my_app.api.errors"),
+        caplog.at_level("ERROR", logger="intent_to_english.api.errors"),
         TestClient(app, raise_server_exceptions=False) as client,
     ):
         response = client.get("/healthz", headers={"Origin": "https://app.example.com"})
@@ -709,7 +712,9 @@ def test_middleware_http_exception_returns_problem_without_server_error_log(
         "code": "http_error",
     }
     assert not [
-        record for record in caplog.records if record.name == "my_app.api.errors"
+        record
+        for record in caplog.records
+        if record.name == "intent_to_english.api.errors"
     ]
 
 

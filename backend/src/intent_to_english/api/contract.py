@@ -1,6 +1,6 @@
 """Export the API contract without starting the server or reading runtime inputs.
 
-Usage: python -m my_app.api.contract --output PATH [--check]
+Usage: python -m intent_to_english.api.contract --output PATH [--check]
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from my_app.api.app import create_app
-from my_app.composition import build_container
-from my_app.settings import Settings
+from intent_to_english.api.app import create_app
+from intent_to_english.composition import build_container
+from intent_to_english.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

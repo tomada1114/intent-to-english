@@ -13,14 +13,14 @@ from uuid import UUID
 
 from fastapi import APIRouter
 
-from my_app.api.dependencies import TodoServiceDep
-from my_app.api.schemas import (
+from intent_to_english.api.dependencies import TodoServiceDep
+from intent_to_english.api.schemas import (
     TodoCreateRequest,
     TodoPageResponse,
     TodoResponse,
     problem_responses,
 )
-from my_app.core.models import DEFAULT_PAGE_LIMIT
+from intent_to_english.core.models import DEFAULT_PAGE_LIMIT
 
 router = APIRouter(prefix="/todos", tags=["todos"])
 

@@ -115,7 +115,7 @@ lint: backend::lint frontend::lint e2e-lint
 test: backend::test frontend::test
     uv run --locked pytest -n auto
 
-# The API (`just backend dev`, http://127.0.0.1:${MY_APP_API_PORT:-8000}) and
+# The API (`just backend dev`, http://127.0.0.1:${INTENT_TO_ENGLISH_API_PORT:-8000}) and
 # the screen (`just frontend dev`, http://localhost:${VITE_PORT:-5173}, which
 # proxies /api and /healthz to the API) run side by side. `set -m` gives each its
 # own process group, so stopping one stops everything it started (uv, uvicorn's
@@ -195,7 +195,7 @@ e2e-lint:
 # e2e/playwright.config.ts starts the API (after migrating the database) and the
 # built screen behind Vite's preview proxy, on the two ports picked here: free
 # ones, or E2E_API_PORT and E2E_WEB_PORT, never 8000 or 5173 (the developer's
-# `just dev`), and never a server already running. Every inherited MY_APP_*
+# `just dev`), and never a server already running. Every inherited INTENT_TO_ENGLISH_*
 # variable is dropped and each Settings field set, so neither the shell nor
 # backend/.env reaches the run; tests/test_just_e2e.py and
 # backend/tests/test_e2e_persistence.py hold the list equal to Settings. `set -m`
@@ -210,7 +210,7 @@ e2e-lint:
 e2e *ARGS:
     #!/usr/bin/env bash
     set -uo pipefail
-    for name in $(env | sed -n 's/^\(MY_APP_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$name"; done
+    for name in $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[A-Za-z0-9_]*\)=.*/\1/p'); do unset "$name"; done
     free='import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
     probe='import socket, sys
     port = int(sys.argv[1])
@@ -294,7 +294,7 @@ e2e *ARGS:
     echo "just e2e: API port $api, screen port $web, database in $tmp"
     export E2E_DATABASE_URL="sqlite+aiosqlite:///$tmp/e2e.db" E2E_API_PORT="$api" E2E_WEB_PORT="$web"
     export JUST={{ quote(just_executable()) }}
-    export MY_APP_DATABASE_URL="$E2E_DATABASE_URL" MY_APP_CORS_ORIGINS= MY_APP_LOG_LEVEL=INFO MY_APP_LOG_FORMAT=text
+    export INTENT_TO_ENGLISH_DATABASE_URL="$E2E_DATABASE_URL" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL=INFO INTENT_TO_ENGLISH_LOG_FORMAT=text
     pnpm --dir e2e run typecheck || finish "$?"
     set -m
     pnpm --dir e2e exec playwright test "$@" </dev/null &
@@ -317,12 +317,12 @@ verify: lock-check agents-check check-harness contract-check lint test-skills te
 
 # Export the backend's OpenAPI contract without a server or runtime settings
 contract:
-    uv run --locked --directory backend python -m my_app.api.contract --output ../frontend/openapi.json
+    uv run --locked --directory backend python -m intent_to_english.api.contract --output ../frontend/openapi.json
     pnpm --dir frontend run api:generate
 
 # Fail when the committed OpenAPI contract is missing or stale, without writing
 contract-check:
-    uv run --locked --directory backend python -m my_app.api.contract --output ../frontend/openapi.json --check
+    uv run --locked --directory backend python -m intent_to_english.api.contract --output ../frontend/openapi.json --check
     uv run --locked python scripts/check_generated_client.py
 
 # tests/harness checks skills, AGENTS.md (its Skills table and Quick Reference),

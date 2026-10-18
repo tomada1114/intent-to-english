@@ -44,7 +44,7 @@ build:
     fi
 
 # Never ends on its own; an agent runs it only inside its own `just dev` pair on
-# free ports (running-the-app). VITE_PORT moves it; MY_APP_API_PORT moves the
+# free ports (running-the-app). VITE_PORT moves it; INTENT_TO_ENGLISH_API_PORT moves the
 # API that /api and /healthz are proxied to (vite.config.ts).
 # Human-run: serve the frontend with Vite's dev server on http://localhost:${VITE_PORT:-5173}
 dev:

@@ -16,13 +16,13 @@ from uuid import UUID
 import anyio
 import pytest
 
-from my_app.adapters.memory import InMemoryTodoRepository
-from my_app.adapters.sql.engine import make_engine
-from my_app.adapters.sql.repository import SqlTodoRepository
-from my_app.adapters.sql.tables import metadata
-from my_app.core.errors import InvalidCursorError, TodoNotFoundError
-from my_app.core.models import Page, Todo
-from my_app.core.ports import TodoRepository
+from intent_to_english.adapters.memory import InMemoryTodoRepository
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.repository import SqlTodoRepository
+from intent_to_english.adapters.sql.tables import metadata
+from intent_to_english.core.errors import InvalidCursorError, TodoNotFoundError
+from intent_to_english.core.models import Page, Todo
+from intent_to_english.core.ports import TodoRepository
 from tests.conftest import POSTGRES_URL
 
 if TYPE_CHECKING:

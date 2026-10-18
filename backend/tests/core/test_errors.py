@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from my_app.core.errors import (
+from intent_to_english.core.errors import (
     AppError,
     InvalidCursorError,
     InvalidPageLimitError,
@@ -66,7 +66,7 @@ def test_every_app_error_declares_its_own_unique_code():
     while pending:
         error_type = pending.pop()
         pending.extend(error_type.__subclasses__())
-        if not error_type.__module__.startswith("my_app."):
+        if not error_type.__module__.startswith("intent_to_english."):
             continue
         assert "code" in error_type.__dict__, error_type.__name__
         code = error_type.code

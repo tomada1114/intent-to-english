@@ -54,27 +54,27 @@ export function e2eRun(): E2eRun {
 }
 
 /**
- * Every current Settings field (backend/src/my_app/settings.py) with this run's
+ * Every current Settings field (backend/src/intent_to_english/settings.py) with this run's
  * value. Settings reads the environment before backend/.env, so a field set here
  * can never come from the developer's dotenv file; a field left out could.
  * tests/test_just_e2e.py fails when this list and Settings disagree.
  */
 export function settingsEnvironment(databaseUrl: string): Record<string, string> {
   return {
-    MY_APP_DATABASE_URL: databaseUrl,
-    MY_APP_CORS_ORIGINS: "",
-    MY_APP_LOG_LEVEL: "INFO",
-    MY_APP_LOG_FORMAT: "text",
+    INTENT_TO_ENGLISH_DATABASE_URL: databaseUrl,
+    INTENT_TO_ENGLISH_CORS_ORIGINS: "",
+    INTENT_TO_ENGLISH_LOG_LEVEL: "INFO",
+    INTENT_TO_ENGLISH_LOG_FORMAT: "text",
   };
 }
 
-/** This process's environment without any inherited MY_APP_* key, plus `settings`. */
+/** This process's environment without any inherited INTENT_TO_ENGLISH_* key, plus `settings`. */
 export function isolatedEnvironment(
   settings: Record<string, string>,
 ): Record<string, string> {
   const inherited = Object.entries(process.env).filter(
     (entry): entry is [string, string] =>
-      entry[1] !== undefined && !entry[0].startsWith("MY_APP_"),
+      entry[1] !== undefined && !entry[0].startsWith("INTENT_TO_ENGLISH_"),
   );
   return { ...Object.fromEntries(inherited), ...settings };
 }

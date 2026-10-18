@@ -1,1 +1,1 @@
-"""Tests for my_app.api."""
+"""Tests for intent_to_english.api."""

@@ -6,10 +6,10 @@ build-backend = "hatchling.build"
 # `[tool.uv]` and the `dev` dependency group from the root pyproject.toml only,
 # and the workspace shares the root uv.lock.
 [project]
-name = "my-app"
+name = "intent-to-english"
 # Static build metadata required to install the package; never bumped.
 version = "0.1.0"
-description = "A short description of the project."
+description = "Practice English small talk: say it in Japanese first, build the English yourself, then rebuild it from fill-in feedback."
 requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.22",
@@ -23,7 +23,7 @@ dependencies = [
 # member may not reach ("..") under the packaging glob rules, and the backend
 # is never published.
 license = "MIT"
-authors = [{ name = "Your Name" }]
+authors = [{ name = "tomada" }]
 keywords = []
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -33,9 +33,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-username/fastapi-react-template"
-Repository = "https://github.com/your-username/fastapi-react-template"
-Issues = "https://github.com/your-username/fastapi-react-template/issues"
+Homepage = "https://github.com/tomada1114/intent-to-english"
+Repository = "https://github.com/tomada1114/intent-to-english"
+Issues = "https://github.com/tomada1114/intent-to-english/issues"
 
 [project.optional-dependencies]
 postgres = [
@@ -47,7 +47,7 @@ postgres = [
 # --------------------------------------------------------------------------- #
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/my_app"]
+packages = ["src/intent_to_english"]
 
 # --------------------------------------------------------------------------- #
 #  Ruff – linter & formatter
@@ -60,26 +60,26 @@ packages = ["src/my_app"]
 extend = "../pyproject.toml"
 src = ["src", "tests"]
 
-# The core (src/my_app/core) must stay framework- and I/O-free so every entry
+# The core (src/intent_to_english/core) must stay framework- and I/O-free so every entry
 # point and adapter can share it. ALLOWED_STDLIB in tests/core/test_imports.py
 # is the authoritative import rule; these editor-time checks are a fast subset.
 # These modules are banned everywhere, then allowed back below only in the
 # layers that exist to use them.
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-"fastapi".msg = "the core is framework-free; use fastapi only in my_app.api"
+"fastapi".msg = "the core is framework-free; use fastapi only in intent_to_english.api"
 "uvicorn".msg = "uvicorn serves the app from the command line (just dev); no module imports it"
-"sqlite3".msg = "the core is I/O-free; use sqlite3 only in my_app.adapters"
+"sqlite3".msg = "the core is I/O-free; use sqlite3 only in intent_to_english.adapters"
 "httpx".msg = "the core is I/O-free; use httpx only in an adapter or a test"
-"sqlalchemy".msg = "the core is I/O-free; use sqlalchemy only in my_app.adapters and backend/migrations"
-"alembic".msg = "the core is I/O-free; use alembic only in my_app.adapters and backend/migrations"
-"aiosqlite".msg = "the core is I/O-free; use aiosqlite only in my_app.adapters and backend/migrations"
+"sqlalchemy".msg = "the core is I/O-free; use sqlalchemy only in intent_to_english.adapters and backend/migrations"
+"alembic".msg = "the core is I/O-free; use alembic only in intent_to_english.adapters and backend/migrations"
+"aiosqlite".msg = "the core is I/O-free; use aiosqlite only in intent_to_english.adapters and backend/migrations"
 
 # Replaces, never merges with, the root's per-file-ignores: the root's entries
 # name root paths (scripts/, tests/, .agents/skills/), none of which is here.
 [tool.ruff.lint.per-file-ignores]
 # The outer layers exist to use the frameworks and drivers the core may not.
-"src/my_app/api/**" = ["TID251"]     # FastAPI is the HTTP entry point
-"src/my_app/adapters/**" = ["TID251"] # adapters wrap SQLAlchemy and other I/O
+"src/intent_to_english/api/**" = ["TID251"]     # FastAPI is the HTTP entry point
+"src/intent_to_english/adapters/**" = ["TID251"] # adapters wrap SQLAlchemy and other I/O
 # Alembic's env.py and revisions exist to drive Alembic and SQLAlchemy.
 "migrations/**" = ["TID251"]
 "tests/**" = [
@@ -100,7 +100,7 @@ src = ["src", "tests"]
 # root pyproject.toml checks scripts/, the root tests/, and skill scripts.
 # migrations/ holds Alembic's env.py and the revisions it generates.
 # ../e2e/verify_persistence.py is the e2e suite's backend process: it imports
-# my_app, which only this run resolves (the package ships no py.typed).
+# intent_to_english, which only this run resolves (the package ships no py.typed).
 files = ["src", "tests", "migrations", "../e2e/verify_persistence.py"]
 python_version = "3.14"
 strict = true

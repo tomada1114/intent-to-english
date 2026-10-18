@@ -9,13 +9,13 @@ import time
 import uuid
 from typing import TYPE_CHECKING
 
-from my_app.logging_config import request_id_var
+from intent_to_english.logging_config import request_id_var
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REQUEST_ID_PATTERN = re.compile(rb"[A-Za-z0-9._-]{1,128}")
-logger = logging.getLogger("my_app.access")
+logger = logging.getLogger("intent_to_english.access")
 
 
 class ServerDiagnosticMiddleware:

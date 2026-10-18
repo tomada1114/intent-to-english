@@ -324,7 +324,7 @@ def test_dev_one_server_exits_stops_the_other_with_its_status(
     ("env", "port"),
     [
         pytest.param({}, "8000", id="default"),
-        pytest.param({"MY_APP_API_PORT": "51001"}, "51001", id="override"),
+        pytest.param({"INTENT_TO_ENGLISH_API_PORT": "51001"}, "51001", id="override"),
     ],
 )
 def test_backend_dev_serves_on_loopback_api_port(
@@ -343,7 +343,7 @@ def test_backend_dev_serves_on_loopback_api_port(
         .strip()
         .replace("{{ quote(url) }}", shlex.quote("sqlite+aiosqlite:///./var/dev.db"))
     )
-    environ = {k: v for k, v in os.environ.items() if k != "MY_APP_API_PORT"}
+    environ = {k: v for k, v in os.environ.items() if k != "INTENT_TO_ENGLISH_API_PORT"}
 
     result = subprocess.run(  # noqa: S603 -- fixed shell argv, repository recipe line
         ["sh", "-cu", command],  # noqa: S607 -- sh from PATH, as just runs each line
