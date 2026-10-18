@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from intent_to_english.core.errors import InvalidPageLimitError, InvalidTodoError
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
     from decimal import Decimal
     from uuid import UUID
@@ -502,8 +504,8 @@ class Session:
         """Refuse structurally invalid values at every boundary."""
         check_aware(self.started_at)
         check_aware(self.ended_at)
-        if self.status is SessionStatus.ENDED and self.ended_at is None:
-            msg = "An ended session must have ended_at"
+        if (self.status is SessionStatus.ENDED) != (self.ended_at is not None):
+            msg = "ended_at must be set exactly when a session is ended"
             raise ValueError(msg)
         if (self.status is SessionStatus.ENDED) != (self.stage is Stage.ENDED):
             msg = "Session status and stage must agree"
@@ -695,6 +697,32 @@ type EntryPayload = (
     | PracticeResultPayload
 )
 
+ENTRY_PAYLOAD_TYPES: Mapping[EntryKind, type[EntryPayload]] = MappingProxyType(
+    {
+        EntryKind.PARTNER_LINE: PartnerLinePayload,
+        EntryKind.INTENT: IntentPayload,
+        EntryKind.ACKNOWLEDGMENT: AcknowledgmentPayload,
+        EntryKind.ENGLISH: EnglishPayload,
+        EntryKind.HINT_REQUEST: HintRequestPayload,
+        EntryKind.GAP_HINT: GapHintPayload,
+        EntryKind.READING_QUESTION: ReadingQuestionPayload,
+        EntryKind.READING_CHOICE: ReadingChoicePayload,
+        EntryKind.FEEDBACK: FeedbackPayload,
+        EntryKind.RETRY: RetryPayload,
+        EntryKind.RETRY_RESULT: RetryResultPayload,
+        EntryKind.ANSWER: AnswerPayload,
+        EntryKind.TYPED_COPY: TypedCopyPayload,
+        EntryKind.SKIP: SkipPayload,
+        EntryKind.TURN_DONE: TurnDonePayload,
+        EntryKind.QUESTION: QuestionPayload,
+        EntryKind.COACH_ANSWER: CoachAnswerPayload,
+        EntryKind.CHECK_IN: CheckInPayload,
+        EntryKind.CHECK_IN_ANSWER: CheckInAnswerPayload,
+        EntryKind.PRACTICE: PracticePayload,
+        EntryKind.PRACTICE_RESULT: PracticeResultPayload,
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class TimelineEntry:
@@ -711,6 +739,9 @@ class TimelineEntry:
     def __post_init__(self) -> None:
         """Refuse structurally invalid values at every boundary."""
         check_aware(self.created_at)
+        if type(self.payload) is not ENTRY_PAYLOAD_TYPES[self.kind]:
+            msg = "Timeline kind and payload type must agree"
+            raise ValueError(msg)
         if self.seq < 1 or self.turn_index < 1:
             msg = "Timeline counters must be positive"
             raise ValueError(msg)
