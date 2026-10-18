@@ -227,8 +227,9 @@ dialogs in the MVP; everything happens in the page.
   every turn collapsed to one line (turn number and the learner's finished English);
   expanding shows that turn's complete timeline as in S2, without composer or controls.
   Clicking a learner line on the left expands its turn on the right.
-- No composer, no controls, no next-action line. No "続ける" — an ended session cannot be
-  reopened.
+- No conversation composer, in-session controls, or next-action line. No "続ける" — an
+  ended session cannot be reopened. While its wrap-up is due, the right pane shows the
+  waiting state or an error banner with [もう一度]; that retry makes only the wrap-up.
 - A session ended before any feedback has no wrap-up: the right pane starts with the turn
   list.
 
@@ -291,17 +292,23 @@ Any Coach or Partner call: [error banner + もう一度] — the stage stays, th
 
 1. After the 3rd, 6th, 9th… finished reply: 💡 「ここで3往復です。続けますか？」 → [続ける]
    (the Partner continues) or [終わる].
-2. 「会話を終える」 (header) or [終わる] at any stage → the wrap-up is generated → S3.
+2. 「会話を終える」 (header) or [終わる] at any stage → the session ends immediately → S3.
+   Any running action is superseded and its late output is discarded. When a feedback block
+   exists (including one with no fix), the wrap-up is generated separately in S3. A failure
+   leaves the session ended and [もう一度] retries only the wrap-up. Without any feedback,
+   there is nothing to generate and the right pane starts with the turn list.
 
 ```
 [reply 3k done] -> [Check-in] -> 続ける -> [Partner reply] -> [Intent]
                         |
                       終わる
                         v
-[会話を終える (any stage)] -> [waiting: wrap-up] -> [S3]
+[会話を終える (any stage)] -> [S3: ended immediately]
                                      |
-                                     v
-                    [error banner + もう一度] — the session stays in progress until the wrap-up exists
+                          [feedback exists: waiting for wrap-up]
+                                     |
+                          [wrap-up shown | error banner + もう一度]
+                          the session stays ended throughout
 ```
 
 ### F-4 Ask the Coach

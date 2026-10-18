@@ -65,7 +65,9 @@ core values only.
 ## Data
 
 SQLite through SQLAlchemy Core and Alembic, as the template ships it (`persisting-data`).
-Ids are UUIDv7 from `IdFactory`; times are UTC.
+Ids are UUIDv7 from `IdFactory`; times are UTC. A session has an end time exactly when
+its status is ended. Every timeline kind has exactly one payload type; construction
+rejects a mismatched pair before it can enter the append-only timeline.
 
 | Table | Columns | Rules |
 |---|---|---|
