@@ -7,7 +7,7 @@ async function config() {
 
 describe("development API proxy", () => {
   it("routes API and health requests to the default loopback backend", async () => {
-    vi.stubEnv("MY_APP_API_PORT", undefined);
+    vi.stubEnv("INTENT_TO_ENGLISH_API_PORT", undefined);
     vi.stubEnv("VITE_PORT", undefined);
 
     const actual = await config();
@@ -23,7 +23,7 @@ describe("development API proxy", () => {
   });
 
   it("uses explicit ports for an owned development pair", async () => {
-    vi.stubEnv("MY_APP_API_PORT", "51001");
+    vi.stubEnv("INTENT_TO_ENGLISH_API_PORT", "51001");
     vi.stubEnv("VITE_PORT", "51002");
 
     const actual = await config();
@@ -41,9 +41,9 @@ describe("development API proxy", () => {
   it.each(["8000@external.invalid", "0", "65536"])(
     "rejects a non-port API target: %s",
     async (port) => {
-      vi.stubEnv("MY_APP_API_PORT", port);
+      vi.stubEnv("INTENT_TO_ENGLISH_API_PORT", port);
 
-      await expect(config()).rejects.toThrow(/MY_APP_API_PORT.*1-65535/);
+      await expect(config()).rejects.toThrow(/INTENT_TO_ENGLISH_API_PORT.*1-65535/);
     },
   );
 });

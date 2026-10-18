@@ -1,6 +1,6 @@
 """Alembic's environment: how every ``alembic`` command reaches its database.
 
-The URL comes from ``MY_APP_DATABASE_URL`` through ``Settings``, never from
+The URL comes from ``INTENT_TO_ENGLISH_DATABASE_URL`` through ``Settings``, never from
 ``alembic.ini``, so no URL is ever committed. A caller that already holds a
 connection hands it over in ``config.attributes["connection"]`` instead (the
 Alembic cookbook's "Sharing a Connection"). The app itself never runs this:
@@ -17,8 +17,8 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from my_app.adapters.sql.tables import UtcDateTime, metadata
-from my_app.settings import Settings
+from intent_to_english.adapters.sql.tables import UtcDateTime, metadata
+from intent_to_english.settings import Settings
 
 if TYPE_CHECKING:
     from alembic.autogenerate.api import AutogenContext
@@ -35,7 +35,7 @@ if config.config_file_name is not None and config.attributes.get(
 
 
 def _database_url() -> str:
-    """Return the URL ``MY_APP_DATABASE_URL`` names, validated by ``Settings``.
+    """Return the URL ``INTENT_TO_ENGLISH_DATABASE_URL`` names, validated by ``Settings``.
 
     Raises:
         RuntimeError: If the variable is unset or empty: there is no database
@@ -43,7 +43,7 @@ def _database_url() -> str:
     """
     url = Settings().database_url
     if url is None:
-        msg = "MY_APP_DATABASE_URL must be set to run migrations"
+        msg = "INTENT_TO_ENGLISH_DATABASE_URL must be set to run migrations"
         raise RuntimeError(msg)
     return url
 

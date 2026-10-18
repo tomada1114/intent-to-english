@@ -7,20 +7,22 @@ from uuid import UUID
 import pytest
 from fastapi.testclient import TestClient
 
-from my_app.api.app import create_app
-from my_app.api.middleware import RequestIdMiddleware
-from my_app.settings import Settings
+from intent_to_english.api.app import create_app
+from intent_to_english.api.middleware import RequestIdMiddleware
+from intent_to_english.settings import Settings
 
 
 @pytest.mark.parametrize("value", ["abc-123", "A" * 128, "a.b_c-0"])
 def test_request_id_well_formed_is_echoed_and_logged(make_container, caplog, value):
     with (
-        caplog.at_level("INFO", logger="my_app.access"),
+        caplog.at_level("INFO", logger="intent_to_english.access"),
         TestClient(create_app(container=make_container())) as client,
     ):
         response = client.get("/healthz", headers={"X-Request-ID": value})
     assert response.headers.get("X-Request-ID") == value
-    records = [record for record in caplog.records if record.name == "my_app.access"]
+    records = [
+        record for record in caplog.records if record.name == "intent_to_english.access"
+    ]
     assert len(records) == 1
     assert records[0].request_id == value
     assert records[0].status == 200
@@ -57,7 +59,7 @@ def test_problem_details_carry_the_request_id(make_container, caplog, case):
 
     app.add_api_route("/failure", failure)
     with (
-        caplog.at_level("INFO", logger="my_app.access"),
+        caplog.at_level("INFO", logger="intent_to_english.access"),
         TestClient(app, raise_server_exceptions=False) as client,
     ):
         response = getattr(client, method)(
@@ -67,14 +69,16 @@ def test_problem_details_carry_the_request_id(make_container, caplog, case):
     assert (
         response.json()["request_id"] == response.headers["X-Request-ID"] == "r-problem"
     )
-    records = [record for record in caplog.records if record.name == "my_app.access"]
+    records = [
+        record for record in caplog.records if record.name == "intent_to_english.access"
+    ]
     assert len(records) == 1
     assert records[0].status == status
 
 
 def test_logs_never_contain_body_or_query(make_container, caplog):
     with (
-        caplog.at_level("INFO", logger="my_app"),
+        caplog.at_level("INFO", logger="intent_to_english"),
         TestClient(create_app(container=make_container())) as client,
     ):
         client.post("/api/todos", json={"title": "SENTINEL-TITLE"})
@@ -121,23 +125,23 @@ async def test_streaming_access_record_follows_final_body(caplog):
     async def stream(scope, receive, send):
         await send({"type": "http.response.start", "status": 202, "headers": []})
         await send({"type": "http.response.body", "body": b"first", "more_body": True})
-        assert not [r for r in caplog.records if r.name == "my_app.access"]
+        assert not [r for r in caplog.records if r.name == "intent_to_english.access"]
         await send({"type": "http.response.body", "body": b"last"})
 
     async def receive():
         return {"type": "http.disconnect"}
 
     async def send(message):
-        assert not [r for r in caplog.records if r.name == "my_app.access"]
+        assert not [r for r in caplog.records if r.name == "intent_to_english.access"]
         sent.append(message)
 
-    with caplog.at_level("INFO", logger="my_app.access"):
+    with caplog.at_level("INFO", logger="intent_to_english.access"):
         await RequestIdMiddleware(stream)(
             {"type": "http", "method": "GET", "path": "/stream", "headers": []},
             receive,
             send,
         )
     assert sent[-1] == {"type": "http.response.body", "body": b"last"}
-    records = [r for r in caplog.records if r.name == "my_app.access"]
+    records = [r for r in caplog.records if r.name == "intent_to_english.access"]
     assert len(records) == 1
     assert records[0].status == 202

@@ -14,7 +14,7 @@ function RootLayout() {
   return (
     <>
       <header className="border-b border-gray-200 px-4 py-3 font-semibold">
-        <p>My App</p>
+        <p>Intent to English</p>
       </header>
       <main className="p-4">
         <Outlet />

@@ -11,13 +11,13 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from my_app.api.app import create_app
-from my_app.logging_config import configure_logging, request_id_var
+from intent_to_english.api.app import create_app
+from intent_to_english.logging_config import configure_logging, request_id_var
 
 
 @pytest.fixture
 def configured_logging():
-    logger = logging.getLogger("my_app")
+    logger = logging.getLogger("intent_to_english")
     original = (logger.handlers[:], logger.level, logger.propagate)
     logger.handlers = []
     configure_logging("INFO", "json")
@@ -55,7 +55,7 @@ def test_json_logs_include_context_access_fields_and_traceback(configured_loggin
         try:
             failure()
         except RuntimeError:
-            logging.getLogger("my_app.sample").exception(
+            logging.getLogger("intent_to_english.sample").exception(
                 "Failure",
                 extra={
                     "method": "GET",
@@ -87,7 +87,7 @@ def test_json_logs_include_context_access_fields_and_traceback(configured_loggin
 
 def test_json_log_preserves_explicit_exception_classification(configured_logging):
     _, stream = configured_logging
-    logging.getLogger("my_app.api.errors").error(
+    logging.getLogger("intent_to_english.api.errors").error(
         "Unhandled exception", extra={"exception_type": "builtins.ValueError"}
     )
     assert json.loads(stream.getvalue())["exception_type"] == "builtins.ValueError"
@@ -98,7 +98,7 @@ def test_outside_request_and_text_format_include_none_identity(configured_loggin
     configure_logging("INFO", "text")
     stream = io.StringIO()
     logger.handlers[0].setStream(stream)
-    logging.getLogger("my_app.sample").info("outside")
+    logging.getLogger("intent_to_english.sample").info("outside")
     assert "[None] outside" in stream.getvalue()
 
 
@@ -111,10 +111,10 @@ def test_preserved_handler_receives_identity_before_it_formats(configured_loggin
     configure_logging("INFO", "text")
     token = request_id_var.set("external-id")
     try:
-        logging.getLogger("my_app.adapters.sample").info("adapter")
+        logging.getLogger("intent_to_english.adapters.sample").info("adapter")
     finally:
         request_id_var.reset(token)
-    logging.getLogger("my_app.adapters.sample").info("outside")
+    logging.getLogger("intent_to_english.adapters.sample").info("outside")
     assert stream.getvalue().splitlines() == ["external-id adapter", "None outside"]
 
 
@@ -148,7 +148,7 @@ async def test_concurrent_requests_keep_adapter_and_access_ids_separate(
         if arrived == 2:
             barrier.set()
         await barrier.wait()
-        logging.getLogger("my_app.adapters.sample").info("adapter")
+        logging.getLogger("intent_to_english.adapters.sample").info("adapter")
         return {}
 
     app.add_api_route("/log", log_route)
@@ -160,11 +160,11 @@ async def test_concurrent_requests_keep_adapter_and_access_ids_separate(
             response = await client.get("/log", headers={"X-Request-ID": value})
             assert response.headers["X-Request-ID"] == value
 
-        with caplog.at_level("INFO", logger="my_app"):
+        with caplog.at_level("INFO", logger="intent_to_english"):
             async with anyio.create_task_group() as group:
                 group.start_soon(send, "one")
                 group.start_soon(send, "two")
-    for name in ("my_app.adapters.sample", "my_app.access"):
+    for name in ("intent_to_english.adapters.sample", "intent_to_english.access"):
         records = [r for r in caplog.records if r.name == name]
         assert sorted(r.request_id for r in records) == ["one", "two"]
     assert request_id_var.get() is None

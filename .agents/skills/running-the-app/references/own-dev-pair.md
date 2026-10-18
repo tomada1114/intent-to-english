@@ -3,7 +3,7 @@
 Read when the evidence needs the screen's origin — Vite's proxy of `/api` and `/healthz`,
 the served screen, or `just dev` itself. `just dev` runs `just backend dev` and
 `just frontend dev` together and stops both when either exits or it receives `SIGINT`,
-`SIGTERM`, or `SIGHUP`. Two process variables move its ports: `MY_APP_API_PORT`
+`SIGTERM`, or `SIGHUP`. Two process variables move its ports: `INTENT_TO_ENGLISH_API_PORT`
 (uvicorn's `--port`, and the port Vite proxies `/api` and `/healthz` to) and
 `VITE_PORT` (Vite's port, with `strictPort`: a taken port fails instead of moving).
 Neither is a setting: `Settings` never reads them.
@@ -14,7 +14,7 @@ Everything in `SKILL.md`'s "The developer's server is not yours" holds, plus:
 
 - **Two free ports, both checked** on `127.0.0.1` and `::1`, neither 8000 nor 5173.
 - **A scratch database file, never empty.** `just dev` migrates first (`just backend
-  db-upgrade`), and the database recipes turn an unset or empty `MY_APP_DATABASE_URL`
+  db-upgrade`), and the database recipes turn an unset or empty `INTENT_TO_ENGLISH_DATABASE_URL`
   into `backend/var/dev.db`, the developer's database. So the in-memory store is not
   available here: point the URL at a file in a `mktemp -d` directory.
 - **Requests only to the pair just started:** `curl` the Vite port, after both
@@ -63,7 +63,7 @@ log=$(mktemp)
 uv run --locked python -c "$probe" "$api"; a=$?
 uv run --locked python -c "$probe" "$vite"; v=$?
 if [ "$a" = 1 ] && [ "$v" = 1 ] && [ "$api" != "$vite" ]; then
-  env $(env | sed -n 's/^\(MY_APP_[^=]*\)=.*/-u \1/p') MY_APP_DATABASE_URL="$db" MY_APP_CORS_ORIGINS= MY_APP_LOG_LEVEL= MY_APP_LOG_FORMAT= MY_APP_API_PORT="$api" VITE_PORT="$vite" just dev >"$log" 2>&1 &
+  env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= INTENT_TO_ENGLISH_API_PORT="$api" VITE_PORT="$vite" just dev >"$log" 2>&1 &
   pid=$!
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
   if uv run --locked python -c "$ready" "$log" "$api" "$vite" "$pid"; then

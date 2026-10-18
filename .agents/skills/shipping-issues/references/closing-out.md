@@ -122,7 +122,7 @@ everything that could wait**. Check each such command against three questions, i
 for anything not tied to one. It sits outside every checkout, so a moved-out directory
 never reads as untracked content (the reason `<runstate>` exists —
 [run-record.md](run-record.md)). Keep the original's relative path under it
-(`holding/42/src/my_app/legacy/`) so the report can name what came from where; on a
+(`holding/42/src/intent_to_english/legacy/`) so the report can name what came from where; on a
 name collision add a suffix rather than overwrite. A move across filesystems is a
 copy-then-delete — fine for a fixture, slow for a `.venv`; keep holding for what
 the run actually needs out of the way. **Never move anything this run did not create or

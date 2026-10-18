@@ -119,7 +119,7 @@ client, API errors, styling, accessibility, and its component tests — is the
   and supplies the required single-page defaults without suppression directives.
   Consumers override `getNextPageParam` with their response-specific cursor rule.
 - Vite's development server proxies `/api` and `/healthz` to the loopback API.
-  `MY_APP_API_PORT` selects that target port (default 8000); the API must be bound
+  `INTENT_TO_ENGLISH_API_PORT` selects that target port (default 8000); the API must be bound
   to the same port. `VITE_PORT` selects Vite's port (default 5173), with strict
   binding. These are process variables, not backend `Settings` or dotenv keys.
 

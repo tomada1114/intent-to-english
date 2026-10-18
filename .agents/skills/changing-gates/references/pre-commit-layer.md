@@ -172,20 +172,6 @@ one pass.
 
 ## What replaced the agent hooks
 
-<!-- template-only -->
-The repository used to wire agent hook scripts into Claude Code and Codex CLI. Each
-behavior they had now lives here:
-
-| Former agent hook behavior | Where it lives now |
-|---|---|
-| Format-on-edit (`format.py`) | An opt-in personal hook in the gitignored `.claude/settings.local.json` (snippet below) |
-| Blocking `git commit --no-verify`, plain force-push, `gh pr merge --admin` (`guard.py`) | The owner's user-level deny rules, plus "never bypass a git hook" in AGENTS.md's "Security and human approval" |
-| Blocking writes to `uv.lock` (`guard.py`) | `just verify`'s `lock-check` (`uv lock --check`) |
-| Blocking writes to `.env*` and `secrets/**` (`guard.py`) | `check-staged` refuses them at commit time |
-| ruff and mypy before an agent ends its turn (`stop_check.py`) | The ruff and mypy pre-commit hooks, and `just verify` |
-
-<!-- /template-only -->
-
 Format-on-edit for Claude Code, in `.claude/settings.local.json` (needs `jq`):
 
 ```json

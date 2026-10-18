@@ -96,7 +96,7 @@ Each row feeds a checklist item or the Summary:
 | A weakened gate (`changing-gates`' list: a removed ruff rule, a `noqa` without a reason, a skipped test, …) | Stop. The PR waits until a human decides; it is not opened with the problem in it. |
 | New behavior without a test that covers it | Stop and add the test. **REQUIRED:** `tdd`. |
 | A new public function without type annotations or a docstring that says why | Add them. **BACKGROUND:** `writing-python`. |
-| A route, status, or `MY_APP_*` setting a user observes changed | The relevant README text changes on this branch. **REQUIRED:** `updating-docs` decides what is owed. |
+| A route, status, or `INTENT_TO_ENGLISH_*` setting a user observes changed | The relevant README text changes on this branch. **REQUIRED:** `updating-docs` decides what is owed. |
 | A removed or changed public behavior | A breaking change: call it out in the Summary, in one line a user can act on, and mark the title with `!`. |
 | A design change (`AGENTS.md`'s "Before changing the architecture") | The present-state description — `AGENTS.md`, `backend/AGENTS.md`'s "Architecture", or the skill that owns the subject — is rewritten on this branch. |
 

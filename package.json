@@ -1,5 +1,5 @@
 {
-  "name": "my-app",
+  "name": "intent-to-english",
   "private": true,
   "packageManager": "pnpm@11.18.0",
   "devEngines": {

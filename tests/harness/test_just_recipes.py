@@ -665,17 +665,18 @@ def test_justfile_recipes_reads_headers_and_aliases() -> None:
             "```bash\njust test # then just docs\n```\n", id="trailing-comment"
         ),
         pytest.param(
-            "```bash\nmy-app todo add \"just docs\"\nmy-app todo add 'just docs'\n```\n",
+            "```bash\nintent-to-english todo add \"just docs\"\nintent-to-english todo add 'just docs'\n```\n",
             id="quoted-argument",
         ),
         pytest.param("```bash\necho just docs\n```\n", id="argument"),
         pytest.param(
-            "```console\n$ my-app todo list\njust docs  [ ]\n```\n", id="console"
+            "```console\n$ intent-to-english todo list\njust docs  [ ]\n```\n",
+            id="console",
         ),
         pytest.param("```text\njust docs\n```\n", id="text-fence"),
         pytest.param("```output\njust docs\n```\n", id="output-fence"),
         pytest.param(
-            "```bash\n$ my-app todo list\njust docs  [ ]\n$ just test\n```\n",
+            "```bash\n$ intent-to-english todo list\njust docs  [ ]\n$ just test\n```\n",
             id="prompt-fence-output-line",
         ),
         pytest.param("Run `echo 'it is \"just docs\"'`.\n", id="nested-quotes"),

@@ -4,14 +4,14 @@ from uuid import UUID
 
 import pytest
 
-from my_app.adapters.memory import InMemoryTodoRepository
-from my_app.core.errors import (
+from intent_to_english.adapters.memory import InMemoryTodoRepository
+from intent_to_english.core.errors import (
     InvalidPageLimitError,
     InvalidTodoError,
     TodoNotFoundError,
 )
-from my_app.core.models import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, Page, Todo
-from my_app.core.services import TodoService
+from intent_to_english.core.models import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, Page, Todo
+from intent_to_english.core.services import TodoService
 
 pytestmark = pytest.mark.anyio
 

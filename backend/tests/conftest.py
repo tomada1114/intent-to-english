@@ -14,14 +14,14 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from my_app.composition import Container, build_container
-from my_app.settings import Settings
+from intent_to_english.composition import Container, build_container
+from intent_to_english.settings import Settings
 from tests.settings_env import without_settings_env
 
 FIXED_NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
-# Capture before the autouse settings-isolation fixture deletes MY_APP_*.
-POSTGRES_URL = os.environ.get("MY_APP_TEST_POSTGRES_URL")
+# Capture before the autouse settings-isolation fixture deletes INTENT_TO_ENGLISH_*.
+POSTGRES_URL = os.environ.get("INTENT_TO_ENGLISH_TEST_POSTGRES_URL")
 
 
 def _fixed_clock() -> datetime:
@@ -118,12 +118,12 @@ def sqlite_url(tmp_path):
 def alembic_config(sqlite_url, monkeypatch):
     """Alembic's own configuration, aimed at the ``sqlite_url`` file.
 
-    ``migrations/env.py`` reads ``MY_APP_DATABASE_URL`` as the command line
+    ``migrations/env.py`` reads ``INTENT_TO_ENGLISH_DATABASE_URL`` as the command line
     does, so the variable stays set to ``sqlite_url`` for the whole test.
     env.py calls ``asyncio.run``: run a command only from a plain ``def``
     test or fixture, never inside a running event loop.
     """
-    monkeypatch.setenv("MY_APP_DATABASE_URL", sqlite_url)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", sqlite_url)
     config = Config(ALEMBIC_INI)
     # pytest captures logging; alembic.ini's handlers would replace its own.
     config.attributes["configure_logging"] = False
@@ -144,7 +144,7 @@ def migrated_postgres_url(request):
         return None
     if not POSTGRES_URL:
         pytest.fail(
-            "MY_APP_TEST_POSTGRES_URL must name a disposable PostgreSQL database"
+            "INTENT_TO_ENGLISH_TEST_POSTGRES_URL must name a disposable PostgreSQL database"
         )
 
     async def migrate():

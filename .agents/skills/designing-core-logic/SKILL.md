@@ -1,14 +1,14 @@
 ---
 name: designing-core-logic
 description: >
-  Covers what goes where beneath the entry points: models, rules, and services in
-  backend/src/my_app/core/, ports as typing.Protocol any store can implement (app-made
-  UUIDv7 ids, cursor pages), the injected Clock and IdFactory, adapters in
-  backend/src/my_app/adapters/ and the shared repository contract suite, Settings in
-  settings.py, and the composition root's build_container and Container. Use when
-  adding a use case, a domain rule or model, a port, a repository or other adapter, or
-  a MY_APP_ setting, or when ruff TID251 or backend/tests/core/test_imports.py rejects
-  core code.
+  Covers what goes where beneath the entry points: models, rules, and services in the
+  backend package's core/, ports as typing.Protocol any store can implement (app-made
+  UUIDv7 ids, cursor pages), the injected Clock and IdFactory, adapters in its
+  adapters/ and the shared repository contract suite, Settings in settings.py, and the
+  composition root's build_container and Container. Use when adding a use case, a
+  domain rule or model, a port, a repository or other adapter, or an
+  INTENT_TO_ENGLISH_ setting, or when ruff TID251 or backend/tests/core/test_imports.py
+  rejects core code.
 ---
 
 # Designing Core Logic
@@ -150,7 +150,7 @@ port of the same kind rather than a direct call.
 ## Settings are read once, at the boundary
 
 `settings.py`'s `Settings` is the only place configuration enters, from
-`MY_APP_`-prefixed environment variables (`ENV_PREFIX`). A new setting is a field on
+`INTENT_TO_ENGLISH_`-prefixed environment variables (`ENV_PREFIX`). A new setting is a field on
 `Settings`:
 
 - validated in a `field_validator`, so a bad value fails at startup with a message that

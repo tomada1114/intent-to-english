@@ -166,7 +166,7 @@ jobs:
         env:
           # Public fixture value for this disposable test service; never reuse it.
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: my_app_test
+          POSTGRES_DB: intent_to_english_test
         ports:
           - 5432:5432
         options: >-
@@ -180,14 +180,14 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Install the default dependencies
-        run: uv sync --group dev --locked --package my-app
+        run: uv sync --group dev --locked --package intent-to-english
       - name: Migrate PostgreSQL through the development recipe
         env:
-          MY_APP_DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/my_app_test
+          INTENT_TO_ENGLISH_DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/intent_to_english_test
         run: uvx --from rust-just==1.47.1 just backend db-upgrade
       - name: Run the PostgreSQL contract and migrations
         env:
-          MY_APP_TEST_POSTGRES_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/my_app_test
+          INTENT_TO_ENGLISH_TEST_POSTGRES_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/intent_to_english_test
         run: uv run --locked --directory backend --extra postgres pytest -v -m postgres tests
 
   spell-check:
@@ -241,7 +241,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Install the backend dependencies
-        run: uv sync --group dev --locked --package my-app
+        run: uv sync --group dev --locked --package intent-to-english
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -272,7 +272,7 @@ jobs:
           enable-cache: true
 
       - name: Install the backend dependencies
-        run: uv sync --group dev --locked --package my-app
+        run: uv sync --group dev --locked --package intent-to-english
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
@@ -336,122 +336,3 @@ jobs:
         run: |
           echo "::error::a job CI result needs did not succeed; its result is above"
           exit 1
-
-  # <!-- template-only -->
-  # Bootstraps a scratch clone of the commit under test as a sample app and runs
-  # its whole gate, the browser test included, so the bootstrap cannot rot
-  # unnoticed. scripts/bootstrap.py removes this job from the app it creates, so
-  # it is deliberately not a required check and never in any job's `needs:`
-  # (tests/harness/test_template_only_needs.py): the app's workflow would then
-  # name a missing job. A failure still leaves the PR UNSTABLE, which automated
-  # merges stop on. The timeout covers the bootstrap, `just verify`, and `just e2e`.
-  bootstrap-smoke:
-    name: Template Bootstrap Smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          # Full history, so the bootstrap finds the template's first commit and
-          # records this commit in .template-origin.
-          fetch-depth: 0
-
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          enable-cache: true
-
-      # Before the bootstrap: its finishing steps run pnpm on Node 24, and the
-      # app's `just verify` and `just e2e` run the frontend and the browser test.
-      # pnpm/action-setup reads the pnpm version from package.json's
-      # packageManager, and runs before setup-node, whose pnpm cache needs pnpm
-      # on PATH.
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-
-      # The bootstrap needs a git work tree (its clean-tree check, `git ls-files`).
-      - name: Bootstrap a scratch clone with sample values
-        run: |
-          git clone --quiet "$GITHUB_WORKSPACE" "$RUNNER_TEMP/app"
-          cd "$RUNNER_TEMP/app"
-          uv run --locked python scripts/bootstrap.py todo-api \
-            --author "Jane Doe" --github-user jdoe --github-repository jdoe/todo-api \
-            --description "Todo API" --contact-url https://github.com/jdoe
-
-      - name: Assert no placeholder survived
-        run: |
-          cd "$RUNNER_TEMP/app"
-          # Stage everything (ignored files stay out) so git grep sees new files.
-          git add --all
-          # .template-origin names the template repository on purpose. The
-          # tokens never occur inside ordinary words, so any case is a leftover;
-          # the display placeholders are matched as whole words, as the
-          # template's sites spell them.
-          status=0
-          if git grep --cached -n -I -i -E 'my\-app|my_app|fastapi\-react\-template|your\-username|you@example\.com' -- . ':!.template-origin'; then
-            echo "::error::the bootstrap left a placeholder token on the lines above"; status=1
-          fi
-          if git grep --cached -n -I -i -w -E 'My\ App|Your\ Name|A\ short\ description\ of\ the\ project\.|A\ short\ description\ of\ what\ this\ application\ does\.' -- . ':!.template-origin'; then
-            echo "::error::the bootstrap left a display placeholder on the lines above"; status=1
-          fi
-          for path in TEMPLATE.md scripts/bootstrap.py tests/test_bootstrap.py backend/src/my_app \
-            .agents/skills/starting-an-app/references/bootstrap.md \
-            .claude/skills/starting-an-app/references/bootstrap.md; do
-            if [ -e "$path" ]; then echo "::error::$path survived the bootstrap"; status=1; fi
-          done
-          grep -qx 'ENV_PREFIX = "TODO_API_"' backend/src/todo_api/settings.py || { echo "::error::env prefix not renamed"; status=1; }
-          grep -qE '^commit: [0-9a-f]{40}$' .template-origin || { echo "::error::.template-origin lacks the template commit"; status=1; }
-          if grep -rn -e 'template-only' -e 'Template Bootstrap Smoke' .github .agents .claude AGENTS.md README.md backend/AGENTS.md frontend/AGENTS.md; then
-            echo "::error::template-only material survived"; status=1
-          fi
-          exit "$status"
-
-      - name: Assert the Product check fails on the unfilled section
-        run: |
-          cd "$RUNNER_TEMP/app"
-          if uv run --locked pytest -q tests/test_product_section.py >"$RUNNER_TEMP/product.log" 2>&1; then
-            cat "$RUNNER_TEMP/product.log"
-            echo "::error::tests/test_product_section.py passed on an app whose Product section is still TODO"
-            exit 1
-          fi
-          if ! grep -qF 'TODO: left in the Product section' "$RUNNER_TEMP/product.log"; then
-            cat "$RUNNER_TEMP/product.log"
-            echo "::error::tests/test_product_section.py failed, but not for the unfilled Product section"
-            exit 1
-          fi
-
-      - name: Fill the Product section
-        run: |
-          cd "$RUNNER_TEMP/app"
-          sed -i '/^## Product$/,/^## [A-Z]/ s/TODO: /Filled in by the smoke job: /' AGENTS.md
-          if sed -n '/^## Product$/,/^## [A-Z]/p' AGENTS.md | grep -F 'TODO:'; then
-            echo "::error::a TODO: survived in the Product section"
-            exit 1
-          fi
-
-      - name: Install the frontend's dependencies
-        run: |
-          cd "$RUNNER_TEMP/app"
-          pnpm install --frozen-lockfile
-
-      - name: just verify
-        run: |
-          cd "$RUNNER_TEMP/app"
-          uvx --from rust-just==1.47.1 just verify
-
-      # As the E2E job does: downloaded on every run, and a failed download fails
-      # the job.
-      - name: Install Chromium and its OS dependencies
-        run: |
-          cd "$RUNNER_TEMP/app"
-          pnpm --dir e2e exec playwright install --with-deps chromium
-
-      - name: just e2e
-        run: |
-          cd "$RUNNER_TEMP/app"
-          uvx --from rust-just==1.47.1 just e2e
-  # <!-- /template-only -->

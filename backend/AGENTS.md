@@ -13,7 +13,7 @@ can fail while iterating, then `just verify` before a completion claim.
 
 | What you changed | The narrowest check that can fail |
 |---|---|
-| A module under `backend/src/my_app/<layer>/` | `uv run --locked --directory backend pytest tests/<layer>/` |
+| A module under `backend/src/intent_to_english/<layer>/` | `uv run --locked --directory backend pytest tests/<layer>/` |
 | `settings.py` or `composition.py` | `uv run --locked --directory backend pytest tests/test_settings.py tests/test_composition.py` |
 | A repository adapter | `uv run --locked --directory backend pytest tests/adapters/test_repository_contract.py` |
 | A table in `adapters/sql/tables.py`, or a revision under `migrations/` | `uv run --locked --directory backend pytest tests/adapters/`, then `just backend lint` (`persisting-data`) |
@@ -32,16 +32,16 @@ developer's database (`backend/var/dev.db` by default) before it starts: the roo
 backend/
 ├── pyproject.toml   # The app's dependencies; its ruff (extending the root's), banned-api, mypy, pytest, and coverage settings
 ├── justfile         # A just module of the root justfile: `just backend <recipe>`
-├── alembic.ini      # Alembic's settings; no database URL (MY_APP_DATABASE_URL supplies it)
+├── alembic.ini      # Alembic's settings; no database URL (INTENT_TO_ENGLISH_DATABASE_URL supplies it)
 ├── migrations/      # Alembic: env.py, the revision template, and versions/ (the schema's history)
 ├── var/             # Gitignored: the development database, dev.db
-├── src/my_app/
+├── src/intent_to_english/
 │   ├── core/            # Framework-free: domain model, ports (Protocols), services, errors
 │   ├── adapters/        # Port implementations: in-memory, and SQL (adapters/sql/: tables, engine, repository)
 │   ├── api/             # FastAPI: create_app(settings) factory, routers (api/routers/), Pydantic schemas
-│   ├── settings.py      # pydantic-settings `Settings`, read from MY_APP_* environment variables
+│   ├── settings.py      # pydantic-settings `Settings`, read from INTENT_TO_ENGLISH_* environment variables
 │   └── composition.py   # Composition root: wires adapters into services for the API
-└── tests/           # The app's suite, mirroring src/my_app/ (`placing-tests`)
+└── tests/           # The app's suite, mirroring src/intent_to_english/ (`placing-tests`)
 ```
 
 - Dependencies point inward: `api/` calls `core/` services and gets
@@ -64,7 +64,7 @@ backend/
 The root `AGENTS.md`'s Skills table lists every skill; these are the backend's:
 
 - `designing-core-logic` — a use case, domain rule, port, adapter, or
-  `MY_APP_*` setting, or wiring the composition root.
+  `INTENT_TO_ENGLISH_*` setting, or wiring the composition root.
 - `building-api-routes` — an HTTP route, request or response model, or API
   dependency, and its TestClient tests.
 - `designing-errors` — a failure mode, or the HTTP status a domain error becomes.

@@ -9,8 +9,8 @@ import pytest
 from sqlalchemy import bindparam, insert, select, text
 from sqlalchemy.exc import StatementError
 
-from my_app.adapters.sql.engine import make_engine
-from my_app.adapters.sql.tables import UtcDateTime, metadata, todos
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.tables import UtcDateTime, metadata, todos
 
 pytestmark = pytest.mark.anyio
 

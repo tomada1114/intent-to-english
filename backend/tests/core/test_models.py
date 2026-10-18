@@ -5,8 +5,8 @@ from datetime import datetime
 
 import pytest
 
-from my_app.core.errors import InvalidTodoError
-from my_app.core.models import MAX_TITLE_LENGTH, Todo, normalize_title
+from intent_to_english.core.errors import InvalidTodoError
+from intent_to_english.core.models import MAX_TITLE_LENGTH, Todo, normalize_title
 
 
 @pytest.mark.parametrize(

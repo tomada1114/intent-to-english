@@ -61,7 +61,7 @@ A `dependabot/uv/...` PR moves Python dependencies. Review it as closely as an A
   `managing-dependencies`' review record. These changes are expected and fine:
   - an upgraded package's `version`, `sdist`, and `wheels`;
   - its own `dependencies` and their markers, as the new release declares them;
-  - the `my-app` workspace member's `[package.metadata]` `requires-dist`, rewritten
+  - the `intent-to-english` workspace member's `[package.metadata]` `requires-dist`, rewritten
     when a range in `backend/pyproject.toml` moves, and `[manifest.dependency-groups]`,
     rewritten when a `dev` range in the root `pyproject.toml` moves;
   - a `[[package]]` dropping out because nothing requires it any more.

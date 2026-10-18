@@ -7,7 +7,7 @@ import {
   variable,
 } from "./environment.ts";
 
-// `just e2e` sets up the run: it clears every inherited MY_APP_* variable, makes
+// `just e2e` sets up the run: it clears every inherited INTENT_TO_ENGLISH_* variable, makes
 // a throwaway SQLite file, picks two free ports, and checks both are free again
 // once this exits. Without it, this throws rather than touch the developer's
 // database or servers.
@@ -36,7 +36,7 @@ export default defineConfig({
       // uvicorn command without --reload, on this run's port.
       command: [
         `${just} backend db-upgrade ${shellQuote(run.databaseUrl)}`,
-        "&& uv run --locked --directory backend uvicorn my_app.api.app:create_app",
+        "&& uv run --locked --directory backend uvicorn intent_to_english.api.app:create_app",
         `--factory --no-access-log --host 127.0.0.1 --port ${run.apiPort}`,
       ].join(" "),
       cwd: REPOSITORY_ROOT,
@@ -58,7 +58,7 @@ export default defineConfig({
         `--host 127.0.0.1 --port ${run.webPort} --strictPort`,
       ].join(" "),
       cwd: REPOSITORY_ROOT,
-      env: { MY_APP_API_PORT: String(run.apiPort) },
+      env: { INTENT_TO_ENGLISH_API_PORT: String(run.apiPort) },
       url: `http://127.0.0.1:${run.webPort}/`,
       reuseExistingServer: false,
       timeout: 180_000,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from my_app.api.app import create_app
+from intent_to_english.api.app import create_app
 
 
 @pytest.fixture

@@ -8,7 +8,7 @@ import "../msw/server";
 
 // On a line of its own: the bootstrap rewrites it to a display name of up to
 // 60 characters, which must not push any line past Biome's 88 columns.
-const APP_NAME = "My App";
+const APP_NAME = "Intent to English";
 
 function renderAt(path: string) {
   const queryClient = createQueryClient();

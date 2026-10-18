@@ -2,7 +2,7 @@
 name: writing-python
 description: >
   Covers how one module, class, or function is written in any layer of
-  backend/src/my_app/ or in scripts/: a commented Any, TYPE_CHECKING imports and the
+  backend/src/intent_to_english/ or in scripts/: a commented Any, TYPE_CHECKING imports and the
   annotations Pydantic and FastAPI read at run time, frozen dataclass versus Pydantic
   versus TypedDict versus Protocol, enums and named constants, docstrings, EAFP, context
   managers, match, logger calls, and a justified noqa. Use when writing or reviewing
@@ -13,7 +13,7 @@ description: >
 # Writing Python
 
 **Owns:** how one module, class, or function is written, in any layer of
-`backend/src/my_app/` and in `scripts/`, including two rules other skills point here
+`backend/src/intent_to_english/` and in `scripts/`, including two rules other skills point here
 for: one-line route docstrings, and never shadowing a builtin. **Does not own:** which
 layer code belongs in, and the shape of models, ports, services, and adapters
 (`designing-core-logic`); the `AppError` hierarchy, how an entry point reports it, and
@@ -55,7 +55,7 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
-    from my_app.core.models import Todo
+    from intent_to_english.core.models import Todo
 ```
 
 ## Choosing a type for a value

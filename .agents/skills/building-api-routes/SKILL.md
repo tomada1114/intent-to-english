@@ -1,19 +1,19 @@
 ---
 name: building-api-routes
 description: >
-  Covers the FastAPI entry point in backend/src/my_app/api/: the create_app factory and
+  Covers the FastAPI entry point in backend/src/intent_to_english/api/: the create_app factory and
   app.state.container, service dependencies in dependencies.py, one APIRouter per
   resource under routers/, Pydantic request and response models in schemas.py, success
   status codes and the responses= declaration, and TestClient tests through the client
   fixture. Use when adding or changing an HTTP route, a request or response body, a
   dependency, or a router, or when removing the API. Which status a domain error
-  becomes is designing-errors'. Deleted along with backend/src/my_app/api/.
+  becomes is designing-errors'. Deleted along with backend/src/intent_to_english/api/.
 ---
 
 # Building API Routes
 
 **Owns:** the factory, dependencies, routers, wire models and route tests under
-`backend/src/my_app/api/` and `backend/tests/api/`.
+`backend/src/intent_to_english/api/` and `backend/tests/api/`.
 **Does not own:** which status a domain error becomes (`designing-errors`); the service
 a route calls (`designing-core-logic`); trying a route against a live server
 (`running-the-app`); module-level Python style (`writing-python`).
@@ -23,7 +23,7 @@ This skill describes the HTTP entry point, the only one the template ships. Drop
 is a deletion, never a core change, and leaves the core as a library with no entry
 point of its own:
 
-- delete `backend/src/my_app/api/` and `backend/tests/api/`;
+- delete `backend/src/intent_to_english/api/` and `backend/tests/api/`;
 - remove the `fastapi` and `uvicorn` runtime dependencies from `backend/pyproject.toml`
   and the `httpx2` and `httpx` dev dependencies `TestClient` uses from the root
   `pyproject.toml`, then run `uv lock`;
@@ -84,7 +84,7 @@ lazily so callers can register middleware; handled errors also wrap user middlew
   unique across routers. `route_operation_id` and the operation-id tests enforce it.
 - The API never constructs an adapter or a service: they come only from
   `composition.build_container` (`designing-core-logic`).
-- `just dev` serves it through `uvicorn my_app.api.app:create_app --factory`; an
+- `just dev` serves it through `uvicorn intent_to_english.api.app:create_app --factory`; an
   agent's own server runs the same command on a free port (`running-the-app`).
 
 ## Dependencies hand routes their services

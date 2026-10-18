@@ -19,7 +19,7 @@ Everything `SKILL.md`'s "The developer's server is not yours" asks, the recipe d
   running, untouched.
 - **A throwaway database.** It migrates a fresh SQLite file in a `mktemp -d` directory
   (`just backend db-upgrade` with that URL), and removes the directory afterwards.
-- **Every setting explicit.** It drops every inherited `MY_APP_*` variable and sets each
+- **Every setting explicit.** It drops every inherited `INTENT_TO_ENGLISH_*` variable and sets each
   `Settings` field for the run, so neither the shell nor `backend/.env` reaches the API,
   the migration, or the persistence check (`e2e/environment.ts`,
   `e2e/verify_persistence.py`).

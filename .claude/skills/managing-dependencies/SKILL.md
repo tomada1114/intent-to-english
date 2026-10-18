@@ -62,7 +62,7 @@ has not happened yet.
   group is not part of a built package, so a deployment could not ask for it. Code that
   needs an extra's package imports it lazily and fails with a message naming the extra.
 - Declare a range, `>=X.Y`, never an exact pin; `uv.lock` pins the exact versions.
-- Add from the repository root with `uv add --package my-app <package>` (runtime;
+- Add from the repository root with `uv add --package intent-to-english <package>` (runtime;
   `--optional <extra>` for an extra) or `uv add --group dev <package>`, rather than typing a
   version: under the window below, a hand-typed recent version may not resolve. A bare
   `uv add <package>` at the root fails, since the virtual workspace root has no
@@ -116,11 +116,6 @@ Why: the update path used to be a monthly hand move of a fixed cutoff date, and 
 procedure that depends on someone remembering it does not hold. A relative window leaves
 no date to move, and the floor still bounds what a hand-run command resolves.
 
-<!-- template-only -->
-Decided in uv-template's issue tomada1114/uv-template#92, option D, when the fixed cutoff date was 77 days
-old.
-<!-- /template-only -->
-
 - **A hand-run upgrade stays allowed** — before a release, or to take one package early
   within the window: `uv lock --upgrade` or `uv lock --upgrade-package <package>`, then
   `just check` and `just verify`, then the changed manifests and `uv.lock` in one commit
@@ -130,11 +125,6 @@ old.
   and no PR opens — the signal is the Dependabot job log (Insights → Dependency graph →
   Dependabot) and the alert, which stays open. Wait out the window, or take the
   exception below.
-
-<!-- template-only -->
-`scripts/bootstrap.py` leaves `exclude-newer` as it is: a relative window needs no date
-moved in a new project.
-<!-- /template-only -->
 
 ### An exception for one package
 

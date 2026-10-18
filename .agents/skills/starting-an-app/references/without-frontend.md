@@ -55,7 +55,7 @@ outside `frontend/` but a `.gitignore` line, so they go with these:
   comment, as before #21; `tests/test_just_dev.py` goes (#119 extended it);
 - the Vite proxy goes with `frontend/` (`frontend/vite.config.ts`,
   `frontend/tests/dev-proxy.test.ts`); `backend/justfile`'s `dev` keeps
-  `MY_APP_API_PORT`, but its comment stops naming `frontend/vite.config.ts`;
+  `INTENT_TO_ENGLISH_API_PORT`, but its comment stops naming `frontend/vite.config.ts`;
 - `.devcontainer/devcontainer.json`: the `ghcr.io/devcontainers/features/node` feature,
   `corepack enable && ` in `postCreateCommand`, and `5173` in `forwardPorts`;
 - `running-the-app`: item 4 of "Evidence, cheapest first", the section "Running a
@@ -123,7 +123,7 @@ with".
 - `scripts/check_generated_client.py` and `tests/test_check_generated_client.py`;
   `frontend/openapi.json` and `frontend/src/api/generated/` went with `frontend/`;
 - the owner's choice: an app that publishes its contract keeps
-  `backend/src/my_app/api/contract.py` and `backend/tests/api/test_contract.py`,
+  `backend/src/intent_to_english/api/contract.py` and `backend/tests/api/test_contract.py`,
   re-points `contract`'s `--output` (and `contract-check`'s) at a path that stays, drops
   `contract`'s generator line and `contract-check`'s client check, and keeps the job
   without its pnpm steps; otherwise both files go with the recipes;

@@ -2,7 +2,7 @@
 name: persisting-data
 description: >
   Covers SQL persistence in backend/: the Core Table metadata and UtcDateTime in
-  backend/src/my_app/adapters/sql/tables.py, statements as module constants in a SQL
+  backend/src/intent_to_english/adapters/sql/tables.py, statements as module constants in a SQL
   repository, the AsyncEngine from make_engine and its disposal, Alembic under
   backend/migrations/ (env.py, script.py.mako, revisions, render_as_batch), just
   backend db-upgrade and db-revision, the drift test, and why the app never migrates
@@ -17,7 +17,7 @@ description: >
 types, the statements a SQL repository runs, the engine's lifecycle, and every
 migration from writing it to applying it. **Does not own:** what a repository port may
 ask of a store, ids, cursor pages, and the shared contract suite (`designing-core-logic`'s
-"Ports any store can implement"); `MY_APP_DATABASE_URL`'s validation
+"Ports any store can implement"); `INTENT_TO_ENGLISH_DATABASE_URL`'s validation
 (`designing-core-logic`'s "Settings are read once, at the boundary"); a new package
 such as a driver (`managing-dependencies`).
 
@@ -25,9 +25,9 @@ such as a driver (`managing-dependencies`).
 
 | Piece | Home |
 |---|---|
-| Tables, the naming convention, `UtcDateTime` | `backend/src/my_app/adapters/sql/tables.py` |
-| The engine (`make_engine`) | `backend/src/my_app/adapters/sql/engine.py` |
-| One repository per port, its statements beside it | `backend/src/my_app/adapters/sql/repository.py` |
+| Tables, the naming convention, `UtcDateTime` | `backend/src/intent_to_english/adapters/sql/tables.py` |
+| The engine (`make_engine`) | `backend/src/intent_to_english/adapters/sql/engine.py` |
+| One repository per port, its statements beside it | `backend/src/intent_to_english/adapters/sql/repository.py` |
 | Alembic's settings, without a URL | `backend/alembic.ini` |
 | How Alembic reaches the database; the revision template | `backend/migrations/env.py`, `backend/migrations/script.py.mako` |
 | The revisions | `backend/migrations/versions/` |
@@ -123,7 +123,7 @@ builds a schema with `metadata.create_all`, on a throwaway file.
 4. `just backend db-upgrade`, then `just backend test`; commit `tables.py`, the
    revision, and their tests together.
 
-`db-upgrade`, `db-revision`, and `dev` use `MY_APP_DATABASE_URL`, or
+`db-upgrade`, `db-revision`, and `dev` use `INTENT_TO_ENGLISH_DATABASE_URL`, or
 `sqlite+aiosqlite:///./var/dev.db` (`backend/var/dev.db`, gitignored) when it is unset
 or empty. A revision imports nothing from the app: `env.py`'s `render_item` renders
 `UtcDateTime` as `sa.DateTime()`, so a later change to `tables.py` cannot change what
@@ -150,7 +150,7 @@ weakened gate (`changing-gates`).
 These tests are plain `def`: `env.py` runs `asyncio.run`, which cannot start inside the
 loop an async test runs on. The `alembic_config` and `migrated_sqlite_url` fixtures in
 `backend/tests/conftest.py` give a test a migrated file; `env.py` reads the URL from
-`MY_APP_DATABASE_URL` (failing with "MY_APP_DATABASE_URL must be set to run
+`INTENT_TO_ENGLISH_DATABASE_URL` (failing with "INTENT_TO_ENGLISH_DATABASE_URL must be set to run
 migrations" without it) unless a caller passes a connection in
 `config.attributes["connection"]`.
 
@@ -164,7 +164,7 @@ checked 2026-10-09).
 
 `compose.yml` supplies an optional disposable database: run `docker compose up -d --wait`,
 then `just backend test-postgres`. The recipe includes the extra and defaults to
-that database; `MY_APP_TEST_POSTGRES_URL` selects another disposable database.
+that database; `INTENT_TO_ENGLISH_TEST_POSTGRES_URL` selects another disposable database.
 Never point it at application data: the shared contract empties the todos table
 before each test and the migration test drops and recreates it.
 

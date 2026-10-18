@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 
-import my_app.core
+import intent_to_english.core
 
-CORE_PACKAGE = "my_app.core"
-CORE_DIR = Path(my_app.core.__file__).parent
+CORE_PACKAGE = "intent_to_english.core"
+CORE_DIR = Path(intent_to_english.core.__file__).parent
 # Pure, deterministic stdlib modules the core may import. Adding one is a
 # reviewed edit: it must do no I/O and read no clock, randomness, or
 # environment. Anything else goes behind a port (designing-core-logic).
@@ -207,8 +207,10 @@ def test_core_module_calls_no_io_builtin(path):
         pytest.param("import sqlalchemy", "sqlalchemy", id="sqlalchemy"),
         pytest.param("import httpx", "httpx", id="httpx"),
         pytest.param("from pydantic import BaseModel", "pydantic", id="pydantic"),
-        pytest.param("from .. import api", "my_app", id="relative-escape"),
-        pytest.param("from ..adapters import memory", "my_app.adapters", id="adapters"),
+        pytest.param("from .. import api", "intent_to_english", id="relative-escape"),
+        pytest.param(
+            "from ..adapters import memory", "intent_to_english.adapters", id="adapters"
+        ),
     ],
 )
 def test_import_check_forbidden_import_is_rejected(source, module):
@@ -225,8 +227,8 @@ def test_import_check_subpackage_relative_escape_is_rejected():
         "from ...adapters import sql", _package_of(subpackage_file)
     )
 
-    assert modules == {"my_app.adapters"}
-    assert not _is_allowed("my_app.adapters")
+    assert modules == {"intent_to_english.adapters"}
+    assert not _is_allowed("intent_to_english.adapters")
 
 
 @pytest.mark.parametrize(
@@ -237,7 +239,9 @@ def test_import_check_subpackage_relative_escape_is_rejected():
         pytest.param("from uuid import UUID", CORE_PACKAGE, id="uuid-type"),
         pytest.param("import uuid", CORE_PACKAGE, id="uuid-module"),
         pytest.param(
-            "from my_app.core.errors import AppError", CORE_PACKAGE, id="core-absolute"
+            "from intent_to_english.core.errors import AppError",
+            CORE_PACKAGE,
+            id="core-absolute",
         ),
         pytest.param("from .errors import AppError", CORE_PACKAGE, id="core-relative"),
         pytest.param(

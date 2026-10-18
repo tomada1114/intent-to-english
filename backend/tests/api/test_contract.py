@@ -7,9 +7,9 @@ import logging
 
 import pytest
 
-from my_app.api.app import create_app
-from my_app.api.contract import main
-from my_app.settings import Settings
+from intent_to_english.api.app import create_app
+from intent_to_english.api.contract import main
+from intent_to_english.settings import Settings
 
 
 def test_export_matches_app_openapi_serialized_sorted(tmp_path, make_container):
@@ -77,7 +77,7 @@ def test_export_ignores_environment_and_creates_no_database(tmp_path, monkeypatc
         "LOG_LEVEL": "INVALID",
         "LOG_FORMAT": "INVALID",
     }.items():
-        monkeypatch.setenv(f"MY_APP_{name}", value)
+        monkeypatch.setenv(f"INTENT_TO_ENGLISH_{name}", value)
 
     assert main(["--output", str(target)]) == 0
 
@@ -90,7 +90,9 @@ def test_export_ignores_dotenv(tmp_path, monkeypatch):
     assert main(["--output", str(target)]) == 0
     expected = target.read_bytes()
     dotenv = tmp_path / ".env"
-    dotenv.write_text("MY_APP_LOG_LEVEL=invalid\nMY_APP_DATABASE_URL=invalid\n")
+    dotenv.write_text(
+        "INTENT_TO_ENGLISH_LOG_LEVEL=invalid\nINTENT_TO_ENGLISH_DATABASE_URL=invalid\n"
+    )
     monkeypatch.setitem(Settings.model_config, "env_file", dotenv)
 
     assert main(["--output", str(target)]) == 0
@@ -99,7 +101,7 @@ def test_export_ignores_dotenv(tmp_path, monkeypatch):
 
 
 def test_export_preserves_logging_handlers(tmp_path):
-    logger = logging.getLogger("my_app")
+    logger = logging.getLogger("intent_to_english")
     before = (logger.handlers[:], logger.level, logger.propagate)
 
     assert main(["--output", str(tmp_path / "openapi.json")]) == 0
@@ -108,7 +110,7 @@ def test_export_preserves_logging_handlers(tmp_path):
 
 
 def test_export_is_deterministic_and_preserves_unicode(tmp_path, monkeypatch):
-    monkeypatch.setattr("my_app.api.app.APP_TITLE", "Café API")
+    monkeypatch.setattr("intent_to_english.api.app.APP_TITLE", "Café API")
     target = tmp_path / "openapi.json"
     assert main(["--output", str(target)]) == 0
     expected = target.read_bytes()

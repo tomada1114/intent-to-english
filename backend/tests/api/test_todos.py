@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from my_app.core.models import MAX_PAGE_LIMIT, MAX_TITLE_LENGTH
+from intent_to_english.core.models import MAX_PAGE_LIMIT, MAX_TITLE_LENGTH
 
 INVALID_CURSOR_MESSAGE = (
     "Invalid page cursor: pass the next_cursor of an earlier page, "

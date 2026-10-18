@@ -5,7 +5,10 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import text
 
-from my_app.adapters.sql.engine import SQLITE_BUSY_TIMEOUT_SECONDS, make_engine
+from intent_to_english.adapters.sql.engine import (
+    SQLITE_BUSY_TIMEOUT_SECONDS,
+    make_engine,
+)
 
 pytestmark = pytest.mark.anyio
 

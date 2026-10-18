@@ -7,7 +7,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect
 
-from my_app.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.engine import make_engine
 from tests.conftest import ALEMBIC_INI
 
 pytestmark = [pytest.mark.anyio, pytest.mark.postgres]
