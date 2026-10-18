@@ -63,14 +63,14 @@ repos:
       # upstream hook's file selection, exclusions, and serial execution.
       - id: ruff
         name: ruff
-        entry: uv run --locked ruff check --force-exclude --fix
+        entry: uv --no-cache run --locked ruff check --force-exclude --fix
         language: system
         types_or: [python, pyi, jupyter]
         require_serial: true
         stages: [pre-commit]
       - id: ruff-format
         name: ruff format
-        entry: uv run --locked ruff format --force-exclude
+        entry: uv --no-cache run --locked ruff format --force-exclude
         language: system
         types_or: [python, pyi, jupyter, markdown]
         require_serial: true
@@ -92,14 +92,14 @@ repos:
       # skills trees still passes here; CI and `just verify` judge the commit.
       - id: agents-check
         name: skills mirror matches .agents/skills
-        entry: uv run --locked python scripts/sync_agents.py --check
+        entry: uv --no-cache run --locked python scripts/sync_agents.py --check
         language: system
         files: ^\.(agents|claude)/skills/
         pass_filenames: false
         stages: [pre-commit]
       - id: mypy
         name: mypy
-        entry: uv run --locked mypy
+        entry: uv --no-cache run --locked mypy
         language: system
         types: [python]
         pass_filenames: false
@@ -109,7 +109,7 @@ repos:
       # configuration's `files` also owns e2e/verify_persistence.py.
       - id: mypy-backend
         name: mypy (backend)
-        entry: uv run --locked --directory backend mypy
+        entry: uv --no-cache run --locked --directory backend mypy
         language: system
         files: ^(backend/|e2e/verify_persistence\.py$)
         types: [python]

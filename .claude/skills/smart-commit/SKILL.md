@@ -28,6 +28,10 @@ amend a pushed commit, or push `main`.
 
 ## 1. State first
 
+Follow AGENTS.md's "Quick Reference" for uv cache handling, including hooks
+started by Git rather than Just. An environment failure is not a reason to
+disable a hook.
+
 ```bash
 git branch --show-current
 git status --short

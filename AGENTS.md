@@ -148,6 +148,17 @@ just ruleset         # Apply .github/rulesets/main.json to GitHub (admin-only hu
 Without Just, run the `uv run` and `pnpm` commands the `justfile` gives each
 recipe, and a `backend::` or `frontend::` dependency's lines from that area's
 `justfile` in its directory.
+
+`just` defaults to `UV_NO_CACHE=1`, inherited by module recipes and their child
+processes. The uv-based commit hooks explicitly use `uv --no-cache run --locked`.
+For direct agent commands, use `uv --no-cache run --locked ...` (or set
+`UV_NO_CACHE=1` for the whole command, including Git hooks). This avoids access to
+the user's uv cache; uv uses temporary storage instead (observed with `uv help`,
+2026-10-18). A caller may set `UV_NO_CACHE=0` for Just tasks when its cache is
+accessible. Keep `--locked`, hooks and all checks intact. This setting does not
+change sandbox permissions; report an actual denial rather than wrapping or
+re-spelling the denied operation.
+
 `just check` runs `fmt` first, so it never proves the *committed* tree green;
 `just verify` mutates nothing and is the gate for a PR or a completion claim.
 
