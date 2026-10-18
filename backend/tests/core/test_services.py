@@ -1901,3 +1901,49 @@ async def test_reading_options_colliding_after_normalization_get_one_schema_repa
     )
     assert tuple(v.check for v in calls[0].call.violations) == (m.CheckId.SCHEMA,)
     assert not any(entry.kind is m.EntryKind.READING_QUESTION for entry in view.entries)
+
+
+@pytest.mark.parametrize(
+    "repair_succeeds", [True, False], ids=["repaired-hint", "invalid-repair"]
+)
+async def test_practice_rejects_a_second_submission_piece_and_repairs_only_once(
+    make_conversation, turn_feedback, nth_id, repair_succeeds
+):
+    h = make_conversation()
+    state = m.TurnState(practice=m.PracticeTarget(1, "練習する意図", turn_feedback))
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.INTENT,
+        turn_index=2,
+        turn_state=state,
+        finished_replies=1,
+    )
+    await h.repository.create(session)
+    piece = coaching.PieceGiven(
+        (coaching.Piece(1, "refreshed"),), "①を確認してください"
+    )
+    hint = coaching.BlankOff((1,), "語尾は過去分詞です")
+    h.coach.check_retry_call.outputs.extend(
+        [_parsed(piece), _parsed(hint if repair_succeeds else piece)]
+    )
+    request = m.ActionRequest(
+        m.Action.PRACTICE_AGAIN, 0, m.TextInput("I feel good today.")
+    )
+    if repair_succeeds:
+        view = await h.service.act(session.id, request)
+        assert view.entries[-1].payload == m.PracticeResultPayload(1, hint)
+        assert view.stage is m.Stage.INTENT
+        assert view.version == 1
+    else:
+        with pytest.raises(e.ModelOutputInvalidError, match="check_retry"):
+            await h.service.act(session.id, request)
+        stored = await h.repository.get(session.id)
+        assert stored.session == session
+        assert stored.entries == ()
+        assert stored.last_submission.failure_code == "model_output_invalid"
+    assert len(h.coach.check_retry_call.requests) == 2
+    calls = await h.repository.model_calls(session.id)
+    assert len(calls) == 2
+    assert tuple(v.check for v in calls[0].call.violations) == (m.CheckId.SCHEMA,)
+    assert (await h.repository.get(session.id)).session.turn_state == state

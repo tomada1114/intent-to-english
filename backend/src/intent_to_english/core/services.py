@@ -704,7 +704,14 @@ class ConversationService:
             )
         )
 
-    async def _run(self, work: _ActionWork, task: ModelTask, request: object) -> object:
+    async def _run(
+        self,
+        work: _ActionWork,
+        task: ModelTask,
+        request: object,
+        *,
+        practice: bool = False,
+    ) -> object:
         async def record(attempt: CallAttempt) -> None:
             await self._repository.record_model_call(
                 models.ModelCallRecord(
@@ -719,9 +726,20 @@ class ConversationService:
             await self._require_pending(work)
 
         await self._require_pending(work)
-        result = await MODEL_TASKS[task].run(
-            self._partner, self._coach, request, record=record
-        )
+        result: TaskRun[object]
+        if practice and isinstance(request, coaching.CheckRetryRequest):
+            practice_result: TaskRun[coaching.RetryResult] = await run_model_task(
+                task,
+                self._coach.check_retry,
+                _check_practice_result,
+                request,
+                record=record,
+            )
+            result = practice_result
+        else:
+            result = await MODEL_TASKS[task].run(
+                self._partner, self._coach, request, record=record
+            )
         if result.error is not None:
             raise result.error
         return result.output
@@ -1027,10 +1045,9 @@ class ConversationService:
             coaching.CheckRetryRequest(
                 target.intent, target.feedback, sentence, 1, _conversation(work)
             ),
+            practice=True,
         )
-        if not isinstance(
-            output, (coaching.RetryAccepted, coaching.BlankOff, coaching.PieceGiven)
-        ):
+        if not isinstance(output, (coaching.RetryAccepted, coaching.BlankOff)):
             raise TypeError(_WRONG_OUTPUT)
         self._append(
             work,
@@ -1061,6 +1078,20 @@ class ConversationService:
 SUBMISSION_MAX_AGE = timedelta(seconds=150)
 _WRONG_OUTPUT = "Model returned a value for a different task"
 _SHARE_AFTER = 2
+
+
+def _check_practice_result(
+    request: coaching.CheckRetryRequest, output: coaching.RetryResult
+) -> tuple[Violation, ...]:
+    violations = coaching.check_retry_result(request, output)
+    if isinstance(output, coaching.PieceGiven):
+        violations += (
+            Violation(
+                CheckId.SCHEMA,
+                "Practice accepts a confirmation or a first-submission hint, never second-submission pieces",
+            ),
+        )
+    return violations
 
 
 @dataclass(slots=True)

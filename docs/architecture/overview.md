@@ -156,7 +156,9 @@ second retry that still misses gets the piece and ends the turn (§3.5). A shown
 typed copy is not checked and does not count as a retry. `practice_again` takes one
 submission and shows its result; its two entries name the practised turn, even after the
 Partner has opened the next turn. It changes only those entries and the version, never
-the working turn state, finished count, stage or conversation. Hints receive every earlier
+the working turn state, finished count, stage or conversation. Its first-submission result
+is a confirmation or a hint for the blanks still off; second-submission pieces are a schema
+violation and get the same one repair. Hints receive every earlier
 gap/hint pair after the current turn's latest intent. A replacement intent keeps the
 practice target but clears the previous English, hints, feedback, readings, retry count
 and shown answer from the working context; their old entries remain readable in history.
