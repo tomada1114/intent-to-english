@@ -18,7 +18,7 @@ from intent_to_english.core.models import Page
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from intent_to_english.core.models import Todo
+    from intent_to_english.core.models import SessionSummary, Todo
 
 INVALID_CURSOR_MESSAGE = (
     "Invalid page cursor: pass the next_cursor of an earlier page, "
@@ -87,3 +87,27 @@ def page_of(fetched: Sequence[Todo], limit: int) -> Page[Todo]:
     items = tuple(fetched[:limit])
     next_cursor = encode_after(items[-1].id) if len(fetched) > limit else None
     return Page(items=items, next_cursor=next_cursor)
+
+
+_SESSION_CURSOR_PREFIX = "session:"
+
+
+def encode_before(session_id: UUID) -> str:
+    """Keep descending session cursors distinct from sample to-do cursors."""
+    return _SESSION_CURSOR_PREFIX + encode_after(session_id)
+
+
+def decode_before(cursor: str) -> UUID:
+    """Read only canonical session cursors, rejecting other token families."""
+    if not cursor.startswith(_SESSION_CURSOR_PREFIX):
+        raise InvalidCursorError(INVALID_CURSOR_MESSAGE)
+    return decode_after(cursor.removeprefix(_SESSION_CURSOR_PREFIX))
+
+
+def session_page_of(
+    fetched: Sequence[SessionSummary], limit: int
+) -> Page[SessionSummary]:
+    """Build a newest-first page from at most limit plus one session rows."""
+    items = tuple(fetched[:limit])
+    cursor = encode_before(items[-1].id) if len(fetched) > limit else None
+    return Page(items, cursor)

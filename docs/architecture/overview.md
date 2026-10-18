@@ -40,8 +40,8 @@ like this:
 
 | Domain | Layer | Module (under `backend/src/intent_to_english/`) | Holds |
 |---|---|---|---|
-| Session, stage, timeline, submission, model-call record | core | `core/models.py` | frozen dataclasses and enums; no I/O |
-| The stage machine | core | `core/flow.py` | the stages, the actions, which action each stage allows, and the next stage |
+| Session, stage, timeline, submission, model-call record | core | `core/models.py` | frozen dataclasses and enums, including `Stage` and `Action`; no I/O |
+| The stage machine | core | `core/flow.py` | the rules for which action each stage allows, input limits, and the next stage |
 | Partner and Coach request and output values | core | `core/partner.py`, `core/coaching.py` | the port's value types and the output checks for each task |
 | Shared text helpers | core | `core/text.py` | sentence splitting, question counting, Latin and Japanese script detection |
 | Ports | core | `core/ports.py` | `SessionRepository`, `PartnerModel`, `CoachModel`, `Clock`, `IdFactory` |
@@ -65,7 +65,9 @@ core values only.
 ## Data
 
 SQLite through SQLAlchemy Core and Alembic, as the template ships it (`persisting-data`).
-Ids are UUIDv7 from `IdFactory`; times are UTC.
+Ids are UUIDv7 from `IdFactory`; times are UTC. A session has an end time exactly when
+its status is ended. Every timeline kind has exactly one payload type; construction
+rejects a mismatched pair before it can enter the append-only timeline.
 
 | Table | Columns | Rules |
 |---|---|---|
@@ -76,10 +78,16 @@ Ids are UUIDv7 from `IdFactory`; times are UTC.
 
 - `turn_state` holds only what the current stage's next action needs: the intent in force,
   the latest English, the feedback in force, retry submissions so far, the two readings at a
-  reading check, and the shown answer. Everything else is read from the timeline.
+  reading check, the shown answer, and an optional practice target (the finished turn's index,
+  intent, and feedback). The practice target survives the next Partner line until the learner's
+  next intent or direct English. Everything else is read from the timeline.
 - `outcome` is `ok`, `invalid_output` (failed its checks or did not parse), `repaired` (a
   repair that passed), `timeout`, `rate_limited`, or `provider_error` (§3.12). `cost` is what
-  the provider reported, null when it reported none.
+  the provider reported, null when it reported none. A failed submission uses `interrupted`
+  when its earlier process or call budget has expired.
+- At `ended`, `sessions.wrap_up` is null while a wrap-up is due; `{"items": []}` means
+  there is nothing to make. A no-fix `feedback` entry still makes the wrap-up due. The empty
+  `WrapUp` value is structurally valid; the service rejects an empty model-produced wrap-up.
 - A payload change keeps old rows readable: a new field has a default; anything else ships
   an Alembic data migration in the same pull request.
 
@@ -116,7 +124,7 @@ Timeline entry kinds, each a core value stored as its `payload`:
 | `answer_shown` | one complete example is shown; the learner types it once or skips |
 | `partner_turn` | the learner's turn is done; the Partner's next line is due |
 | `check_in` | the 3rd, 6th, 9th… reply is done: continue or end |
-| `ended` | read-only |
+| `ended` | the conversation is read-only; a due wrap-up can still be generated |
 
 | Action | Allowed at | Input (limits per ux-guidelines § Forms) | Model task | Next stage |
 |---|---|---|---|---|
@@ -135,7 +143,8 @@ Timeline entry kinds, each a core value stored as its `payload`:
 | `rewrite_intent` | `english`, `reading_check`, `retry`, `answer_shown` | Japanese, 1–1,000 | Coach `acknowledge` | `english` |
 | `practice_again` | `check_in`, and `intent` before the learner's first reply of the turn | the filled sentence of the finished turn, 1–1,000 | Coach `check_retry` against that turn's feedback | unchanged |
 | `ask` | every stage but `ended` | the question, 1–500 | Coach `answer_question` | unchanged |
-| `end` | every stage but `ended` | — | Coach `wrap_up`; none when no feedback exists yet | `ended` |
+| `end` | every stage but `ended` | — | none | `ended`, immediately |
+| `wrap_up` | `ended`, only while `wrap_up` is null | — | Coach `wrap_up` | `ended` |
 
 "Done" means the turn ends: the service appends `turn_done`, adds one to
 `finished_replies`, and moves to `check_in` when the count is a multiple of three, else to
@@ -146,7 +155,11 @@ after a shown answer without having written any English, it is the shown example
 second retry that still misses gets the piece and ends the turn (§3.5). A shown answer's
 typed copy is not checked and does not count as a retry. `practice_again` takes one
 submission and shows its result; it never changes the stage or the conversation. When a
-session ends before any feedback exists, no Coach call runs and the wrap-up is empty.
+session ends, `end` makes no model call: it stores `ended_at` and sets both status and stage
+to `ended` at once. If a `feedback` entry exists, including feedback with no fix, it leaves
+`wrap_up` null (due); otherwise it stores `WrapUp(items=())`. The separate `wrap_up` action
+is allowed only at `ended` while due. It stores a checked Coach output without reopening the
+session; a failure leaves the session ended and its wrap-up due.
 
 At `partner_turn` the screen sends `partner_reply` by itself, so the Partner's line follows
 the Coach's last block without a click; at `check_in`, `partner_reply` is 「続ける」 and `end`
@@ -156,11 +169,13 @@ is 「終わる」.
 
 1. The screen sends `POST /api/sessions/{id}/actions` with the action, its input, and the
    session `version` it shows.
-2. One transaction checks the version (`stale_session` otherwise), that no submission is
-   pending (`action_in_progress`), that the session is not ended (`session_ended`), and that
-   the stage allows the action (`action_not_allowed`), then stores the submission as
-   `pending` with the process's boot id.
-3. Outside any transaction the service builds the task's request from the session — for the
+2. One transaction checks that the session exists, then the version (`stale_session`
+   otherwise). A live pending submission means `action_in_progress`, except that `end`
+   supersedes it. An ended session rejects every action but `wrap_up` (`session_ended`);
+   the stage must allow the action (`action_not_allowed`). Only when every check passes
+   does the transaction mark superseded work `cancelled` and store the new submission
+   `pending` with the process's boot id. A refused begin cancels nothing.
+3. When a model task is needed, outside any transaction the service builds its request — for the
    Partner, only the English lines — and calls the port within 60 s. A failed check, or an
    output that does not parse, gets one repair call carrying the violations. Every call is
    recorded in `model_calls`.
@@ -174,24 +189,30 @@ is 「終わる」.
    「もう一度」. Any other exception also marks the submission `failed` before it propagates,
    so a bug never leaves a session stuck.
 
-`POST /api/sessions/{id}/cancel` marks the pending submission `cancelled`; the screen then
-shows the stage as before with the text back in the composer.
+A cancel names the session and the submission's base version. It marks only a pending
+submission at that version `cancelled`; no matching pending submission is a no-op. A delayed
+cancel cannot affect a later action. The screen then shows the stage as before with the
+text back in the composer. `end` also supersedes a live pending submission atomically, so
+ending never waits for its model call; the late output is discarded and its call log stays.
 
 ### Interrupted calls
 
 Each process start makes a boot id. A `pending` submission carrying another boot id belongs
 to a process that stopped, so reading the session reports it as interrupted: the stage is as
 before and the text is offered again (ux-flows F-5). A `pending` submission older than its
-call budget (two calls of 60 s, plus a margin) is reported the same way. A closed tab does not
-interrupt anything: the server finishes the call and stores the result, which the reopened
+call budget (two calls of 60 s, plus a margin) is reported the same way. A pending submission
+of this process within its budget remains `pending` in the view, so a reopened screen waits
+for its stored result. A new submission atomically marks an
+interrupted pending one `failed` with code `interrupted` before taking its version. A closed tab does not interrupt anything: the server finishes the call and stores the result, which the reopened
 screen shows.
 
 ### The session view
 
-`GET /api/sessions/{id}` and every accepted action return one `SessionView`: status, stage,
-version, turn index, finished replies, the actions the stage allows, every timeline entry in
-order, the last submission when it is pending, failed, or interrupted (its action, input,
-and failure code), and the wrap-up. The screen derives both panes and the next-action line
+`GET /api/sessions/{id}` and every accepted action return one `SessionView`: id, status, stage,
+version, turn index, finished replies, start time, end time (null while in progress), the
+actions the stage allows, every timeline entry in order, the last submission when it is pending, failed, or interrupted (its action, input,
+and failure code), and the wrap-up. At `ended`, a null wrap-up is due; an empty item list
+means there is nothing to make. The screen derives both panes and the next-action line
 (ux-flows § Stage table) from it, and decides no stage itself.
 
 ## Quality targets
@@ -273,9 +294,12 @@ attempt is a row in `model_calls`.
 
 ### One action, one model task
 
-An action runs at most one model task, plus its repair, so no request waits on two 60 s
-budgets and each failure names one pane. The Partner's line after a finished turn is its own
-action (`partner_reply`), which the screen sends at `partner_turn` without a click.
+An action runs at most one model task and its one repair. Each call has a 60 s budget,
+so the task and repair together can take two 60 s calls; each failure names one pane.
+`end` ends the session without a model call. A due wrap-up is its own `wrap_up` action at
+`ended`, so a failed wrap-up never reopens or prevents the end. The Partner's line after a
+finished turn is its own action (`partner_reply`), which the screen sends at `partner_turn`
+without a click.
 
 ### The session is one row and an append-only timeline
 
@@ -292,8 +316,12 @@ tables (about ten, and a migration for every new element of a turn) and event so
 Every action names the version it answers, so a second tab or a reloaded screen gets 409
 `stale_session` and reloads the session (§4). The partial unique index on `submissions`
 admits one pending or completed submission per version, so a double click is 409
-`action_in_progress` and is processed once. A cancel discards the output that arrives after it;
-the boot id marks what a stopped process left pending (§ Core flows).
+`action_in_progress` and is processed once. `end` supersedes a live pending submission:
+the transaction changes the old row to `cancelled` before inserting the new pending row,
+so the partial index admits it; a refused begin changes nothing. A cancel names the base
+version and discards output only from that pending action. Calls from cancelled work stay
+in `model_calls`. The next begin marks an interrupted pending row `failed` before storing a
+replacement, using the boot id and cutoff to recognize it (§ Core flows).
 
 ### Keys, models, and the mode
 
