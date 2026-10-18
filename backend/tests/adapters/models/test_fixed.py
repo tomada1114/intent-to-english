@@ -450,3 +450,16 @@ async def test_two_words_with_standalone_punctuation_keep_the_default_fix():
     assert output.fixes[0].original == "Hello"
     assert output.fixes[0].replacement == "Actually, Hello"
     assert c.check_feedback(request, output) == ()
+
+
+@pytest.mark.parametrize("punctuation", [".", "?", "--", ","])
+async def test_default_fix_selects_the_first_word_after_standalone_punctuation(
+    punctuation,
+):
+    request = c.FeedbackRequest(None, f"{punctuation} Hello friend", None, (), ())
+    output = (await fixed.FixedCoachModel().feedback(request)).output
+    assert isinstance(output, c.Feedback)
+    assert output.fixes[0].original == "Hello"
+    assert output.fixes[0].replacement == "Actually, Hello"
+    assert output.template == f"{punctuation} (①) ____ friend"
+    assert c.check_feedback(request, output) == ()
