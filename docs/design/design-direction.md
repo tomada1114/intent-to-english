@@ -2,9 +2,9 @@
 
 The visual direction: references, the reference lock, role rules, and token values for light
 and dark. Screens and states are `docs/product/ux-flows.md`'s; app-wide behavior (timing,
-motion amounts, accessibility targets) is `docs/design/ux-guidelines.md`'s. The tokens land
-as a Tailwind CSS 4 `@theme` block in `frontend/src/styles.css` (the template's only styling
-layer); nothing here is applied to code until that issue ships.
+motion amounts, accessibility targets) is `docs/design/ux-guidelines.md`'s. The tokens are
+the Tailwind CSS 4 `@theme` block in `frontend/src/styles.css` (the template's only styling
+layer); screens apply their semantic utilities as each screen is implemented.
 
 ## Brief
 
@@ -199,10 +199,6 @@ choose. Names are semantic (utilities `bg-canvas`, `text-ink-muted`, `border-par
   --radius-slot: 8px;
 }
 ```
-
-Open: whether Tailwind 4's opacity modifiers (`bg-ink/50`) resolve through `light-dark()` in
-the pinned version — the implementing issue checks it once; until then no markup uses an
-opacity modifier on these tokens.
 
 ## Measured contrast
 
