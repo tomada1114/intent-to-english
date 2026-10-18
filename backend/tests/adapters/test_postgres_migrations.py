@@ -8,6 +8,7 @@ from alembic.config import Config
 from sqlalchemy import inspect
 
 from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.tables import metadata
 from tests.conftest import ALEMBIC_INI
 
 pytestmark = [pytest.mark.anyio, pytest.mark.postgres]
@@ -28,12 +29,12 @@ async def test_postgres_migrations_upgrade_check_downgrade_upgrade(
             tables = await connection.run_sync(
                 lambda conn: inspect(conn).get_table_names()
             )
-            assert "todos" not in tables
+            assert set(tables) == {"alembic_version"}
             await connection.run_sync(lambda _: command.upgrade(config, "head"))
             await connection.run_sync(lambda _: command.check(config))
             tables = await connection.run_sync(
                 lambda conn: inspect(conn).get_table_names()
             )
-            assert "todos" in tables
+            assert set(tables) == {"alembic_version", *metadata.tables}
     finally:
         await engine.dispose()
