@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, fields, is_dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from intent_to_english.core.models import MAX_FIXES, FixTag, Stage, check_text
+from intent_to_english.core.models import (
+    MAX_FIXES,
+    CheckId,
+    FixTag,
+    Stage,
+    Violation,
+    check_text,
+)
+from intent_to_english.core.text import has_latin_letter
 
 if TYPE_CHECKING:
     from intent_to_english.core.models import ConversationLine
 
 
 READING_OPTIONS = 2
+_BLANK = re.compile(r"\(([①-⑳])\) ____")
+_REMAINING_BLANK = re.compile(r"[①-⑳]|_{2,}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,3 +365,149 @@ class WrapUpRequest:
 
 
 type RetryResult = RetryAccepted | BlankOff | PieceGiven
+
+
+def check_acknowledgment(
+    _request: AcknowledgeRequest, output: Acknowledgment
+) -> tuple[Violation, ...]:
+    """Keep a build hint free of Latin letters."""
+    if output.build_hint is not None and has_latin_letter(output.build_hint):
+        return (
+            Violation(
+                CheckId.BUILD_HINT_LATIN, "A build hint must contain no Latin letters"
+            ),
+        )
+    return ()
+
+
+def check_gap_hint(_request: GapHintRequest, _output: GapHint) -> tuple[Violation, ...]:
+    """Expose a uniform entry point without adding candidate checks."""
+    return ()
+
+
+def check_feedback(
+    request: FeedbackRequest, output: Feedback | ReadingQuestion
+) -> tuple[Violation, ...]:
+    """Check numbered blanks and prevent a completed-sentence leak."""
+    if isinstance(output, ReadingQuestion):
+        if request.reading is not None:
+            return (
+                Violation(
+                    CheckId.SCHEMA,
+                    "A chosen reading must receive feedback, not another reading question",
+                ),
+            )
+        return ()
+    if not output.fixes:
+        return ()
+    return (
+        _check_fix_numbers(output)
+        + _check_blanks_filled(output)
+        + _check_completed_sentence(output, output)
+    )
+
+
+def check_retry_result(
+    request: CheckRetryRequest, output: RetryResult
+) -> tuple[Violation, ...]:
+    """A retry result must not repeat the whole filled sentence."""
+    return _check_completed_sentence(request.feedback, output)
+
+
+def check_show_answer(
+    _request: ShowAnswerRequest, _output: Answer
+) -> tuple[Violation, ...]:
+    """The requested complete answer is exempt from the leak rule."""
+    return ()
+
+
+def check_answer_question(
+    request: AnswerQuestionRequest, output: CoachAnswer
+) -> tuple[Violation, ...]:
+    """Check side answers against feedback only when it exists."""
+    return (
+        _check_completed_sentence(request.feedback, output)
+        if request.feedback is not None
+        else ()
+    )
+
+
+def check_wrap_up(_request: WrapUpRequest, _output: WrapUp) -> tuple[Violation, ...]:
+    """Leave candidate wrap-up checks to a future requirement."""
+    return ()
+
+
+def _fill_feedback(feedback: Feedback) -> str:
+    replacements = {fix.number: fix.replacement for fix in feedback.fixes}
+    return _BLANK.sub(
+        lambda match: replacements.get(ord(match[1]) - ord("①") + 1, match[0]),
+        feedback.template or "",
+    )
+
+
+def _check_fix_numbers(feedback: Feedback) -> tuple[Violation, ...]:
+    expected = tuple(range(1, len(feedback.fixes) + 1))
+    numbers = tuple(fix.number for fix in feedback.fixes)
+    blanks = tuple(
+        ord(match[1]) - ord("①") + 1
+        for match in _BLANK.finditer(feedback.template or "")
+    )
+    if numbers != expected or blanks != expected:
+        return (
+            Violation(
+                CheckId.FIX_NUMBERS,
+                f"Fixes and blanks must both ascend from 1 through {len(expected)} exactly once",
+            ),
+        )
+    return ()
+
+
+def _check_blanks_filled(feedback: Feedback) -> tuple[Violation, ...]:
+    if _REMAINING_BLANK.search(_fill_feedback(feedback)):
+        return (
+            Violation(
+                CheckId.BLANKS_FILLED, "Filling every fix must leave no blank marker"
+            ),
+        )
+    return ()
+
+
+def _normalize(text: str) -> str:
+    return (
+        re.sub(r"\s+", " ", text.casefold().replace("\u2019", "'"))
+        .strip()
+        .rstrip(".!?")
+        .rstrip()
+    )
+
+
+def _text_fields(value: object) -> tuple[str, ...]:
+    if isinstance(value, StrEnum):
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    if isinstance(value, tuple):
+        return tuple(text for item in value for text in _text_fields(item))
+    if is_dataclass(value) and not isinstance(value, type):
+        return tuple(
+            text
+            for field in fields(value)
+            for text in _text_fields(getattr(value, field.name))
+        )
+    return ()
+
+
+def _check_completed_sentence(
+    feedback: Feedback, output: object
+) -> tuple[Violation, ...]:
+    if not feedback.fixes:
+        return ()
+    filled = _normalize(_fill_feedback(feedback))
+    if filled and any(filled in _normalize(text) for text in _text_fields(output)):
+        return (
+            Violation(
+                CheckId.COMPLETED_SENTENCE,
+                "The completed sentence must appear in no output text field",
+            ),
+        )
+    return ()
