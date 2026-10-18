@@ -468,11 +468,7 @@ class ConversationService:
             ActionCancelledError: Cancel or end superseded this action.
             ModelError: A provider failed; the input remains recoverable.
             ModelOutputInvalidError: The one repair still failed its checks.
-            NotImplementedError: An in-session control belongs to the next issue.
         """
-        if request.action in _CONTROL_ACTIONS:
-            message = f"Action {request.action} is not implemented"
-            raise NotImplementedError(message)
         stored = await self._repository.get(session_id)
         session = stored.session
         now = self._clock()
@@ -643,19 +639,50 @@ class ConversationService:
             case models.Action.WRAP_UP, models.NoInput():
                 await self._wrap_up(work)
             case _:
-                message = "Action and normalized input do not agree"
-                raise ValueError(message)
+                await self._control(work)
         return work.session, tuple(work.entries)
 
+    async def _control(self, work: _ActionWork) -> None:
+        match work.submission.action, work.submission.input:
+            case models.Action.HINT, models.HintInput(gap=gap, partial_english=partial):
+                await self._hint(work, gap, partial)
+            case models.Action.SHOW_ANSWER, models.NoInput():
+                await self._show_answer(work)
+            case models.Action.TYPED_COPY, models.TextInput(text=text):
+                self._append(
+                    work, models.EntryKind.TYPED_COPY, models.TypedCopyPayload(text)
+                )
+                work.session = replace(
+                    work.session,
+                    turn_state=replace(work.session.turn_state, english=text),
+                )
+                self._finish_turn(work, models.TurnEnd.ANSWER_TYPED)
+            case models.Action.RESTATE, models.RestateInput(mode=mode):
+                await self._restate(work, mode)
+            case models.Action.REWRITE_INTENT, models.TextInput(text=text):
+                await self._intent(work, text, is_replacement=True)
+            case models.Action.PRACTICE_AGAIN, models.TextInput(text=text):
+                await self._practice(work, text)
+            case models.Action.ASK, models.TextInput(text=text):
+                await self._ask(work, text)
+            case _:
+                message = "Action and normalized input do not agree"
+                raise ValueError(message)
+
     def _append(
-        self, work: _ActionWork, kind: models.EntryKind, payload: models.EntryPayload
+        self,
+        work: _ActionWork,
+        kind: models.EntryKind,
+        payload: models.EntryPayload,
+        *,
+        turn_index: int | None = None,
     ) -> None:
         work.entries.append(
             models.TimelineEntry(
                 self._new_id(),
                 work.session.id,
                 len(work.stored.entries) + len(work.entries) + 1,
-                work.session.turn_index,
+                work.session.turn_index if turn_index is None else turn_index,
                 kind,
                 payload,
                 self._clock(),
@@ -707,9 +734,16 @@ class ConversationService:
             work.session, opener=output.text, stage=models.Stage.INTENT
         )
 
-    async def _intent(self, work: _ActionWork, text: str) -> None:
-        work.session = replace(work.session, turn_state=models.TurnState(intent=text))
-        self._append(work, models.EntryKind.INTENT, models.IntentPayload(text))
+    async def _intent(
+        self, work: _ActionWork, text: str, *, is_replacement: bool = False
+    ) -> None:
+        practice = work.session.turn_state.practice if is_replacement else None
+        work.session = replace(
+            work.session, turn_state=models.TurnState(intent=text, practice=practice)
+        )
+        self._append(
+            work, models.EntryKind.INTENT, models.IntentPayload(text, is_replacement)
+        )
         output = await self._run(
             work,
             ModelTask.ACKNOWLEDGE,
@@ -889,21 +923,125 @@ class ConversationService:
             raise TypeError(_WRONG_OUTPUT)
         work.session = replace(work.session, wrap_up=output)
 
+    async def _hint(self, work: _ActionWork, gap: str, partial: str) -> None:
+        intent = work.session.turn_state.intent
+        if intent is None:
+            message = "A gap hint requires an intent"
+            raise ValueError(message)
+        request = coaching.GapHintRequest(
+            intent, gap, partial, _earlier_hints(work), _conversation(work)
+        )
+        self._append(
+            work, models.EntryKind.HINT_REQUEST, models.HintRequestPayload(gap, partial)
+        )
+        output = await self._run(work, ModelTask.GAP_HINT, request)
+        if not isinstance(output, coaching.GapHint):
+            raise TypeError(_WRONG_OUTPUT)
+        self._append(
+            work, models.EntryKind.GAP_HINT, models.GapHintPayload(output.hint)
+        )
+
+    async def _show_answer(self, work: _ActionWork) -> None:
+        state = work.session.turn_state
+        request = coaching.ShowAnswerRequest(
+            work.session.stage,
+            state.intent,
+            state.english,
+            state.feedback,
+            _conversation(work),
+        )
+        output = await self._run(work, ModelTask.SHOW_ANSWER, request)
+        if not isinstance(output, coaching.Answer):
+            raise TypeError(_WRONG_OUTPUT)
+        self._append(
+            work, models.EntryKind.ANSWER, models.AnswerPayload(output.example)
+        )
+        work.session = replace(
+            work.session,
+            stage=models.Stage.ANSWER_SHOWN,
+            turn_state=replace(state, shown_answer=output.example),
+        )
+
+    async def _restate(self, work: _ActionWork, mode: models.RestateMode) -> None:
+        lines = [
+            entry.payload
+            for entry in work.stored.entries
+            if isinstance(entry.payload, models.PartnerLinePayload)
+            and entry.payload.line_kind
+            in {models.LineKind.OPENER, models.LineKind.REPLY}
+        ]
+        if not lines:
+            message = "Restatement requires an original Partner line"
+            raise ValueError(message)
+        output = await self._run(
+            work,
+            ModelTask.RESTATE,
+            partner.RestateRequest(_conversation(work), lines[-1].text, mode),
+        )
+        if not isinstance(output, partner.PartnerLine):
+            raise TypeError(_WRONG_OUTPUT)
+        self._append(
+            work,
+            models.EntryKind.PARTNER_LINE,
+            models.PartnerLinePayload(
+                output.text,
+                text_count_questions(output.text) > 0,
+                models.LineKind.RESTATEMENT,
+                mode,
+            ),
+        )
+
+    async def _practice(self, work: _ActionWork, sentence: str) -> None:
+        target = work.session.turn_state.practice
+        if target is None:
+            message = "Practice requires a finished turn with a fix"
+            raise ValueError(message)
+        self._append(
+            work,
+            models.EntryKind.PRACTICE,
+            models.PracticePayload(target.turn_index, sentence),
+            turn_index=target.turn_index,
+        )
+        output = await self._run(
+            work,
+            ModelTask.CHECK_RETRY,
+            coaching.CheckRetryRequest(
+                target.intent, target.feedback, sentence, 1, _conversation(work)
+            ),
+        )
+        if not isinstance(
+            output, (coaching.RetryAccepted, coaching.BlankOff, coaching.PieceGiven)
+        ):
+            raise TypeError(_WRONG_OUTPUT)
+        self._append(
+            work,
+            models.EntryKind.PRACTICE_RESULT,
+            models.PracticeResultPayload(target.turn_index, output),
+            turn_index=target.turn_index,
+        )
+
+    async def _ask(self, work: _ActionWork, question: str) -> None:
+        state = work.session.turn_state
+        self._append(work, models.EntryKind.QUESTION, models.QuestionPayload(question))
+        request = coaching.AnswerQuestionRequest(
+            question,
+            work.session.stage,
+            state.intent,
+            state.english,
+            state.feedback,
+            _conversation(work),
+        )
+        output = await self._run(work, ModelTask.ANSWER_QUESTION, request)
+        if not isinstance(output, coaching.CoachAnswer):
+            raise TypeError(_WRONG_OUTPUT)
+        self._append(
+            work, models.EntryKind.COACH_ANSWER, models.CoachAnswerPayload(output.text)
+        )
+
 
 SUBMISSION_MAX_AGE = timedelta(seconds=150)
 _WRONG_OUTPUT = "Model returned a value for a different task"
 _SHARE_AFTER = 2
-_CONTROL_ACTIONS = frozenset(
-    {
-        models.Action.HINT,
-        models.Action.SHOW_ANSWER,
-        models.Action.TYPED_COPY,
-        models.Action.RESTATE,
-        models.Action.REWRITE_INTENT,
-        models.Action.PRACTICE_AGAIN,
-        models.Action.ASK,
-    }
-)
 
 
 @dataclass(slots=True)
@@ -954,7 +1092,7 @@ def _should_share(work: _ActionWork) -> bool:
     return True
 
 
-def _final_english(work: _ActionWork) -> str:
+def _current_intent_entries(work: _ActionWork) -> tuple[models.TimelineEntry, ...]:
     entries = tuple(
         entry
         for entry in (*work.stored.entries, *work.entries)
@@ -968,7 +1106,23 @@ def _final_english(work: _ActionWork) -> str:
         ),
         default=0,
     )
-    current = entries[start:]
+    return entries[start:]
+
+
+def _earlier_hints(work: _ActionWork) -> tuple[coaching.EarlierHint, ...]:
+    pairs: list[coaching.EarlierHint] = []
+    gap: str | None = None
+    for entry in _current_intent_entries(work):
+        if isinstance(entry.payload, models.HintRequestPayload):
+            gap = entry.payload.gap
+        elif isinstance(entry.payload, models.GapHintPayload) and gap is not None:
+            pairs.append(coaching.EarlierHint(gap, entry.payload.hint))
+            gap = None
+    return tuple(pairs)
+
+
+def _final_english(work: _ActionWork) -> str:
+    current = _current_intent_entries(work)
     english = (
         work.session.turn_state.english or work.session.turn_state.shown_answer or ""
     )

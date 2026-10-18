@@ -154,7 +154,15 @@ Coach noted applied, so the Partner hears what the learner meant; when the learn
 after a shown answer without having written any English, it is the shown example. A
 second retry that still misses gets the piece and ends the turn (§3.5). A shown answer's
 typed copy is not checked and does not count as a retry. `practice_again` takes one
-submission and shows its result; it never changes the stage or the conversation. When a
+submission and shows its result; its two entries name the practised turn, even after the
+Partner has opened the next turn. It changes only those entries and the version, never
+the working turn state, finished count, stage or conversation. Hints receive every earlier
+gap/hint pair after the current turn's latest intent. A replacement intent keeps the
+practice target but clears the previous English, hints, feedback, readings, retry count
+and shown answer from the working context; their old entries remain readable in history.
+Both restatement modes use the latest original opener/reply, never a prior restatement;
+restatements stay outside the English conversation and taking-turns count. A side question
+uses the current feedback's completed-sentence check without advancing the turn. When a
 session ends, `end` makes no model call: it stores `ended_at` and sets both status and stage
 to `ended` at once. If a `feedback` entry exists, including feedback with no fix, it leaves
 `wrap_up` null (due); otherwise it stores `WrapUp(items=())`. The separate `wrap_up` action

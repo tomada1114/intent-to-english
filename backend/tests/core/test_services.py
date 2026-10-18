@@ -742,11 +742,11 @@ async def test_conversation_no_fix_feedback_still_makes_a_separate_wrap_up_due(
     ],
     ids=lambda a: a.value,
 )
-async def test_conversation_future_controls_fail_before_any_session_read(
+async def test_controls_read_session_before_state_or_input_checks(
     make_conversation, action
 ):
     h = make_conversation()
-    with pytest.raises(NotImplementedError, match=action.value):
+    with pytest.raises(e.SessionNotFoundError, match="not found"):
         await h.service.act(UNKNOWN_ID, m.ActionRequest(action, 0))
 
 
@@ -1055,7 +1055,9 @@ async def test_conversation_wrap_up_failure_leaves_ended_session_and_due_wrap_up
     assert failed.allowed_actions == (m.Action.WRAP_UP,)
 
 
-async def test_partner_requests_never_hold_intent_or_coach_text(make_conversation):
+async def test_partner_requests_never_hold_intent_or_coach_text(
+    make_conversation, turn_feedback
+):
     h = make_conversation()
     h.partner.open_call.outputs.append(
         _parsed(partner.PartnerLine("Hey! How's it going?"))
@@ -1074,31 +1076,71 @@ async def test_partner_requests_never_hold_intent_or_coach_text(make_conversatio
     )
     h.coach.feedback_call.outputs.extend(
         [
-            _parsed(coaching.Feedback("COACH-MARKER")),
+            _parsed(
+                replace(
+                    turn_feedback,
+                    sentence="I stayed home.",
+                    template="(①) ____ stayed home.",
+                    fixes=(
+                        coaching.Fix(
+                            1, "I", "Actually I", "COACH-MARKER", m.FixTag.IMPROVEMENT
+                        ),
+                    ),
+                )
+            ),
             _parsed(coaching.Feedback("COACH-MARKER")),
         ]
     )
+    h.partner.restate_call.outputs.extend(
+        [
+            _parsed(partner.PartnerLine("How are you?")),
+            _parsed(partner.PartnerLine("What did you do?")),
+        ]
+    )
+    h.coach.gap_hint_call.outputs.extend(
+        [
+            _parsed(coaching.GapHint("COACH-MARKER")),
+            _parsed(coaching.GapHint("COACH-MARKER")),
+        ]
+    )
+    h.coach.answer_question_call.outputs.extend(
+        [
+            _parsed(coaching.CoachAnswer("COACH-MARKER")),
+            _parsed(coaching.CoachAnswer("COACH-MARKER")),
+        ]
+    )
+    h.coach.show_answer_call.outputs.append(_parsed(coaching.Answer("COACH-MARKER")))
     view = await h.service.start()
     view = await h.service.act(view.id, m.ActionRequest(m.Action.OPEN, view.version))
-    for _ in range(2):
+    steps: tuple[tuple[m.Action, m.ActionInput], ...] = (
+        (m.Action.INTENT, m.TextInput("札幌マーカー")),
+        (m.Action.HINT, m.HintInput("gap")),
+        (m.Action.ASK, m.TextInput("質問マーカー")),
+        (m.Action.RESTATE, m.RestateInput(m.RestateMode.SHORTER)),
+        (m.Action.ENGLISH, m.TextInput("I stayed home.")),
+        (m.Action.SHOW_ANSWER, m.NoInput()),
+        (m.Action.TYPED_COPY, m.TextInput("I stayed home.")),
+        (m.Action.PARTNER_REPLY, m.NoInput()),
+        (m.Action.INTENT, m.TextInput("札幌マーカー")),
+        (m.Action.HINT, m.HintInput("gap")),
+        (m.Action.ASK, m.TextInput("質問マーカー")),
+        (m.Action.RESTATE, m.RestateInput(m.RestateMode.SIMPLER)),
+        (m.Action.ENGLISH, m.TextInput("I stayed home.")),
+        (m.Action.PARTNER_REPLY, m.NoInput()),
+    )
+    for action, value in steps:
         view = await h.service.act(
-            view.id,
-            m.ActionRequest(m.Action.INTENT, view.version, m.TextInput("札幌マーカー")),
+            view.id, m.ActionRequest(action, view.version, value)
         )
-        view = await h.service.act(
-            view.id,
-            m.ActionRequest(
-                m.Action.ENGLISH, view.version, m.TextInput("I stayed home.")
-            ),
-        )
-        view = await h.service.act(
-            view.id, m.ActionRequest(m.Action.PARTNER_REPLY, view.version)
-        )
-    requests = [r for r, _ in h.partner.open_call.requests] + [
-        r for r, _ in h.partner.reply_call.requests
-    ]
+    requests = (
+        [r for r, _ in h.partner.open_call.requests]
+        + [r for r, _ in h.partner.reply_call.requests]
+        + [r for r, _ in h.partner.restate_call.requests]
+    )
     assert all(
-        "札幌マーカー" not in repr(request) and "COACH-MARKER" not in repr(request)
+        "札幌マーカー" not in repr(request)
+        and "COACH-MARKER" not in repr(request)
+        and "質問マーカー" not in repr(request)
         for request in requests
     )
     assert tuple(request.share for request, _ in h.partner.reply_call.requests) == (
@@ -1167,3 +1209,569 @@ async def test_conversation_skip_ends_without_a_model_and_sets_practice(
         await h.repository.get(session.id)
     ).session.turn_state.practice == m.PracticeTarget(1, "意図", turn_feedback)
     assert await h.repository.model_calls(session.id) == ()
+
+
+async def test_hint_passes_all_earlier_pairs_and_preserves_turn_state(
+    make_conversation, nth_id
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.ENGLISH,
+        turn_state=m.TurnState(intent="久しぶりに映画を見た"),
+    )
+    await h.repository.create(session)
+    h.coach.gap_hint_call.outputs.extend(
+        [
+            _parsed(coaching.GapHint("for the first time")),
+            _parsed(coaching.GapHint("for the first time in a long time")),
+        ]
+    )
+    first = await h.service.act(
+        session.id,
+        m.ActionRequest(m.Action.HINT, 0, m.HintInput("久しぶり", "I watched")),
+    )
+    second = await h.service.act(
+        session.id,
+        m.ActionRequest(m.Action.HINT, 1, m.HintInput("久しぶり", "I watched")),
+    )
+    assert first.stage is m.Stage.ENGLISH
+    assert second.version == 2
+    assert (await h.repository.get(session.id)).session.turn_state == session.turn_state
+    request, _ = h.coach.gap_hint_call.requests[-1]
+    assert request.earlier == (coaching.EarlierHint("久しぶり", "for the first time"),)
+    assert request.partial_english == "I watched"
+    assert tuple(entry.kind for entry in second.entries) == (
+        m.EntryKind.HINT_REQUEST,
+        m.EntryKind.GAP_HINT,
+        m.EntryKind.HINT_REQUEST,
+        m.EntryKind.GAP_HINT,
+    )
+
+
+async def test_show_answer_then_typed_copy_keeps_retry_count_and_uses_the_copy(
+    make_conversation, turn_feedback, nth_id
+):
+    h = make_conversation()
+    state = m.TurnState(
+        intent="意図",
+        english="I feel refreshing today.",
+        feedback=turn_feedback,
+        retry_count=1,
+    )
+    session = m.Session(nth_id(50), h.clock.now, stage=m.Stage.RETRY, turn_state=state)
+    await h.repository.create(session)
+    h.coach.show_answer_call.outputs.append(
+        _parsed(coaching.Answer("I feel refreshed today."))
+    )
+    shown = await h.service.act(session.id, m.ActionRequest(m.Action.SHOW_ANSWER, 0))
+    assert shown.stage is m.Stage.ANSWER_SHOWN
+    assert (
+        await h.repository.get(session.id)
+    ).session.turn_state.shown_answer == "I feel refreshed today."
+    copied = await h.service.act(
+        session.id,
+        m.ActionRequest(
+            m.Action.TYPED_COPY, shown.version, m.TextInput("I feel better today.")
+        ),
+    )
+    assert copied.entries[-1].payload == m.TurnDonePayload(
+        "I feel better today.", m.TurnEnd.ANSWER_TYPED
+    )
+    assert (await h.repository.get(session.id)).session.turn_state.retry_count == 1
+    assert len(await h.repository.model_calls(session.id)) == 1
+    assert h.coach.check_retry_call.requests == []
+
+
+async def test_show_answer_skip_falls_back_to_example_without_own_english(
+    make_conversation, nth_id
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.ENGLISH,
+        turn_state=m.TurnState(intent="久しぶりに映画を見た"),
+    )
+    await h.repository.create(session)
+    example = "I watched a movie for the first time in a long time."
+    h.coach.show_answer_call.outputs.append(_parsed(coaching.Answer(example)))
+    shown = await h.service.act(session.id, m.ActionRequest(m.Action.SHOW_ANSWER, 0))
+    skipped = await h.service.act(
+        session.id, m.ActionRequest(m.Action.SKIP, shown.version)
+    )
+    assert skipped.entries[-1].payload == m.TurnDonePayload(example, m.TurnEnd.SKIPPED)
+    assert (skipped.finished_replies, skipped.stage) == (1, m.Stage.PARTNER_TURN)
+
+
+async def test_restate_twice_uses_the_original_line_and_preserves_state(
+    make_conversation,
+):
+    h = make_conversation()
+    original = "Hey! How's it going?"
+    h.partner.open_call.outputs.append(_parsed(partner.PartnerLine(original)))
+    h.partner.restate_call.outputs.extend(
+        [
+            _parsed(partner.PartnerLine("How are you?")),
+            _parsed(partner.PartnerLine("How do you feel?")),
+        ]
+    )
+    view = await h.service.start()
+    view = await h.service.act(view.id, m.ActionRequest(m.Action.OPEN, 0))
+    before = (await h.repository.get(view.id)).session.turn_state
+    shorter = await h.service.act(
+        view.id,
+        m.ActionRequest(
+            m.Action.RESTATE, view.version, m.RestateInput(m.RestateMode.SHORTER)
+        ),
+    )
+    simpler = await h.service.act(
+        view.id,
+        m.ActionRequest(
+            m.Action.RESTATE, shorter.version, m.RestateInput(m.RestateMode.SIMPLER)
+        ),
+    )
+    assert simpler.stage is m.Stage.INTENT
+    assert (await h.repository.get(view.id)).session.turn_state == before
+    assert tuple(request.line for request, _ in h.partner.restate_call.requests) == (
+        original,
+        original,
+    )
+    assert tuple(request.mode for request, _ in h.partner.restate_call.requests) == (
+        m.RestateMode.SHORTER,
+        m.RestateMode.SIMPLER,
+    )
+    assert (
+        h.partner.restate_call.requests[0][0].conversation
+        == h.partner.restate_call.requests[1][0].conversation
+    )
+    assert simpler.entries[-1].payload.line_kind is m.LineKind.RESTATEMENT
+
+
+async def test_rewrite_intent_resets_working_state_but_keeps_practice(
+    make_conversation, turn_feedback, nth_id
+):
+    h = make_conversation()
+    target = m.PracticeTarget(1, "前の意図", turn_feedback)
+    state = m.TurnState(
+        intent="旧意図",
+        english="Old English",
+        feedback=turn_feedback,
+        retry_count=1,
+        reading=coaching.ReadingQuestion("leave", ("leave", "live")),
+        shown_answer="Old answer",
+        practice=target,
+    )
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.ANSWER_SHOWN,
+        turn_index=2,
+        turn_state=state,
+    )
+    await h.repository.create(session)
+    h.coach.acknowledge_call.outputs.append(
+        _parsed(coaching.Acknowledgment("いいですね"))
+    )
+    view = await h.service.act(
+        session.id,
+        m.ActionRequest(m.Action.REWRITE_INTENT, 0, m.TextInput("新しい意図")),
+    )
+    assert view.stage is m.Stage.ENGLISH
+    assert (await h.repository.get(session.id)).session.turn_state == m.TurnState(
+        intent="新しい意図", practice=target
+    )
+    assert view.entries[0].payload == m.IntentPayload("新しい意図", True)
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [(m.Stage.INTENT, 2, 1, 1), (m.Stage.CHECK_IN, 3, 3, 3)],
+    ids=["next-turn-intent", "check-in"],
+)
+@pytest.mark.parametrize(
+    "result",
+    [
+        coaching.RetryAccepted("いいですね"),
+        coaching.BlankOff((1,), "最初の形を考えましょう"),
+    ],
+    ids=["accepted", "blank-off"],
+)
+async def test_practice_again_changes_only_targeted_entries_and_version(
+    make_conversation, turn_feedback, nth_id, frame, result
+):
+    h = make_conversation()
+    stage, turn_index, finished, practised_index = frame
+    target = m.PracticeTarget(practised_index, "練習する意図", turn_feedback)
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=stage,
+        turn_index=turn_index,
+        finished_replies=finished,
+        turn_state=m.TurnState(practice=target),
+    )
+    await h.repository.create(session)
+    h.coach.check_retry_call.outputs.append(_parsed(result))
+    view = await h.service.act(
+        session.id,
+        m.ActionRequest(
+            m.Action.PRACTICE_AGAIN, 0, m.TextInput("I feel refreshed today.")
+        ),
+    )
+    assert (await h.repository.get(session.id)).session == replace(session, version=1)
+    assert tuple(entry.kind for entry in view.entries) == (
+        m.EntryKind.PRACTICE,
+        m.EntryKind.PRACTICE_RESULT,
+    )
+    assert tuple(entry.turn_index for entry in view.entries) == (
+        practised_index,
+        practised_index,
+    )
+    assert view.entries[0].payload == m.PracticePayload(
+        practised_index, "I feel refreshed today."
+    )
+    assert view.entries[1].payload == m.PracticeResultPayload(practised_index, result)
+    request, _ = h.coach.check_retry_call.requests[0]
+    assert (request.intent, request.feedback, request.submission_number) == (
+        target.intent,
+        target.feedback,
+        1,
+    )
+    assert h.partner.reply_call.requests == []
+
+
+async def test_ask_with_feedback_repairs_a_complete_sentence_leak_without_moving_stage(
+    make_conversation, turn_feedback, nth_id
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.RETRY,
+        turn_state=m.TurnState(
+            intent="意図", english="I feel refreshing today.", feedback=turn_feedback
+        ),
+    )
+    await h.repository.create(session)
+    h.coach.answer_question_call.outputs.extend(
+        [
+            _parsed(coaching.CoachAnswer("I feel refreshed today.")),
+            _parsed(coaching.CoachAnswer("気分を表す形を考えてください")),
+        ]
+    )
+    view = await h.service.act(
+        session.id, m.ActionRequest(m.Action.ASK, 0, m.TextInput("質問マーカー"))
+    )
+    assert (await h.repository.get(session.id)).session == replace(session, version=1)
+    assert tuple(entry.kind for entry in view.entries) == (
+        m.EntryKind.QUESTION,
+        m.EntryKind.COACH_ANSWER,
+    )
+    assert tuple(
+        v.check for v in h.coach.answer_question_call.requests[-1][1].violations
+    ) == (m.CheckId.COMPLETED_SENTENCE,)
+    assert len(await h.repository.model_calls(session.id)) == 2
+
+
+@pytest.mark.parametrize(
+    ("action", "frame"),
+    [
+        pytest.param(
+            m.Action.HINT,
+            (m.Stage.RETRY, m.HintInput("gap"), True, False),
+            id="hint-at-retry",
+        ),
+        pytest.param(
+            m.Action.SHOW_ANSWER,
+            (m.Stage.INTENT, m.NoInput(), True, False),
+            id="answer-at-intent",
+        ),
+        pytest.param(
+            m.Action.SHOW_ANSWER,
+            (m.Stage.ANSWER_SHOWN, m.NoInput(), True, False),
+            id="answer-already-shown",
+        ),
+        pytest.param(
+            m.Action.TYPED_COPY,
+            (m.Stage.RETRY, m.TextInput("copy"), True, False),
+            id="copy-at-retry",
+        ),
+        pytest.param(
+            m.Action.SKIP,
+            (m.Stage.ENGLISH, m.NoInput(), True, False),
+            id="skip-at-english",
+        ),
+        pytest.param(
+            m.Action.RESTATE,
+            (m.Stage.OPENING, m.RestateInput(m.RestateMode.SHORTER), True, False),
+            id="restate-at-opening",
+        ),
+        pytest.param(
+            m.Action.RESTATE,
+            (m.Stage.PARTNER_TURN, m.RestateInput(m.RestateMode.SHORTER), True, False),
+            id="restate-at-partner-turn",
+        ),
+        pytest.param(
+            m.Action.RESTATE,
+            (m.Stage.CHECK_IN, m.RestateInput(m.RestateMode.SHORTER), True, False),
+            id="restate-at-check-in",
+        ),
+        pytest.param(
+            m.Action.REWRITE_INTENT,
+            (m.Stage.INTENT, m.TextInput("新意図"), True, False),
+            id="rewrite-at-intent",
+        ),
+        pytest.param(
+            m.Action.REWRITE_INTENT,
+            (m.Stage.RETRY, m.TextInput("新意図"), False, False),
+            id="rewrite-an-english-direct-turn",
+        ),
+        pytest.param(
+            m.Action.PRACTICE_AGAIN,
+            (m.Stage.PARTNER_TURN, m.TextInput("practice"), True, True),
+            id="practice-at-partner-turn",
+        ),
+        pytest.param(
+            m.Action.PRACTICE_AGAIN,
+            (m.Stage.INTENT, m.TextInput("practice"), False, False),
+            id="practice-first-turn-or-no-fix",
+        ),
+        pytest.param(
+            m.Action.PRACTICE_AGAIN,
+            (m.Stage.ENGLISH, m.TextInput("practice"), True, True),
+            id="practice-after-next-intent",
+        ),
+    ],
+)
+async def test_controls_at_disallowed_stages_or_without_target_store_nothing(
+    make_conversation, turn_feedback, nth_id, action, frame
+):
+    h = make_conversation()
+    stage, value, has_intent, has_practice = frame
+    target = {True: m.PracticeTarget(1, "練習する意図", turn_feedback), False: None}[
+        has_practice
+    ]
+    intent = {True: "意図", False: None}[has_intent]
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=stage,
+        turn_state=m.TurnState(intent=intent, practice=target),
+    )
+    await h.repository.create(session)
+    before = await h.repository.get(session.id)
+    with pytest.raises(e.ActionNotAllowedError, match="not allowed"):
+        await h.service.act(session.id, m.ActionRequest(action, 0, value))
+    assert await h.repository.get(session.id) == before
+    assert await h.repository.model_calls(session.id) == ()
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        m.Action.HINT,
+        m.Action.SHOW_ANSWER,
+        m.Action.TYPED_COPY,
+        m.Action.RESTATE,
+        m.Action.REWRITE_INTENT,
+        m.Action.PRACTICE_AGAIN,
+        m.Action.ASK,
+    ],
+    ids=lambda a: a.value,
+)
+async def test_every_control_rejects_an_ended_session_before_input_checks(
+    make_conversation, nth_id, action
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        status=m.SessionStatus.ENDED,
+        stage=m.Stage.ENDED,
+        ended_at=h.clock.now,
+    )
+    await h.repository.create(session)
+    with pytest.raises(e.SessionEndedError, match="ended"):
+        await h.service.act(session.id, m.ActionRequest(action, 0))
+    assert (await h.repository.get(session.id)).last_submission is None
+
+
+@pytest.mark.parametrize(
+    ("action", "case"),
+    [
+        pytest.param(
+            m.Action.ASK,
+            (
+                m.TextInput("日" * 500),
+                coaching.CoachAnswer("答え"),
+                "answer_question_call",
+            ),
+            id="question-500",
+        ),
+        pytest.param(
+            m.Action.HINT,
+            (m.HintInput("日" * 200), coaching.GapHint("ヒント"), "gap_hint_call"),
+            id="gap-200",
+        ),
+    ],
+)
+async def test_control_input_limit_is_accepted(make_conversation, nth_id, action, case):
+    value, output, port_name = case
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.ENGLISH,
+        turn_state=m.TurnState(intent="意図"),
+    )
+    await h.repository.create(session)
+    getattr(h.coach, port_name).outputs.append(_parsed(output))
+    view = await h.service.act(session.id, m.ActionRequest(action, 0, value))
+    assert (view.stage, view.version) == (m.Stage.ENGLISH, 1)
+
+
+@pytest.mark.parametrize(
+    ("action", "value"),
+    [(m.Action.ASK, m.TextInput("日" * 501)), (m.Action.HINT, m.HintInput("日" * 201))],
+    ids=["question-501", "gap-201"],
+)
+async def test_control_input_one_past_limit_stores_nothing(
+    make_conversation, nth_id, action, value
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.ENGLISH,
+        turn_state=m.TurnState(intent="意図"),
+    )
+    await h.repository.create(session)
+    with pytest.raises(e.InvalidInputError, match="limit"):
+        await h.service.act(session.id, m.ActionRequest(action, 0, value))
+    assert (await h.repository.get(session.id)).last_submission is None
+
+
+async def test_rewrite_stops_old_hints_and_readings_from_affecting_the_new_intent(
+    make_conversation, turn_feedback, nth_id
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.ENGLISH,
+        turn_state=m.TurnState(intent="旧意図"),
+    )
+    await h.repository.create(session)
+    h.coach.gap_hint_call.outputs.extend(
+        [_parsed(coaching.GapHint("old hint")), _parsed(coaching.GapHint("new hint"))]
+    )
+    h.coach.feedback_call.outputs.extend(
+        [
+            _parsed(
+                replace(
+                    turn_feedback,
+                    readings_noted=(coaching.ReadingNote("starting", "studying"),),
+                )
+            ),
+            _parsed(coaching.Feedback("いいですね")),
+        ]
+    )
+    h.coach.acknowledge_call.outputs.append(
+        _parsed(coaching.Acknowledgment("いいですね"))
+    )
+    view = await h.service.act(
+        session.id, m.ActionRequest(m.Action.HINT, 0, m.HintInput("old gap"))
+    )
+    view = await h.service.act(
+        session.id,
+        m.ActionRequest(
+            m.Action.ENGLISH, view.version, m.TextInput("I feel refreshing today.")
+        ),
+    )
+    old_entries = view.entries
+    view = await h.service.act(
+        session.id,
+        m.ActionRequest(m.Action.REWRITE_INTENT, view.version, m.TextInput("新意図")),
+    )
+    assert view.entries[: len(old_entries)] == old_entries
+    view = await h.service.act(
+        session.id, m.ActionRequest(m.Action.HINT, view.version, m.HintInput("new gap"))
+    )
+    assert h.coach.gap_hint_call.requests[-1][0].earlier == ()
+    assert h.coach.gap_hint_call.requests[-1][0].intent == "新意図"
+    view = await h.service.act(
+        session.id,
+        m.ActionRequest(m.Action.ENGLISH, view.version, m.TextInput("I am starting.")),
+    )
+    assert h.coach.feedback_call.requests[-1][0].intent == "新意図"
+    assert h.coach.feedback_call.requests[-1][0].earlier_english == ()
+    assert view.entries[-1].payload == m.TurnDonePayload(
+        "I am starting.", m.TurnEnd.NO_FIX_NEEDED
+    )
+
+
+async def test_answer_shown_skip_preserves_existing_learner_english(
+    make_conversation, turn_feedback, nth_id
+):
+    h = make_conversation()
+    session = m.Session(
+        nth_id(50),
+        h.clock.now,
+        stage=m.Stage.RETRY,
+        turn_state=m.TurnState(
+            intent="意図", english="I feel refreshing today.", feedback=turn_feedback
+        ),
+    )
+    await h.repository.create(session)
+    h.coach.show_answer_call.outputs.append(
+        _parsed(coaching.Answer("I feel refreshed today."))
+    )
+    shown = await h.service.act(session.id, m.ActionRequest(m.Action.SHOW_ANSWER, 0))
+    skipped = await h.service.act(
+        session.id, m.ActionRequest(m.Action.SKIP, shown.version)
+    )
+    assert skipped.entries[-1].payload == m.TurnDonePayload(
+        "I feel refreshing today.", m.TurnEnd.SKIPPED
+    )
+    assert len(await h.repository.model_calls(session.id)) == 1
+
+
+@pytest.mark.parametrize(
+    ("action", "value", "port_name"),
+    [
+        pytest.param(
+            m.Action.ASK, m.TextInput("質問"), "answer_question_call", id="ask"
+        ),
+        pytest.param(
+            m.Action.RESTATE,
+            m.RestateInput(m.RestateMode.SIMPLER),
+            "restate_call",
+            id="restate",
+        ),
+    ],
+)
+async def test_control_model_error_preserves_stage_version_and_timeline(
+    make_conversation, action, value, port_name
+):
+    h = make_conversation()
+    h.partner.open_call.outputs.append(
+        _parsed(partner.PartnerLine("Hey! How's it going?"))
+    )
+    view = await h.service.start()
+    view = await h.service.act(view.id, m.ActionRequest(m.Action.OPEN, 0))
+    ports = {m.Action.ASK: h.coach, m.Action.RESTATE: h.partner}
+    getattr(ports[action], port_name).outputs.append(
+        e.ModelTimeoutError("test", "model", 60000)
+    )
+    with pytest.raises(e.ModelTimeoutError, match="timeout"):
+        await h.service.act(view.id, m.ActionRequest(action, view.version, value))
+    failed = await h.service.get(view.id)
+    assert (failed.stage, failed.version, failed.entries) == (
+        view.stage,
+        view.version,
+        view.entries,
+    )
+    assert failed.last_submission.action is action
+    assert failed.last_submission.input == value
