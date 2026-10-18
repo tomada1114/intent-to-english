@@ -170,7 +170,9 @@ e2e/        # The Playwright test from the screen to the database (just e2e)
 `backend/AGENTS.md` holds the backend's architecture: the core imports neither
 the API nor any framework or driver, the API only translates between HTTP and
 the core, and `composition.py` is the one place adapters are wired in.
-`frontend/AGENTS.md` holds the frontend's toolchain. The schema lives in
+`docs/architecture/overview.md` holds the app's own design: the stage machine, the
+Partner and Coach model roles behind ports, the four tables, the API, and the
+decisions behind them. `frontend/AGENTS.md` holds the frontend's toolchain. The schema lives in
 `backend/src/intent_to_english/adapters/sql/tables.py` and its history in Alembic revisions
 under `backend/migrations/` (the `persisting-data` skill).
 

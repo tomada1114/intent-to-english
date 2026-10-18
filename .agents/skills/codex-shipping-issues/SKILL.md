@@ -38,7 +38,8 @@ or a resume; ask only for necessary writes outside it.
   write authority. CI success alone never authorizes merge.
 - Create a regular PR by default; use a draft only when explicitly requested.
   An explicit PR-only or draft boundary overrides the merge default.
-- This skill grants no standing permission to change labels, file issues, delete
+- This skill grants no standing permission to change labels (beyond clearing
+  `blocked: dependency` after its own merge, in section 5), file issues, delete
   remote branches, change settings, or access secrets. Cleanup needs its own scope.
 - **REQUIRED:** `smart-commit` for commits and `create-pr` for publication
   preconditions, title, body and checks. Their permissions do not extend this run's
@@ -125,6 +126,9 @@ At `stop_at=pr`, finish after acceptance, the settled review rounds with their
 required findings addressed, and current-head CI; preserve the open PR and branch.
 At `stop_at=merge`, proceed to landing as soon as all current gates and required approvals pass, without asking again for
 already authorized merge. Verify remote merged state, merge commit and issue closure.
+Then, through MCP, find the open issues whose `Depends on: #N` names the closed issue;
+remove `blocked: dependency` from each whose every named dependency is now closed
+(`AGENTS.md`'s "Standing exceptions"), and report which issues were cleared.
 Do not switch, pull or clean the user's busy primary checkout.
 
 Pending gates alone do not finish the run. Wait in bounded observations, work on

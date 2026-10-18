@@ -138,7 +138,8 @@ dialogs in the MVP; everything happens in the page.
 4. Coach blocks and learner entries of this turn, in order: the acknowledgment and the
    optional 「組み立てのヒント: …」; gap requests and their hints; English attempts; the
    **feedback card**; retry submissions and their results; a shown answer; questions to the
-   Coach and their answers (labelled 「質問」/「💡 コーチ」, visually lighter).
+   Coach and their answers (labelled 「質問」/「💡 コーチ」, visually lighter). A skip shows
+   the fixed line 「スキップして会話に戻ります」 (no model call).
 5. **Feedback card**: 「意図は伝わっています」 (or the missing points) → 「直し方」 (①… in
    sentence order; 元 → 直す; なぜ with the tag 「ミス」 or 「改善」, the tag as a small label) →
    「あなたの文」 (verbatim) → 「穴埋め」 directly under it (blanks rendered as numbered gaps
@@ -228,6 +229,8 @@ dialogs in the MVP; everything happens in the page.
   Clicking a learner line on the left expands its turn on the right.
 - No composer, no controls, no next-action line. No "続ける" — an ended session cannot be
   reopened.
+- A session ended before any feedback has no wrap-up: the right pane starts with the turn
+  list.
 
 ### S4 Not found
 
