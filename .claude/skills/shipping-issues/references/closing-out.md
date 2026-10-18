@@ -51,14 +51,12 @@ worktree viability; it persists the answer so the next run's plan skips the prob
 
 All deletion goes through `cleanup_run.sh`, in **one batch after the last merge** — not
 once per batch. Never run `rm`, `git worktree remove`, or `git branch -D` ad hoc in the
-main context or in a sub-agent — raw `rm` is flagged as dangerous and stalls the run on
-a permission prompt, and the single entry point is what lets deletion be gated on merge
-status.
+main context or in a sub-agent: the single entry point gates deletion on merge
+status. Confirm destructive targets before cleanup, reusing existing approvals.
 
 **That covers temporary files too, not just the repository.** A throwaway fixture, a
 scratch clone, a probe directory under the session scratchpad or `/tmp` is left exactly
-where it is: it costs nothing, it is disposable by construction, and `rm -rf`-ing it
-buys a permission prompt that interrupts the run for no gain. Revert a probe _inside_ a
+where it is until the final cleanup decision. Revert a probe _inside_ a
 checkout with `git checkout --` or by moving it out with `mv` into the holding area
 ([below](#approval-gated-commands)), never with `rm`. Say in the step 10 report where
 any leftover scratch directories are; the holding area is offered for deletion in the
@@ -68,8 +66,7 @@ explicitly — three separate agents in one observed run reached for `rm` on the
 scratch directories despite the instruction being implied rather than stated.
 
 Deleting worktrees mid-run to stay under the concurrency cap is the one tempting
-exception, and it is not worth it: each intermediate call is another approval, and the
-disk a few worktrees hold is cheap next to interrupting a long unattended run. Carry
+exception, and it complicates cleanup ownership and recovery. Carry
 them to the end and clean once. If disk genuinely is the constraint, that is a reason to
 shrink the batch, not to add cleanup calls. The script touches only: worktrees under an
 explicitly given `--worktree-root`; harness `worktree-agent-*` branches (a leftover
@@ -92,31 +89,21 @@ Record the cleanup outcome (`--event cleanup ...`) and report anything it left
 
 ## Approval-gated commands
 
-Some commands are ones your host's permission settings gate behind an approval prompt —
-in practice the `rm -rf` family, and sometimes `wget` or a publish command. This skill
-runs unattended, so every such prompt raised mid-run parks the whole run until someone
-answers it, and several of them turn an unattended run into one the user has to sit
-through. The rule is not "never need approval" — it is **ask once, at the end, for
-everything that could wait**. Check each such command against three questions, in order:
+When the host requires approval, prepare the exact command, target and effect,
+then ask the user. A required operation is not prohibited merely because it needs
+confirmation. Preserve the current state and continue independent work while the
+approval is pending. Never change commands or tools to evade a denial.
 
-1. **Is there an equivalent that raises no prompt?** Take it. Above all: **`mv` into the
-   holding area instead of deleting.** A move needs no approval, is instant on the same
-   filesystem, and doubles as a backup — the content is still there if the change turns
-   out to be wrong. `curl` instead of `wget`; `git checkout -- <path>` instead of
-   deleting a probe edit.
-2. **Can it wait until the last merge?** Most can: clearing a scratch directory, a stale
-   build output, a throwaway fixture, a leftover clone — nothing the issue's result
-   depends on. Move it to the holding area, or, when moving is not the equivalent (a
-   non-deletion command), append the exact command and why to `<runstate>/deferred.md`.
-   Both are offered together in [the final confirmation](#the-final-confirmation).
-3. **Does the issue's goal require it now?** Then it may run mid-run — an issue whose
-   acceptance criterion _is_ removing an existing directory, say. Even then, reach for
-   step 1 first: moving the directory into the holding area achieves the same
-   working-tree result with no prompt and a copy kept. For tracked content, follow the
-   move with `git add -A -- <dir>` to stage the deletion — not `git rm -r`, which is not
-   on every allowlist and has stalled a background agent on a prompt nobody saw. Only a
-   case the move does not cover — the content is too large to keep, or lives where a
-   move cannot reach — takes the prompt mid-run, and the step 10 report says why.
+Batch optional cleanup at the end of the run. Keep disposable files in place until
+then, or move task-owned files to the holding area when preserving them is part of
+the intended change. Check targets before any move or deletion; do not touch
+unrelated files. A holding-area move is a preservation choice, not a substitute
+for an approval required by the action.
+
+If acceptance or a required check cannot proceed without the operation, request
+approval at that point and report what needs to run and why. Do not skip the check
+or defer a necessary operation while claiming completion. An unavailable approval
+channel is a reported blocker for that operation, not permission to bypass it.
 
 **The holding area** is `<runstate>/holding/<n>/` — `<n>` the issue being worked, `run`
 for anything not tied to one. It sits outside every checkout, so a moved-out directory
@@ -136,20 +123,17 @@ their reports name what they moved there.
 
 ### The final confirmation
 
-If `<runstate>/holding/` or `<runstate>/deferred.md` holds anything from this run, it is
-offered here — after `cleanup_run.sh` and after the step 10 report text, so the report
-is already on screen while the prompt waits, as the run's last tool call: one command
-covering every holding directory this run filled plus anything in `deferred.md` — e.g.
-`rm -rf <runstate>/holding/42 <runstate>/holding/57` — so the user answers one prompt,
-not one per issue. List exactly what it covers in the report just above it (each held
-path with its original location, each deferred command with its reason), so the user
-approves something they can see. Delete only this run's holding directories, never
-`<runstate>/holding/` wholesale — an earlier run's holdings are the user's to decide on.
+If `<runstate>/holding/` or `<runstate>/deferred.md` holds optional cleanup from this
+run, prepare one concrete cleanup proposal. List each held path with its original
+location and each deferred command with its reason. Reuse existing approvals or
+request the remaining confirmation once, then run the approved cleanup and verify
+the result before the final report. Delete only this run's holding directories,
+never `<runstate>/holding/` wholesale: earlier holdings remain untouched.
 
-Declined, or the host refuses the call → leave everything where it is. The report
-already names the paths; that is the complete outcome, not a failure to retry. Nothing
-that has to happen for the PRs to count as shipped may be deferred here — the merges and
-issue closures are already done by now.
+If confirmation is declined or the host refuses the call, preserve the paths and
+report the unfinished cleanup. Do not retry with different command spelling.
+Nothing required for the PRs to count as shipped may be deferred here; merges and
+issue closures must already be verified.
 
 ## What the report must not omit
 

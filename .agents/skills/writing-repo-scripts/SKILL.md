@@ -123,8 +123,8 @@ print a traceback.
 - Create or update only what its file declares; never delete what the file does not
   name. `sync_labels.py` leaves a label `.github/labels.yml` does not mention, and
   `apply_ruleset.py` never deletes a ruleset, so a repository-local addition survives.
-- Running it against the live repository is a remote write, so it needs the sign-off
-  AGENTS.md's "Security and human approval" describes; its recipe goes in the
+- Scope live writes to the requested outcome and follow the confirmations in
+  AGENTS.md's "Security and human approval"; its recipe goes in the
   "Writes to GitHub" block of AGENTS.md's "Quick Reference", saying who may run it
   (`just ruleset` is an admin step no agent runs).
 - Its tests never reach GitHub: they replace `subprocess.run` on the loaded module with

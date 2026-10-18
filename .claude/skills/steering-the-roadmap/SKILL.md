@@ -145,6 +145,6 @@ one-line reason, and ask the owner to pick. An owner's pick outside Now is their
 make; say which Now outcome it delays, then note it on the page if it changes the
 direction.
 
-`shipping-issues` takes the pick from there, and invoking it authorizes every write it
-makes, merge included. Invoke it only on the owner's confirmed pick, never on this
-skill's own recommendation.
+The host's shipping workflow takes the requested implementation from there and
+honors its PR-only or merge stop point. A recommendation alone does not start
+implementation; follow the owner's chosen work.

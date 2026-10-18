@@ -1,31 +1,30 @@
 ---
 name: smart-commit
 description: >
-  Use when asked to commit here: "commit this", "split this into commits", "commit and
-  push". Covers reading the branch and working tree first, staging by name, what must
+  Use when asked to commit here, or a requested PR or shipping task needs commits.
+  Covers reading the branch and working tree first, staging by name, what must
   stay out of a commit, grouping changes into Conventional Commits, the files that move
   together (pyproject.toml with uv.lock, .agents/skills/ with .claude/skills/, a
   backend/src/ change with its test and the document it owes), recovering when a
   pre-commit hook refuses a commit (ruff, ruff-format, mypy, biome, tsc, typos,
-  zizmor, check-staged, agents-check, no-commit-to-branch), and pushing only when asked.
+  zizmor, check-staged, agents-check, no-commit-to-branch), and pushing within task scope.
 ---
 
 # Smart Commit
 
 **Owns:** turning a working tree into commits on the current branch — what goes in, how
 it is grouped, the message, the recovery when a pre-commit hook refuses, and the push
-when one is asked for. **Does not own:** opening or updating the pull request
+when the requested outcome needs it. **Does not own:** opening or updating the pull request
 (`create-pr`); shipping an issue end to end (`shipping-issues`); what the hooks run and
 why (`changing-gates`); the order of work that produces a `backend/src/` change (`tdd`).
 
 A user-level skill of the same name may also be installed. Inside this repository,
 follow this one: it is the one that knows these hooks.
 
-**Invoking this skill is the sign-off for exactly the writes AGENTS.md's "Standing
-exceptions" lists for it, for this invocation only:** the commits it makes on the
-current branch, and — only when the request asked for a push — pushing that branch to
-`origin`. Nothing else: no force-push, no amend of a pushed commit, no other branch, no
-push of `main`.
+Follow AGENTS.md's "Task scope and confirmations". Make the commits needed for
+the requested outcome on the task branch; push when that outcome includes a push,
+PR publication or shipping. A local commit request stays local. Never force-push,
+amend a pushed commit, or push `main`.
 
 ## 1. State first
 
@@ -37,10 +36,9 @@ git diff --stat
 git diff --cached --stat
 ```
 
-- **On `main`:** stop and tell the requester to create a branch. The
-  `no-commit-to-branch` hook refuses the commit anyway, and `.github/rulesets/main.json`
-  requires a pull request into `main`.
-- **Detached HEAD:** stop and ask; a commit there belongs to no branch.
+- **On `main` or detached:** create a task branch before committing, preserving
+  existing work. The `no-commit-to-branch` hook still protects `main`, and changes
+  reach it through a pull request.
 - **A merge, rebase, or cherry-pick in progress:** read "When the hooks run" in
   [references/pre-commit-hook.md](references/pre-commit-hook.md) first, then commit a
   rebase resolution with `git commit` before `git rebase --continue`.
@@ -116,16 +114,16 @@ whose file this same change deleted or renamed, which narrows the exemption. AGE
 "Security and human approval" holds the prohibition; a refusal you cannot clear is a
 stop, reported with the hook's output.
 
-## 6. Push only when asked
+## 6. Push within the requested outcome
 
 ```bash
 git push -u origin <branch>
 ```
 
-- Only when the request asked for a push, and only the current branch.
+- Push only the task branch when the requested outcome includes publishing it.
 - A rejection as non-fast-forward stops: the remote has commits this checkout lacks.
   Never force-push past it.
-- A pull request is `create-pr`'s; push here only when the request stops at the push.
+- A pull request is `create-pr`'s; return to that workflow when it called this skill.
 
 ## 7. Report
 

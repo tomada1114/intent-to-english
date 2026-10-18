@@ -60,8 +60,8 @@ GitHub defaults, so `chore`, `security`, and every priority and blocked label ex
 the repository only after `just labels` has run — GitHub silently drops a label the
 repository does not have, rather than reporting one. Run `just labels` to create or
 update every label in the repository from `.github/labels.yml` before applying one that
-may be missing. It writes to GitHub, so it is yours to run only under a skill that lists
-it (`shipping-issues` does) or when the owner asked for it.
+may be missing. This is part of the requested triage or shipping work when those
+labels are needed; use the confirmation mechanism if the operation requires it.
 
 `.github/labels.yml` is the source for the label set itself — name, color, and
 description; this skill holds only what each one _means_ for triage.
@@ -106,31 +106,28 @@ An issue carrying a named dependency also carries `blocked: dependency`. Closing
 its blocker does not itself remove the label. The usual clearing step is the
 `shipping-issues` stale-label sweep: after verifying every named dependency is
 closed, it runs `apply_priority_labels.py --clear-dependency` within that workflow's
-label-write permission. If no such run follows, whoever lands the blocker clears
-its dependents' stale labels within authorized scope. The Codex workflow
-(`codex-shipping-issues`) clears the label on the issues its own merge unblocked, the one
-label write `AGENTS.md`'s "Standing exceptions" give it.
+task scope. If no such run follows, whoever lands the blocker clears its dependents'
+stale labels as part of finishing that task. The Codex workflow
+(`codex-shipping-issues`) performs this check after its own merge too.
 
 ## A problem found outside the task
 
 `AGENTS.md` › "Overview" says an improvement spotted outside the current
-scope is noted, not made. Noting it means an issue with a type label, a `path:line`, and a close
-condition, exactly as "What an issue body must contain" asks. Filing is a remote write:
-it is yours only under a skill that lists it (`shipping-issues` files its own
-follow-ups) or when the owner asked for the issue. Otherwise draft the title, labels,
-and body in the reply and wait for a yes, or — where filing is not yours to do at all —
-list the finding in the pull request description. Never widen the pull request to fix
+scope is noted, not made. Record a type label, a `path:line`, and a close condition,
+as "What an issue body must contain" asks. File it when the requested workflow
+includes follow-up issues (`shipping-issues` does); otherwise present the draft
+in the reply or the PR description. The boundary is task scope, not a blanket
+prohibition on remote writes. Never widen the pull request to fix
 it. A finding that is an exploitable vulnerability takes the private route under "Type
 labels" instead, never an issue or a pull request description.
 
 ## Requests from daily use
 
 A friction or an idea that comes up while using the project is routed the moment it is
-raised, so it is neither lost in a chat log nor shipped unreviewed. The owner explicitly
-asking for an issue is the sign-off for creating each issue that request asks for
-(`AGENTS.md` › "Standing exceptions"). A friction the owner mentions without asking for
-an issue, like one you noticed yourself, is drafted in the reply — title, labels, body —
-and waits for a yes. Either way, pick one outcome:
+raised, so it is neither lost in a chat log nor shipped unreviewed. Follow the requested
+outcome under `AGENTS.md`'s "Task scope and confirmations": a request to file or triage
+issues includes the needed tracker updates. A passing mention is not a triage task;
+present a draft in the reply when no tracker work was requested. Pick one outcome:
 
 1. **File it** when it stays inside the existing design and is in scope for the project
    `AGENTS.md` › "Product" describes, outside its non-goals. It gets a type label, a tier (`priority: P2`

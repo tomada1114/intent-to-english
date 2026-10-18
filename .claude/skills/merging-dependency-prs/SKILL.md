@@ -6,7 +6,7 @@ description: >
   Covers the read-only survey, pre-1.0 minors treated as major risk, review of SHA-pinned
   Action bumps, pre-commit hook revisions, uv PRs (pyproject.toml with uv.lock) and
   npm_and_yarn PRs (package.json with pnpm-lock.yaml, @hey-api/openapi-ts, typescript),
-  a new locked package, an exact approval plan, individual merges or a combined branch,
+  a new locked package, a reviewed landing plan, individual merges or a combined branch,
   and closing originals only after their replacement lands.
 ---
 
@@ -14,7 +14,7 @@ description: >
 
 **Owns:** landing already-open Dependabot PRs — the `github-actions`, `pre-commit`,
 `uv`, and `npm` (pnpm) updates `.github/dependabot.yml` proposes: survey, review,
-approval scope, landing mode, the combined branch, and cleanup. **Does not own:**
+task scope, landing mode, the combined branch, and cleanup. **Does not own:**
 whether a package may be added at all, the `exclude-newer` or `minimumReleaseAge`
 window, or a one-package exception to it (`managing-dependencies`).
 
@@ -22,11 +22,12 @@ window, or a one-package exception to it (`managing-dependencies`).
 
 - **Input:** all open Dependabot PRs, or an explicitly selected subset.
 - **Output:** verified merged PRs or a combined PR, plus held and superseded originals.
-- **Approval:** do the survey and review first, present the exact plan below, then wait
-  for one approval covering that plan. Carry out its approved actions without asking
-  again per merge. Green CI and a branch choice provide no write authorization.
+- **Scope:** survey and review first, then record the concrete landing plan below.
+  Proceed within the requested outcome; ask only for decisions or confirmations
+  still needed. Reuse approvals already given. Green CI does not extend the task.
 - **Boundary:** keep each check tied to the current head; honor repository-required
-  checks, review, human approval, and the approved stopping point independently.
+  checks, reviews and the user's stopping point. The separate decisions under
+  "Stop and ask" still apply.
 
 ## Step 1: Survey
 
@@ -98,7 +99,7 @@ If open PRs leave a unit split, complete it on the combined branch and list the 
 companion pins and target versions in the plan. Completing a unit never adds a new
 Action, hook, or package — that is a separate decision.
 
-## Step 3: Choose a mode and get approval
+## Step 3: Choose a mode and record the plan
 
 Merge individually only when at most three eligible PRs have no contested paths and each
 is clean with passing current-head checks. Otherwise build a combined PR: more PRs,
@@ -115,7 +116,7 @@ The survey's passing rollup is a classifier, not the complete gate: confirm that
 expected required check actually registered and passed for the head being landed.
 Pending, missing or unrecognized results hold the PR.
 
-### The approval gate
+### The landing plan
 
 Present one concrete plan that names:
 
@@ -126,31 +127,34 @@ Present one concrete plan that names:
   which originals and branches will close or be deleted after a combined merge.
 - Every planned `@dependabot rebase` comment, with its target PR, and every CI rerun,
   with its run/job ID and reason.
-- The rebases that an earlier approved merge may force on the remaining approved PRs.
-  The one approval covers those necessary rebases too; Step 4 revalidates each new head.
+- The bot rebases that an earlier merge may require on the remaining selected PRs;
+  Step 4 revalidates each new head.
 - Which cases are held for a separate decision, and whether the run stops at an open
   verified combined PR or at a merge.
 
-Wait for approval and record that scope. A new PR, Action, major, rerun, comment or
-landing mode outside it needs fresh approval. "Stop and ask" applies outside any batch
-approval; do not stretch a green check or an approved Action into another decision.
+Use the user's requested outcome as the boundary. The needed commits, branch pushes,
+PR updates, bot rebase requests and CI retries belong to this workflow; do not ask
+again merely because they write remotely. Record newly needed retries and their
+reasons. Prepare a concrete question for a new dependency, security change, migration,
+unresolved scope choice or required destructive-operation confirmation before
+proceeding with that part of the plan.
 
-## Step 4: Execute the approved plan
+## Step 4: Execute the reviewed plan
 
 Follow [landing](references/landing.md) for the selected mode. The combined branch
-starts from the current default branch and applies the approved pins by hand-editing
-only the `uses:` lines (or an approved hook's `rev:`); it never integrates a bot branch's
+starts from the current default branch and applies the reviewed pins by hand-editing
+only the `uses:` lines (or a reviewed hook's `rev:`); it never integrates a bot branch's
 commits. A `uv` package lands there by `uv lock --upgrade-package`, never by editing
 `uv.lock` or taking it from a bot branch. An `npm_and_yarn` PR stays out of a combined
 branch: it lands individually, one at a time, and is held when it cannot.
 
-For an Action, copy the approved full SHA and its `# vX.Y.Z` comment exactly.
+For an Action, copy the reviewed full SHA and its `# vX.Y.Z` comment exactly.
 
 Record the head covered by every review. Any changed head, including a bot rebase,
 invalidates the old-head evidence: repeat Step 2's complete diff, release-note and pin
-review before proceeding. Compare the new content with the approved plan; hold a change
-outside that scope for fresh approval. This applies to individual PRs and combined
-branches, even when the rebase itself was already approved.
+review before proceeding. Compare the new content with the recorded plan; hold a
+change that introduces a separate decision or falls outside the requested outcome.
+This applies to individual PRs and combined branches, including routine bot rebases.
 
 Run the repository's local gate (`just verify`, plus the workflow lint described in
 [landing](references/landing.md#verify-and-publish)), then recheck the exact published
@@ -162,7 +166,7 @@ merged. If it is left open or abandoned, the originals stay open too.
 
 ## Stop and ask
 
-These require a separate decision even if a batch was approved:
+These require a separate decision unless the owner has already settled it:
 
 - An Action update that widens `permissions:`, adds a secret, changes a trigger, or
   adds a step that was not there before.
@@ -186,7 +190,7 @@ These require a separate decision even if a batch was approved:
   owner's call (`managing-dependencies`).
 - A bump that is green only after relaxing a gate, a zizmor finding, or an Action pin.
 - An Action major whose migration changes inputs or behavior beyond a mechanical rename;
-  a newly discovered breaking change outside the approved plan.
+  a newly discovered breaking change outside the recorded plan.
 - A conflict or failure whose resolution changes application behavior or needs a new
   dependency/architecture choice.
 
@@ -197,5 +201,5 @@ or weaken a gate to land a bump. Retain the PR and branch when stopped.
 
 Report each merged PR and what landed, each held PR and its reason, each confirmed
 superseded closure, and any real CI error with its job/head evidence. Include the
-approved plan, pin review, local checks, final heads and remaining work. Partial
+recorded plan, pin review, local checks, final heads and remaining work. Partial
 execution is reported as partial, never as a completed batch.

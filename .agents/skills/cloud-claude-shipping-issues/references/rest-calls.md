@@ -300,8 +300,10 @@ The tier label and the rest of the issue are left as they are. Record it with
 
 ## A follow-up issue
 
-Every label the issue needs is checked first; a missing one stops the filing, since
-creating a label definition (`just labels`) is not in this skill's sign-off:
+Check every label the issue needs first. If a definition is missing, read its
+name, color and description from `.github/labels.yml` and create that definition
+through this host's supported REST transport as part of the follow-up task. Follow
+`triaging-issues`; report any unavailable capability instead of inventing a label.
 
 ```bash
 gh api "repos/{owner}/{repo}/labels/priority%3A%20P2" --jq .name   # one call per label
