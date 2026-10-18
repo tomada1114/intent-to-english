@@ -3,12 +3,18 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import anyio
 import pytest
 
 from intent_to_english.adapters import memory
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
+from intent_to_english.adapters.sql.tables import metadata
+from intent_to_english.core import coaching
+from intent_to_english.core import models as m
 from intent_to_english.core.errors import (
     ActionCancelledError,
     ActionInProgressError,
@@ -38,6 +44,7 @@ from intent_to_english.core.models import (
     Usage,
 )
 from intent_to_english.core.ports import SessionRepository
+from tests.conftest import POSTGRES_URL
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -49,13 +56,40 @@ async def _in_memory(_: Path) -> AsyncIterator[SessionRepository]:
     yield memory.InMemorySessionRepository()
 
 
-REPOSITORY_FACTORIES = [pytest.param(_in_memory, id="in-memory")]
+@asynccontextmanager
+async def _sql_sqlite(tmp_path: Path) -> AsyncIterator[SessionRepository]:
+    engine = make_engine(f"sqlite+aiosqlite:///{tmp_path / 'sessions.db'}")
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(metadata.create_all)
+        yield SqlSessionRepository(engine)
+    finally:
+        await engine.dispose()
+
+
+@asynccontextmanager
+async def _sql_postgres(_: Path) -> AsyncIterator[SessionRepository]:
+    engine = make_engine(POSTGRES_URL or "")
+    try:
+        async with engine.begin() as connection:
+            for name in ("model_calls", "submissions", "timeline_entries", "sessions"):
+                await connection.execute(metadata.tables[name].delete())
+        yield SqlSessionRepository(engine)
+    finally:
+        await engine.dispose()
+
+
+REPOSITORY_FACTORIES = [
+    pytest.param(_in_memory, id="in-memory"),
+    pytest.param(_sql_sqlite, id="sql-sqlite"),
+    pytest.param(_sql_postgres, marks=pytest.mark.postgres, id="sql-postgres"),
+]
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(params=REPOSITORY_FACTORIES)
-async def repository(request, tmp_path):
+async def repository(request, tmp_path, migrated_postgres_url):
     async with request.param(tmp_path) as built:
         yield built
 
@@ -368,3 +402,233 @@ async def test_ended_allows_wrap_up_but_a_refused_end_keeps_it_pending(
     with pytest.raises(SessionEndedError, match="ended"):
         await repository.begin_submission(ending, frozenset({Stage.ENDED}), fixed_now)
     assert (await repository.get(session.id)).last_submission == wrapping
+
+
+_READING_NOTES = (coaching.ReadingNote("starting", "studying"),)
+_FEEDBACK = coaching.Feedback(
+    "勉強の話ですね",
+    (coaching.Fix(1, "starting", "studying", "勉強の意味です", m.FixTag.MISS),),
+    "I am starting English.",
+    "I am (①) ____ English.",
+    "①を入れてください",
+    _READING_NOTES,
+)
+_ACCEPTED = coaching.RetryAccepted("伝わります", _READING_NOTES)
+_BLANK_OFF = coaching.BlankOff((1,), "勉強する、の進行形です", _READING_NOTES)
+_PIECE = coaching.PieceGiven((coaching.Piece(1, "studying"),), "ここだけ見てください")
+_PAYLOADS = [
+    (
+        m.EntryKind.PARTNER_LINE,
+        m.PartnerLinePayload("How was your day?", True, m.LineKind.OPENER),
+    ),
+    (
+        m.EntryKind.PARTNER_LINE,
+        m.PartnerLinePayload(
+            "Good day?", True, m.LineKind.RESTATEMENT, m.RestateMode.SIMPLER
+        ),
+    ),
+    (m.EntryKind.INTENT, m.IntentPayload("英語を勉強しています", True)),
+    (
+        m.EntryKind.ACKNOWLEDGMENT,
+        m.AcknowledgmentPayload("勉強の話ですね", "今のことから"),
+    ),
+    (m.EntryKind.ENGLISH, m.EnglishPayload("I am starting English.", True)),
+    (m.EntryKind.HINT_REQUEST, m.HintRequestPayload("勉強する", "I am")),
+    (m.EntryKind.GAP_HINT, m.GapHintPayload("studyを進行形に")),
+    (
+        m.EntryKind.READING_QUESTION,
+        m.ReadingQuestionPayload("starting", ("studying", "beginning")),
+    ),
+    (m.EntryKind.READING_CHOICE, m.ReadingChoicePayload("starting", "studying")),
+    (m.EntryKind.FEEDBACK, m.FeedbackPayload("英語を勉強しています", _FEEDBACK)),
+    (m.EntryKind.RETRY, m.RetryPayload("I am studying English.", 2)),
+    *[
+        (m.EntryKind.RETRY_RESULT, m.RetryResultPayload(result))
+        for result in (_ACCEPTED, _BLANK_OFF, _PIECE)
+    ],
+    (m.EntryKind.ANSWER, m.AnswerPayload("I am studying English.")),
+    (m.EntryKind.TYPED_COPY, m.TypedCopyPayload("I am studying English.")),
+    (m.EntryKind.SKIP, m.SkipPayload()),
+    (
+        m.EntryKind.TURN_DONE,
+        m.TurnDonePayload("I am studying English.", m.TurnEnd.ACCEPTED),
+    ),
+    (m.EntryKind.QUESTION, m.QuestionPayload("進行形はなぜですか")),
+    (m.EntryKind.COACH_ANSWER, m.CoachAnswerPayload("今していることです")),
+    (m.EntryKind.CHECK_IN, m.CheckInPayload()),
+    (m.EntryKind.CHECK_IN_ANSWER, m.CheckInAnswerPayload(m.CheckInAnswer.CONTINUE)),
+    (m.EntryKind.PRACTICE, m.PracticePayload(1, "I am studying English.")),
+    *[
+        (m.EntryKind.PRACTICE_RESULT, m.PracticeResultPayload(1, result))
+        for result in (_ACCEPTED, _BLANK_OFF, _PIECE)
+    ],
+]
+
+
+@pytest.mark.parametrize(
+    "payload_case",
+    [
+        pytest.param((kind, payload), id=f"{kind}-{index}")
+        for index, (kind, payload) in enumerate(_PAYLOADS)
+    ],
+)
+async def test_all_timeline_payloads_round_trip_as_equal_core_values(
+    repository, session, submission, nth_id, payload_case
+):
+    kind, payload = payload_case
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), submission.created_at
+    )
+    entry = TimelineEntry(
+        nth_id(3), session.id, 1, 1, kind, payload, session.started_at
+    )
+    stored = await repository.finish_submission(
+        submission.id, replace(session, version=1), (entry,), session.started_at
+    )
+    assert stored.entries == (entry,)
+    assert (await repository.get(session.id)).entries == (entry,)
+
+
+@pytest.mark.parametrize(
+    "wrap_up",
+    [
+        None,
+        coaching.WrapUp(()),
+        coaching.WrapUp((coaching.WrapUpItem("studying", "今している勉強"),)),
+    ],
+    ids=["due", "nothing-to-make", "ready"],
+)
+async def test_nested_working_state_and_wrap_up_round_trip(
+    repository, session, wrap_up
+):
+    state = m.TurnState(
+        "勉強しています",
+        "I am starting English.",
+        _FEEDBACK,
+        2,
+        coaching.ReadingQuestion("starting", ("studying", "beginning")),
+        "I am studying English.",
+        m.PracticeTarget(1, "勉強しています", _FEEDBACK),
+    )
+    ended = replace(
+        session,
+        status=SessionStatus.ENDED,
+        stage=Stage.ENDED,
+        ended_at=session.started_at,
+        turn_state=state,
+        wrap_up=wrap_up,
+    )
+    await repository.create(ended)
+    assert (await repository.get(session.id)).session == ended
+
+
+@pytest.mark.parametrize(
+    "action_input",
+    [
+        m.NoInput(),
+        m.TextInput("日本語と English"),
+        m.HintInput("勉強", "I am"),
+        m.ReadingInput("studying"),
+        m.RestateInput(m.RestateMode.SHORTER),
+    ],
+    ids=["none", "text", "hint", "reading", "restate"],
+)
+async def test_every_submission_input_round_trips(
+    repository, session, submission, action_input
+):
+    await repository.create(session)
+    expected = replace(submission, input=action_input)
+    await repository.begin_submission(
+        expected, frozenset({Stage.OPENING}), session.started_at
+    )
+    assert (await repository.get(session.id)).last_submission == expected
+
+
+@pytest.mark.parametrize("outcome", list(m.CallOutcome))
+async def test_accounting_and_violation_lists_round_trip_without_precision_loss(
+    repository, session, submission, nth_id, outcome
+):
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    record = m.ModelCallRecord(
+        nth_id(3),
+        session.id,
+        submission.id,
+        1,
+        m.CallAttempt(
+            m.ModelRole.COACH,
+            m.ModelTask.FEEDBACK,
+            2,
+            m.Usage(
+                "test",
+                "test-model",
+                123,
+                45,
+                Decimal("0.0000000000000000000123456789000003"),
+                876,
+            ),
+            outcome,
+            tuple(m.Violation(check, "safe detail") for check in m.CheckId),
+        ),
+        session.started_at,
+    )
+    await repository.record_model_call(record)
+    assert await repository.model_calls(session.id) == (record,)
+
+
+async def test_listing_crosses_the_default_twenty_row_boundary(
+    repository, session, nth_id
+):
+    for index in range(1, 23):
+        await repository.create(replace(session, id=nth_id(index)))
+    first = await repository.list_page(None, 20)
+    last = await repository.list_page(first.next_cursor, 20)
+    assert tuple(item.id for item in first.items + last.items) == tuple(
+        nth_id(index) for index in range(22, 0, -1)
+    )
+    assert len(first.items) == 20
+    assert len(last.items) == 2
+    assert last.next_cursor is None
+
+
+async def test_cancelled_submission_allows_another_at_the_same_version(
+    repository, session, submission, nth_id
+):
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    await repository.cancel_submission(session.id, 0, session.started_at)
+    replacement = replace(submission, id=nth_id(3))
+    await repository.begin_submission(
+        replacement, frozenset({Stage.OPENING}), session.started_at
+    )
+    assert (await repository.get(session.id)).last_submission == replacement
+
+
+async def test_concurrent_finishes_append_exactly_once(repository, session, submission):
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    completed = []
+    refused = []
+
+    async def finish():
+        try:
+            stored = await repository.finish_submission(
+                submission.id, replace(session, version=1), (), session.started_at
+            )
+            completed.append(stored)
+        except ActionCancelledError:
+            refused.append(True)
+
+    async with anyio.create_task_group() as tasks:
+        for _ in range(20):
+            tasks.start_soon(finish)
+    assert len(completed) == 1
+    assert len(refused) == 19
+    assert (await repository.get(session.id)).session.version == 1

@@ -25,3 +25,19 @@ async def test_make_engine_sqlite_waits_out_a_locked_file_instead_of_failing(tmp
         await engine.dispose()
 
     assert busy_timeout_ms == SQLITE_BUSY_TIMEOUT_SECONDS * 1000
+
+
+async def test_make_engine_sqlite_ddl_rolls_back_with_its_transaction(tmp_path):
+    engine = make_engine(f"sqlite+aiosqlite:///{tmp_path / 'transaction.db'}")
+    try:
+        async with engine.connect() as connection:
+            transaction = await connection.begin()
+            await connection.execute(text("CREATE TABLE should_roll_back (id INTEGER)"))
+            await transaction.rollback()
+        async with engine.connect() as connection:
+            found = await connection.scalar(
+                text("SELECT name FROM sqlite_master WHERE name = 'should_roll_back'")
+            )
+        assert found is None
+    finally:
+        await engine.dispose()
