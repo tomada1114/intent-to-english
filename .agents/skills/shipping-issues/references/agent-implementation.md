@@ -89,14 +89,12 @@ Do:
    under a temp directory — you left behind in your report. If the issue
    requires deleting an existing file or directory, `mv` it into {holding_dir}
    (keep its relative path), then stage the deletion with `git add -A -- <path>`
-   when it was tracked — never `git rm`, never `rm -rf`. If it requires removing
-   a dependency, delete its entry from `pyproject.toml` and run `uv lock` as
-   a command of its own — never `uv remove`/`rm`/`uninstall`. `rm`, `git rm`
-   and `uv remove` can each raise an approval prompt that nobody answers, and
-   one such command chained with others stalls the whole call; a disposable temp
-   directory costs nothing to keep. Any other command that would ask for
-   approval, `uv lock` included: don't wait on it — name it under
-   UNRESOLVED.
+   when it was tracked — never `git rm`, never `rm -rf`. Check the move's target
+   and preserve the original content; a move never bypasses required approval.
+   Follow `managing-dependencies` for a dependency removal. If a required command
+   needs approval, send the parent its exact target and effect so
+   it can ask the user. Continue independent work; report UNRESOLVED while
+   approval is pending. Do not replace the command to evade a denial.
 7. Run every verification in the **foreground**. Do not start a long command
    in the background and then poll it — a run that returns while waiting on
    its own background job returns without its report, and its work has to be

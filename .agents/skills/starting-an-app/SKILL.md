@@ -22,9 +22,10 @@ what makes a CI job a required check (`changing-gates`); which files go with the
 (`building-api-routes`).
 
 Steps marked **human** are a person's: an agent never runs them, and only drafts or
-lists them for the owner. Steps that write to GitHub run only with the owner's sign-off
-(`AGENTS.md`'s "Security and human approval"). A caller that drives these steps (for
-example an agent skill that cuts repositories from templates) follows the same order.
+lists them for the owner. Scope GitHub writes to the requested setup outcome and
+use confirmations under `AGENTS.md`'s "Security and human approval". A caller that
+drives these steps (for example an agent skill that cuts repositories from templates)
+follows the same order.
 
 ## The order
 

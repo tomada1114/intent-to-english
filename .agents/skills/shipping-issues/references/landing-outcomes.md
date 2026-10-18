@@ -39,8 +39,8 @@ These twelve are every `result:` the script prints
 ## Bringing a pushed branch up to date
 
 A PR branch has already been pushed, so it is brought up to date by merging the default
-branch into it, never by a rebase: a rebased branch needs a force-push, which the
-sign-off for this skill does not cover (`AGENTS.md` › "Security and human approval").
+branch into it, never by a rebase: rewriting published history and force-pushing
+are prohibited (`AGENTS.md` › "Security and human approval").
 
 ```bash
 git -C <workdir> fetch origin <default_branch> --quiet

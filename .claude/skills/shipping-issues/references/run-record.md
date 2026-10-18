@@ -26,7 +26,7 @@ checkout** — the main one or a worktree: issue bodies for follow-ups, verify b
 at `<runstate>/verify/<n>-baseline.log`, CI logs at `<runstate>/ci/<pr>.log`, in
 parallel mode the worktrees themselves at `<runstate>/worktrees/<n>/`, and whatever was
 moved out of the way instead of deleted at `<runstate>/holding/<n>/`, with
-approval-gated commands put off until the end in `<runstate>/deferred.md`
+optional cleanup commands deferred until the end in `<runstate>/deferred.md`
 ([closing-out.md#approval-gated-commands](closing-out.md#approval-gated-commands)). An
 untracked file left in a checkout makes that working tree read as dirty, and a commit
 convention that stages everything would land it in the PR. Call it right after the event

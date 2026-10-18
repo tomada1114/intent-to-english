@@ -47,14 +47,14 @@ re-tier strips any other tier label the issue carries.
 The scripts apply labels and never create a label definition — `.github/labels.yml`
 declares them and `just labels` creates them. A label a call would apply that the
 repository lacks stops the call before its first write with `verdict: MISSING_LABELS`
-and exit 4. Run `just labels` (one of the writes invoking this skill signs off),
+and exit 4. Run `just labels` as part of the needed tracker maintenance,
 then re-run the same call once; a second exit 4 means the label is not in
 `.github/labels.yml` — report it and rank from the `~P<n>` suggestions.
 `apply_priority_labels.py --check-labels` asks the same question for the four tier
 labels without writing anything.
 
 Correct a wrong tier using `apply_priority_labels.py --set N=P1`, within the
-shipping run's authorized label-write scope (`triaging-issues`).
+shipping run's task scope (`triaging-issues`).
 
 **Re-tier on new information, not on a hunch.** A merged blocker, a new dependency
 edge, or a `P2(~P0)` marker from the digest is new information; "this feels more

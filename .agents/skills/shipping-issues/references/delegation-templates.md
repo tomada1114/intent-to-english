@@ -70,15 +70,16 @@ cross-reference back to this file.
   every label and comment — a sub-agent only reads, and only its own issue.
 - **No deletion.** No `rm`, no branch deletion, no worktree removal — including a
   scratch fixture or throwaway repository created under a temp directory: leave it
-  exactly where it is and name it in the report. `rm` raises an approval prompt that
-  stalls the run, and a disposable temp directory costs nothing to keep. Revert a probe
+  exactly where it is and name it in the report. The parent owns the final cleanup
+  decision and verifies its targets. Revert a probe
   inside the checkout with `git checkout --`, or move it out of the way with `mv` into
   `{holding_dir}` (`<runstate>/holding/<n>/`, keeping its relative path). When the issue
   itself requires removing a file or directory, the same move does it, followed by
   `git add -A -- <path>` for tracked content — never `git rm`, never `rm -rf`. A
-  dependency is removed by editing `pyproject.toml` and running `uv lock` on its own,
-  never `uv remove`. Any other command that raises an approval prompt is not run: name
-  it under `UNRESOLVED` and the parent defers it
+  dependency removal follows `managing-dependencies`. Check move targets and preserve
+  original content; a move never bypasses approval. If a required command needs approval, send the parent
+  its exact target and effect so it can ask the user. Continue independent work
+  and report `UNRESOLVED` while approval is pending
   ([closing-out.md#approval-gated-commands](closing-out.md#approval-gated-commands)).
 
 The design brief is the one named exception to the first rule: it writes two specific

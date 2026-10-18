@@ -192,9 +192,9 @@ knowingly red baseline has to show its work.
 ## Teardown
 
 All of it goes through `cleanup_run.sh --worktree-root <runstate>/worktrees`, in one
-batch at step 9, after the last merge. Never `git worktree remove` or `rm` ad hoc — raw
-`rm` trips a permission prompt and stalls the run, and the single entry point is what
-lets deletion be gated on merge status.
+batch at step 9, after the last merge. Never `git worktree remove` or `rm` ad hoc:
+the single entry point gates deletion on merge status. Confirm destructive targets
+before running cleanup, reusing an approval that already covers them.
 
 Two facts that decide how to call it:
 

@@ -113,9 +113,10 @@ starting a fourth fix round; the rest are named at step 10, untriaged.
 
 A finding that needs an owner's decision, or a correctness finding this session cannot
 settle either way, holds the PR: record `--event blocked --field reason=review-finding`
-and put it in the step 10 report. Green CI cannot dismiss it. Never reply to or resolve
-a review thread, and never ask the reviewer to look again (`@codex review`): neither is
-in the sign-off. A fix push may start another review on its own; step 5 waits for it.
+and put it in the step 10 report. Green CI cannot dismiss it. Follow AGENTS.md's
+"Task scope and confirmations" for replies or thread resolution. Never ask the
+reviewer to look again (`@codex review`); the review-round policy still applies.
+A fix push may start another review on its own; step 5 waits for it.
 
 ## Fixing the accepted findings
 

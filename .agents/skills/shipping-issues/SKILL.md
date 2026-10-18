@@ -15,18 +15,18 @@ Claude Code only. In Codex, use `codex-shipping-issues`; do not run this workflo
 Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`), use `cloud-claude-shipping-issues`.
 **Done:** review settled, PR merged, issue CLOSED, no gate deleted or weakened.
 
-**Invoking this skill is the sign-off for exactly the remote writes it lists, for this
-invocation, up to and including the merge** — priority and status labels, syncing label
-definitions from `.github/labels.yml` with `just labels`, pushing its own branches,
-creating the PR, merging it, filing and labelling follow-up issues, step 8b's design
-comments, and deleting its own branches at cleanup. Anything outside that list stops and
-asks: a force-push, a hook bypass, a weakened gate, a new dependency (proposed, then the
-run waits for sign-off), an `@codex review` comment, or a reply to or resolution of a
-review thread. The go-ahead is a settled [step 5](#5-wait-for-the-pr-review) plus
-[step 6](#6-ci-to-green)'s `PASS` for the current head: the merge happens in that same
-turn, with no "shall I merge?" and no summary-then-wait. Re-confirming per issue defeats
-`all` mode entirely. The only pauses are the [Stop conditions](#stop-conditions) and two
-narrow asks named inline: a genuinely tied top two at step 2, and `NO_CHECKS` at step 6.
+A shipping request includes the workflow's development and tracker work through
+merge unless the user sets a narrower stop point. Follow AGENTS.md's "Task scope and
+confirmations": labels, commits, pushes, PR updates, follow-ups and step 8b's design
+comments are in scope. Reuse approvals; confirm destructive cleanup targets.
+New dependencies and unresolved product/security decisions still need the owner.
+Hook bypasses, force-pushes and weakened checks remain prohibited; no `@codex review`.
+
+A settled [step 5](#5-wait-for-the-pr-review) and
+[step 6](#6-ci-to-green)'s `PASS` for the current head satisfy the landing gates;
+merge in the same turn when merge is within the requested outcome. Reuse that scope
+across `all` mode. The [Stop conditions](#stop-conditions), a genuinely tied top two
+at step 2, and `NO_CHECKS` at step 6 still require their stated decisions.
 
 ## Modes
 
@@ -47,10 +47,10 @@ number or `--include-design` ([step 2b](#2b-decide-a-design-that-gates-the-pick)
   mid-batch: **serial** works in the main checkout, one issue start to finish;
   **parallel** gives each issue a worktree under `<runstate>/worktrees/<n>` and leaves
   the main checkout clean. All GitHub traffic stays in this session, one PR at a time.
-- **Nothing waits on the user mid-run.** A command your host's permission settings gate
-  behind an approval prompt (typically `rm -rf`) stalls the run: take a prompt-free
-  equivalent (`mv` into the holding area, not `rm`), else defer it to the one end-of-run
-  confirmation, else run it mid-run only when the issue cannot move without it
+- **Ask when an operation needs approval.** Prepare its exact target and effect,
+  request confirmation, and continue independent work while waiting. Defer optional
+  cleanup to one end-of-run confirmation. Preserve required checks; changing a
+  command or tool does not bypass a denial
   ([closing-out.md](references/closing-out.md#approval-gated-commands)).
 - **Inline by default; tiers by name.** On a host with named sub-agents (AGENTS.md
   "Sub-agents"), a brief (`references/agent-*.md`) may go to the `executor`,
@@ -175,11 +175,11 @@ step 10; never wait on a design still in flight.
 
 ### 9. Clean up
 
-**Once, after the last merge, script only**; `rm` is never used in the run (mid-run,
-`mv` into `<runstate>/holding/<n>/`). From the default branch, run `cleanup_run.sh` with
-**every branch this run created as `--branch <name>`** — without it every merged-PR
-branch goes, other people's included. **Deferred approvals come last, in one ask**, as
-the final tool call ([details](references/closing-out.md#cleanup-scope)).
+**Once, after the last merge, script only**; keep mid-run files in `<runstate>/holding/<n>/`.
+From the default branch, preview `cleanup_run.sh --dry-run` with **every branch this run
+created as `--branch <name>`**; omitted filters can include other people's branches.
+Confirm targets before running the same command without `--dry-run`, then verify
+the result ([details](references/closing-out.md#cleanup-scope)).
 
 ### 10. Report
 

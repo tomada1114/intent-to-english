@@ -22,21 +22,16 @@ deleted or weakened.
 
 ## Authority
 
-**Invoking this skill is the sign-off for exactly these remote writes, for this
-invocation:** pushing its own branch (the session's designated branch); creating the
-pull request; on that open PR alone, appending `Closes #<n>` to its body when the body
-lacks it, or retargeting its base to the default branch; merging it once CI passes;
-closing by hand, with a back-reference comment naming the PR, the issue that merged PR
-was meant to close when GitHub left it open; for the design-held issue the run takes on,
-posting its `## Design decision` comment and then clearing its design block (its
-design-block label, and `design=open` to `design=settled` in its ship contract); filing
-and labelling follow-up issues; and removing `blocked: dependency` from the issues its
-merge unblocked. Nothing else: no force-push, no branch deletion, no reply to or
-resolution of a review thread, no `@codex review`, no `just labels`, no other label
-change on any issue, no other comment, no other PR or issue edit, no other issue closed,
-and no Auto-fix. A step that would need one stops and asks. Commits go through
-`smart-commit`, under its own exception. A new dependency is proposed, and the run waits
-for sign-off.
+Follow `AGENTS.md`'s "Task scope and confirmations". Shipping includes the needed
+commits, branch push, PR creation and title/body/base updates, gated merge, linked
+issue closure, design-decision comments, follow-up issues and tracker maintenance.
+Reuse the requested stop point and existing approvals instead of requiring a new
+request for each write. Use `smart-commit` for commits. New dependencies and
+unresolved product/security decisions still need the owner.
+
+This cloud host uses the REST calls below; its documented transport limitations
+still apply. Never force-push, bypass hooks or checks, request `@codex review`, or
+use Auto-fix. Confirm destructive cleanup targets before a deletion within the task.
 
 The go-ahead to merge is a settled [review](#5-wait-for-the-review) and a `PASS` for
 the current head: the merge happens in that same turn, with no "shall I merge?". The
