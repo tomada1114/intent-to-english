@@ -6,6 +6,7 @@ from uuid import UUID
 
 import pytest
 
+from intent_to_english.core import errors
 from intent_to_english.core.errors import (
     AppError,
     InvalidCursorError,
@@ -13,13 +14,34 @@ from intent_to_english.core.errors import (
     InvalidTodoError,
     TodoNotFoundError,
 )
+from intent_to_english.core.models import Action, ModelTask, Stage
 
 SOME_ID = UUID("01900000-0000-7000-8000-00000000002a")
+
+SESSION_ERRORS = [
+    pytest.param(errors.SessionNotFoundError(SOME_ID), id="session-not-found"),
+    pytest.param(errors.StaleSessionError(), id="stale"),
+    pytest.param(errors.ActionInProgressError(), id="in-progress"),
+    pytest.param(
+        errors.ActionNotAllowedError(Action.OPEN, Stage.INTENT), id="action-not-allowed"
+    ),
+    pytest.param(errors.SessionEndedError(), id="ended"),
+    pytest.param(errors.ActionCancelledError(), id="cancelled"),
+    pytest.param(errors.InvalidInputError("text", 1000, 1001), id="invalid-input"),
+    pytest.param(errors.ModelError("test", "model", 0), id="model"),
+    pytest.param(errors.ModelTimeoutError("test", "model", 60000), id="timeout"),
+    pytest.param(errors.ModelRateLimitedError("test", "model", 1), id="rate-limit"),
+    pytest.param(errors.ModelUnavailableError("test", "model", 1), id="unavailable"),
+    pytest.param(
+        errors.ModelOutputInvalidError(ModelTask.FEEDBACK), id="output-invalid"
+    ),
+]
 
 
 @pytest.mark.parametrize(
     "error",
     [
+        *SESSION_ERRORS,
         pytest.param(TodoNotFoundError(SOME_ID), id="not-found"),
         pytest.param(InvalidTodoError("bad title"), id="invalid"),
         pytest.param(InvalidCursorError("bad cursor"), id="invalid-cursor"),
@@ -40,6 +62,7 @@ def test_todo_not_found_error_keeps_the_missing_id_and_names_it():
 @pytest.mark.parametrize(
     "error",
     [
+        *SESSION_ERRORS,
         pytest.param(TodoNotFoundError(SOME_ID), id="not-found"),
         pytest.param(InvalidTodoError("bad title"), id="invalid"),
         pytest.param(InvalidCursorError("bad cursor"), id="invalid-cursor"),
@@ -73,3 +96,9 @@ def test_every_app_error_declares_its_own_unique_code():
         assert re.fullmatch(r"[a-z][a-z0-9_]*", code), error_type.__name__
         assert code not in codes, code
         codes.add(code)
+
+
+def test_session_error_preserves_safe_attributes_and_pickle_args():
+    error = errors.SessionNotFoundError(SOME_ID)
+    assert error.session_id == SOME_ID
+    assert str(error) == f"Session {SOME_ID} not found"

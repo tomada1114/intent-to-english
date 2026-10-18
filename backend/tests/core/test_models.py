@@ -5,6 +5,8 @@ from datetime import datetime
 
 import pytest
 
+from intent_to_english.core import models
+from intent_to_english.core.coaching import Feedback
 from intent_to_english.core.errors import InvalidTodoError
 from intent_to_english.core.models import MAX_TITLE_LENGTH, Todo, normalize_title
 
@@ -82,3 +84,24 @@ def test_replace_with_invalid_title_raises_invalid_todo_error(nth_id, fixed_now)
 
     with pytest.raises(InvalidTodoError, match=r"got 0$"):
         replace(todo, title="")
+
+
+def test_session_new_values_start_at_opening_and_reject_invalid_dates(
+    fixed_now, nth_id
+):
+
+    session = models.Session(id=nth_id(1), started_at=fixed_now)
+
+    assert session.stage is models.Stage.OPENING
+    assert session.version == 0
+    assert session.turn_index == 1
+    assert session.status is models.SessionStatus.IN_PROGRESS
+    with pytest.raises(ValueError, match="timezone-aware"):
+        models.Session(id=nth_id(1), started_at=fixed_now.replace(tzinfo=None))
+    with pytest.raises(ValueError, match="ended_at"):
+        replace(session, status=models.SessionStatus.ENDED, stage=models.Stage.ENDED)
+
+
+def test_practice_target_requires_feedback_with_at_least_one_fix():
+    with pytest.raises(ValueError, match="fix"):
+        models.PracticeTarget(1, None, Feedback("いいですね"))

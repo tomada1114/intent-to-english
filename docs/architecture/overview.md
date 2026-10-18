@@ -40,8 +40,8 @@ like this:
 
 | Domain | Layer | Module (under `backend/src/intent_to_english/`) | Holds |
 |---|---|---|---|
-| Session, stage, timeline, submission, model-call record | core | `core/models.py` | frozen dataclasses and enums; no I/O |
-| The stage machine | core | `core/flow.py` | the stages, the actions, which action each stage allows, and the next stage |
+| Session, stage, timeline, submission, model-call record | core | `core/models.py` | frozen dataclasses and enums, including `Stage` and `Action`; no I/O |
+| The stage machine | core | `core/flow.py` | the rules for which action each stage allows, input limits, and the next stage |
 | Partner and Coach request and output values | core | `core/partner.py`, `core/coaching.py` | the port's value types and the output checks for each task |
 | Shared text helpers | core | `core/text.py` | sentence splitting, question counting, Latin and Japanese script detection |
 | Ports | core | `core/ports.py` | `SessionRepository`, `PartnerModel`, `CoachModel`, `Clock`, `IdFactory` |
@@ -76,10 +76,13 @@ Ids are UUIDv7 from `IdFactory`; times are UTC.
 
 - `turn_state` holds only what the current stage's next action needs: the intent in force,
   the latest English, the feedback in force, retry submissions so far, the two readings at a
-  reading check, and the shown answer. Everything else is read from the timeline.
+  reading check, the shown answer, and an optional practice target (the finished turn's index,
+  intent, and feedback). The practice target survives the next Partner line until the learner's
+  next intent or direct English. Everything else is read from the timeline.
 - `outcome` is `ok`, `invalid_output` (failed its checks or did not parse), `repaired` (a
   repair that passed), `timeout`, `rate_limited`, or `provider_error` (§3.12). `cost` is what
-  the provider reported, null when it reported none.
+  the provider reported, null when it reported none. A failed submission uses `interrupted`
+  when its earlier process or call budget has expired.
 - A payload change keeps old rows readable: a new field has a default; anything else ships
   an Alembic data migration in the same pull request.
 
@@ -182,14 +185,19 @@ shows the stage as before with the text back in the composer.
 Each process start makes a boot id. A `pending` submission carrying another boot id belongs
 to a process that stopped, so reading the session reports it as interrupted: the stage is as
 before and the text is offered again (ux-flows F-5). A `pending` submission older than its
-call budget (two calls of 60 s, plus a margin) is reported the same way. A closed tab does not
+call budget (two calls of 60 s, plus a margin) is reported the same way. A pending submission
+of this process within its budget remains `pending` in the view,
+so a reopened screen waits for its stored result. A new submission atomically marks an
+interrupted pending one `failed` with code `interrupted` before taking its version. A closed
+tab does not
 interrupt anything: the server finishes the call and stores the result, which the reopened
 screen shows.
 
 ### The session view
 
-`GET /api/sessions/{id}` and every accepted action return one `SessionView`: status, stage,
-version, turn index, finished replies, the actions the stage allows, every timeline entry in
+`GET /api/sessions/{id}` and every accepted action return one `SessionView`: id, status, stage,
+version, turn index, finished replies, start time, end time (null while in progress), the
+actions the stage allows, every timeline entry in
 order, the last submission when it is pending, failed, or interrupted (its action, input,
 and failure code), and the wrap-up. The screen derives both panes and the next-action line
 (ux-flows § Stage table) from it, and decides no stage itself.
