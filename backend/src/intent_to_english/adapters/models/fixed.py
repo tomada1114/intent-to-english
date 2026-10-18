@@ -19,7 +19,7 @@ Feedback tries leave, !, refreshing, then the default, in that order. Leave and
 refreshing are case-insensitive whole words; ! is the last non-space character.
 Unchosen leave asks leave/live; a choice never asks again. Choosing live records
 leave as live (「leave は live として読みました」) and interprets the English that way.
-Bang means no fix: 「いいですね\uff01そのままで伝わります」. One-word English also
+Bang means no fix: 「いいですね\uff01そのままで伝わります」. A one-word input also
 uses that line so a single replacement cannot leak the whole completed sentence.
 After leave/!, learner text containing circled numbers ① through ⑳ or two consecutive
 underscores uses that no-fix line too: those reserved template markers cannot be
