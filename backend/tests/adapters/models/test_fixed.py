@@ -423,3 +423,11 @@ async def test_reserved_marker_fallback_keeps_reading_question_and_chosen_note()
         readings_noted=(c.ReadingNote("leave", "live"),),
     )
     assert c.check_feedback(chosen, output) == ()
+
+
+@pytest.mark.parametrize("english", ["refreshing", "REFRESHING"])
+async def test_one_word_refreshing_cannot_leak_its_entire_completed_sentence(english):
+    request = c.FeedbackRequest(None, english, None, (), ())
+    output = (await fixed.FixedCoachModel().feedback(request)).output
+    assert c.check_feedback(request, output) == ()
+    assert output == c.Feedback("いいですね\uff01そのままで伝わります")

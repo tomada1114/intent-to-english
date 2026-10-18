@@ -19,7 +19,7 @@ Feedback tries leave, !, refreshing, then the default, in that order. Leave and
 refreshing are case-insensitive whole words; ! is the last non-space character.
 Unchosen leave asks leave/live; a choice never asks again. Choosing live records
 leave as live (「leave は live として読みました」) and interprets the English that way.
-Bang means no fix: 「いいですね\uff01そのままで伝わります」. A one-word default also
+Bang means no fix: 「いいですね\uff01そのままで伝わります」. One-word English also
 uses that line so a single replacement cannot leak the whole completed sentence.
 After leave/!, learner text containing circled numbers ① through ⑳ or two consecutive
 underscores uses that no-fix line too: those reserved template markers cannot be
@@ -149,14 +149,14 @@ class FixedCoachModel:
         english, notes = _read_english(request)
         if english.rstrip().endswith("!") or _RESERVED_MARKER.search(english):
             return _parsed(c.Feedback(_NO_FIX, readings_noted=notes))
+        words = english.split()
+        if len(words) <= 1:
+            return _parsed(c.Feedback(_NO_FIX, readings_noted=notes))
         refreshing = _REFRESHING.search(english)
         if refreshing is not None:
             return _parsed(
                 _feedback(request, english, refreshing.group(), m.FixTag.MISS, notes)
             )
-        words = english.split()
-        if len(words) <= 1:
-            return _parsed(c.Feedback(_NO_FIX, readings_noted=notes))
         first = words[0]
         return _parsed(_feedback(request, english, first, m.FixTag.IMPROVEMENT, notes))
 
