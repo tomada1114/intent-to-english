@@ -322,6 +322,15 @@ columns, which the template's PostgreSQL contract suite also covers. Rejected: n
 tables (about ten, and a migration for every new element of a turn) and event sourcing
 (folding every event on every read, and versioning the events).
 
+The SQL repository serializes transitions under a session-row lock on PostgreSQL. SQLite
+uses SQLAlchemy's explicit transaction hooks and `BEGIN IMMEDIATE`, taking the writer lock
+before reading so concurrent begins cannot race a read-to-write lock upgrade. Snapshot
+reads take the same lock for a consistent session, timeline and latest submission. The
+wrap-up JSON column stores Python `None` as SQL NULL, separately from `{"items": []}`.
+Provider cost is decimal text on both databases so SQLite never rounds it through a
+binary float; the log reader restores `Decimal` before summing. JSON readers restore core
+constructors and optional defaults, keeping older payloads readable.
+
 ### Stale, repeated, cancelled, and interrupted actions
 
 Every action names the version it answers, so a second tab or a reloaded screen gets 409
