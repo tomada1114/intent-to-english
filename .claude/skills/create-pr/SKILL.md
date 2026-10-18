@@ -18,24 +18,22 @@ push. **Does not own:** shipping an issue end to end through CI and merge
 (`shipping-issues`); landing a Dependabot PR (`merging-dependency-prs`); making the
 commits the PR carries (`smart-commit`).
 
-**Invoking this skill is the sign-off for exactly the remote writes AGENTS.md's
-"Standing exceptions" lists for it, for this invocation only:** pushing the current
-branch to `origin`, `gh pr create` for it, and `gh pr edit` on its own open pull
-request. Nothing else — no force-push, no merge, no label, no comment, no other branch.
-A step that would need one of those stops and asks.
+Follow AGENTS.md's "Task scope and confirmations". Preparing the task branch,
+committing its changes, pushing it, and creating or updating its PR are part of
+the requested PR work. Honor a PR-only stop point. Use `smart-commit` for commits
+and request confirmation when an operation requires it.
 
 Every step below ends in either the next step or a stop. A stop is reported with what
 was found and what would clear it; it never becomes a PR with the problem left in it.
 
 ## Codex execution surface
 
-In Codex, use GitHub MCP exclusively for remote PR reads and writes. The `gh`
-examples below apply to Claude Code only; do not run them or live-GitHub helper
-scripts in Codex. Local Git still owns fetch, status, commit and push. Discover MCP
-schemas to list this branch's PR, read its existing body, and create/update it with
-structured title/body text. Preserve human edits and verify returned head/base and
-PR state. If MCP lacks a required capability, report it without a CLI or direct
-HTTP fallback. The same checks and write authorization apply on both hosts.
+In Codex, prefer GitHub MCP when it handles the operation smoothly; the `gh`
+examples below are supported on both hosts. Local Git owns fetch, status, commit
+and push. Discover MCP schemas or use the CLI to list this branch's PR, read its
+existing body, and create/update it. Pass bodies as structured MCP text or CLI
+`--body-file`. Preserve human edits and verify returned head/base and PR state.
+Both paths use existing authentication and preserve the same checks and scope.
 
 ## 1. Preconditions
 
@@ -49,12 +47,11 @@ git log --oneline origin/main..HEAD
 gh pr list --head <branch> --state open --json number,url,title
 ```
 
-- **On `main`, or detached:** stop. A PR needs a branch of its own, and creating one is
-  the requester's call.
-- **Uncommitted or untracked changes:** stop. The PR would carry only what is committed,
-  so the gate would judge a tree the reviewer never sees. Commit first with
-  `smart-commit` — a commit needs its own sign-off, the request that invokes that skill,
-  which this skill does not grant — then start again.
+- **On `main`, or detached:** create a task branch before committing, preserving
+  existing changes. Never commit on `main`.
+- **Uncommitted or untracked changes:** separate this task's changes from unrelated
+  work, then commit the task's changes with `smart-commit`. The PR gate must judge
+  the committed tree the reviewer will see; do not include someone else's work.
 - **No commits ahead of `main`:** stop; there is nothing to propose.
 - **A PR already open for the branch:** update it in step 6 with `gh pr edit`. Never
   open a second PR for the same branch — the first one's review and CI history would be
@@ -68,12 +65,12 @@ Run `just verify`, the non-mutating gate whose steps AGENTS.md's Quick Reference
 was committed.
 
 - **Any failure stops the PR.** Fix it on the branch, or report it. A formatting failure
-  is fixed with `just fmt`; committing that fix needs the sign-off step 1 names (this
-  skill never commits), then the gate runs again. Never weaken a gate to make the run
-  pass (AGENTS.md's "Security and human approval").
+  is fixed with `just fmt`; commit that fix with `smart-commit`, then the gate runs
+  again. Never weaken a gate to make the run pass (AGENTS.md's "Security and human
+  approval").
 - **Then `git status --short` again.** Anything that changed means the branch differs
-  from what was just judged: commit it (with the sign-off step 1 names) and run the gate
-  again.
+  from what was just judged: inspect it, commit the task's changes with `smart-commit`,
+  and run the gate again.
 
 `just verify` runs neither typos nor zizmor. Also run the narrowest check for what the
 branch touches from AGENTS.md's "Validating a change" when the gate does not already run

@@ -10,8 +10,8 @@ Usage:
     python3 .agents/skills/merging-dependency-prs/scripts/survey_prs.py [--json]
 
 Requires the `gh` CLI, authenticated against the current repository.
-Read-only: this script never mutates PR or branch state, and it is the only
-step of the skill that runs without human approval.
+Read-only: this script never mutates PR or branch state. Follow the skill's
+task scope and confirmation policy for any later writes.
 
 Stdlib-only on purpose, so it runs with the system `python3` and needs no
 project environment. The classifiers are pure functions, covered by

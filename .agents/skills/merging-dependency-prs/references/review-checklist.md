@@ -3,7 +3,7 @@
 Read this before approving any PR at Step 2 — this is the point of the gate, not a
 formality. Step 4 repeats this review whenever a head changes:
 
-- Read the complete current diff. For an approved plan, verify the content still fits
+- Read the complete current diff. For a recorded plan, verify the content still fits
   its Actions, versions and unit completion.
 - GitHub Actions bumps must remain **SHA-pinned with a version comment**
   (`uses: owner/repo@<40-hex SHA> # vX.Y.Z`). A diff that replaces a SHA pin with a

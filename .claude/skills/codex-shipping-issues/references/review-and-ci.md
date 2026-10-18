@@ -24,9 +24,9 @@ not remove repository-required approvals, checks or unresolved correctness decis
 ## Wait for the opening review
 
 Discover GitHub MCP actions and inspect review submissions, inline threads, the PR
-conversation and review-task metadata. Follow pagination or another MCP action when
-normalized responses omit data. Report required inaccessible evidence; never use
-`gh` or direct HTTP as a fallback.
+conversation and review-task metadata. Follow pagination, another MCP action or
+`gh api` when normalized responses omit data. Report required evidence that neither
+MCP nor CLI can provide. Preserve the same review criteria on both paths.
 
 Open a regular PR. Record the opening event and the automatic review's trusted
 integration identity, state and reviewed commit. Wait through its queue/start delay
@@ -54,9 +54,10 @@ against the code, not the badge. Fix what the round's row above allows, inspect 
 complete correction diff, run affected checks and `just verify`, commit with normal
 hooks and push. Record which commits address which findings in which round. An
 unresolved owner decision or correctness finding blocks landing; CI success cannot
-dismiss it. Resolve threads only within comment/thread-write scope. Report accepted
-`P3` findings from rounds 2–3 and out-of-scope findings as follow-up candidates; file
-them only within explicit issue-write scope.
+dismiss it. Follow `AGENTS.md`'s "Task scope and confirmations" for comments and
+thread changes. Report accepted `P3` findings from rounds 2–3 and out-of-scope
+findings as follow-up candidates; use `triaging-issues` when the requested workflow
+includes filing follow-ups.
 
 ## Wait briefly for the next round
 
@@ -73,9 +74,9 @@ already posted: an accepted one blocks landing and is reported for the owner.
 
 ## Verify CI on the current head
 
-Inspect workflows, jobs/steps and required checks for the latest head through MCP,
+Inspect workflows, jobs/steps and required checks for the latest head through MCP or CLI,
 including pagination. Compare with the committed ruleset and workflows; inspect
-live requirements/approvals where MCP exposes them. Report unavailable policy fields
+live requirements/approvals where either exposes them. Report unavailable policy fields
 without inventing approvals or bypassing server-enforced requirements.
 
 A green check for one job, an earlier SHA or a partial response is insufficient.
@@ -83,8 +84,9 @@ Distinguish success, failure, pending, skipped, cancelled and inaccessible check
 A skipped required check is not success unless active policy explicitly permits it.
 Diagnose failures while a review is pending. Any correction or changed
 base integration requires fresh local acceptance and CI for the resulting head.
-Retries must be authorized and associated with their actual head/run. Never change
-settings or dispatch workflows merely to obtain missing evidence.
+For an in-scope retry, record the reason and actual head/run and request confirmation
+if the operation requires it. Never change settings or dispatch unrelated workflows
+merely to obtain missing evidence.
 
 Use bounded observations (at most 60 seconds per blocking wait) and back off when
 state is unchanged. Continue in-scope repairs without an arbitrary attempt cap.
@@ -93,9 +95,9 @@ deadlines and host limits. Once the latest review round is complete, the finding
 requires are addressed, the next-round grace has passed without a new review (or the
 round cap is reached), and current-head gates pass, no further review wait is required.
 
-## Land within recorded authorization
+## Land within the requested outcome
 
-At a PR-only boundary, preserve the open PR. For an authorized merge:
+At a PR-only boundary, preserve the open PR. When the requested outcome includes merge:
 
 1. Refresh head/base, mergeability, known findings, required approvals and all
    expected checks. Confirm every handled review round completed, the findings each
@@ -103,15 +105,19 @@ At a PR-only boundary, preserve the open PR. For an authorized merge:
    round cap, and local acceptance/CI cover the current diff. Integrate
    the current default branch normally if needed, repeat local checks and CI, and
    inspect the resulting diff. Do not request another review or force-push.
-2. Merge through MCP with the expected-head-SHA guard and an allowed merge method.
+2. Merge with an expected-head-SHA guard and an allowed merge method: use MCP's
+   guarded merge or `gh pr merge <pr> --squash --match-head-commit <sha>` when squash
+   is allowed. Choose an allowed strategy explicitly; the head guard does not select
+   one ([CLI options](https://cli.github.com/manual/gh_pr_merge), checked 2026-10-18).
    Never use an admin bypass. If the head changes or merge is rejected, inspect
    the actual state before retrying; do not route around a policy rejection.
 3. Fetch the PR again and verify merged state, target branch and merge commit.
-   Confirm the linked issue closed. If closure failed, close it only within
-   explicit issue-closure scope; otherwise report the remaining open issue.
+   Confirm the linked issue closed. If GitHub left the issue resolved by this PR
+   open, close it as part of finishing that task and verify its resulting state.
    A successful write response alone is not postcondition verification.
-4. Preserve the primary checkout and evidence. Perform only authorized cleanup
-   through the matching local or managed-worktree lifecycle and verify outcomes.
+4. Preserve the primary checkout and evidence. For cleanup within the task, confirm
+   destructive targets, use the matching local or managed-worktree lifecycle, and
+   verify outcomes.
 
 Report each review round's reviewed commit and addressed findings, follow-up
 candidates, final head and CI separately, including whether the final head's

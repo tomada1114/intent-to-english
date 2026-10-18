@@ -221,7 +221,8 @@ Merge as soon as CI reports `verdict: PASS` for the current head and the review 
 settled — `CLEAN`, `FINDINGS` triaged with every fix its round calls for pushed and
 covered by that `PASS`, or `NO_NEW_REVIEW` for that head — and call `land_pr.sh` in that
 same turn. Do not ask whether to merge, and
-do not report the green CI and wait: green CI on a reviewed PR is the approval. Read
+do not report green CI and wait for approval already supplied by the shipping task.
+The user's requested stop point still governs; green CI does not expand it. Read
 `result:` and `issue:`. Every result, and the two that must never read as success:
 [landing-outcomes.md](landing-outcomes.md). Record (`--event merged ...`). A review whose
 `completed_at:` is later than the merge — a merge made without the guard, or by someone

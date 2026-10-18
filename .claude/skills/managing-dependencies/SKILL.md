@@ -25,7 +25,8 @@ architecture"); editing a security workflow or loosening a policy key (`changing
 
 Any new package — runtime or dev — needs the review record below and the owner's yes
 **before** `uv add` or `pnpm add` runs. Propose it with the record and stop; a decline
-ends the change. No standing exception covers it (AGENTS.md's "Standing exceptions"). A
+ends the change. Routine development scope does not settle that separate decision
+(AGENTS.md's "Task scope and confirmations"). A
 bump inside an existing range and a removal are not new packages; they follow the update
 path below.
 

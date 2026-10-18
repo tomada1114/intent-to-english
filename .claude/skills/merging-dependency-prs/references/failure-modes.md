@@ -118,10 +118,10 @@ Not a CI failure. `BEHIND` means main moved; `DIRTY` means a real conflict.
 gh pr comment <number> --body "@dependabot rebase"
 ```
 
-After the bot updates the head, repeat Step 4's review and approval-scope comparison
+After the bot updates the head, repeat Step 4's review and task-scope comparison
 before accepting the new checks. An accepted comment is not proof of a completed rebase.
-If repeated conflicts remain, take the PR through the approved combined-branch route; do
-not widen the approved scope silently.
+If repeated conflicts remain, take the PR through the recorded combined-branch route; do
+not widen the requested scope silently.
 
 ## F7 — Check never reports
 
