@@ -175,11 +175,11 @@ step 10; never wait on a design still in flight.
 
 ### 9. Clean up
 
-**Once, after the last merge, script only**; `rm` is never used in the run (mid-run,
-`mv` into `<runstate>/holding/<n>/`). From the default branch, run `cleanup_run.sh` with
-**every branch this run created as `--branch <name>`** — without it every merged-PR
-branch goes, other people's included. Confirm any pending cleanup targets together,
-then verify the result ([details](references/closing-out.md#cleanup-scope)).
+**Once, after the last merge, script only**; keep mid-run files in `<runstate>/holding/<n>/`.
+From the default branch, preview `cleanup_run.sh --dry-run` with **every branch this run
+created as `--branch <name>`**; omitted filters can include other people's branches.
+Confirm targets before running the same command without `--dry-run`, then verify
+the result ([details](references/closing-out.md#cleanup-scope)).
 
 ### 10. Report
 

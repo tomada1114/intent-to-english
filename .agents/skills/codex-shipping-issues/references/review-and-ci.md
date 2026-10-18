@@ -106,7 +106,9 @@ At a PR-only boundary, preserve the open PR. When the requested outcome includes
    the current default branch normally if needed, repeat local checks and CI, and
    inspect the resulting diff. Do not request another review or force-push.
 2. Merge with an expected-head-SHA guard and an allowed merge method: use MCP's
-   guarded merge or `gh pr merge --match-head-commit <sha>`.
+   guarded merge or `gh pr merge <pr> --squash --match-head-commit <sha>` when squash
+   is allowed. Choose an allowed strategy explicitly; the head guard does not select
+   one ([CLI options](https://cli.github.com/manual/gh_pr_merge), checked 2026-10-18).
    Never use an admin bypass. If the head changes or merge is rejected, inspect
    the actual state before retrying; do not route around a policy rejection.
 3. Fetch the PR again and verify merged state, target branch and merge commit.

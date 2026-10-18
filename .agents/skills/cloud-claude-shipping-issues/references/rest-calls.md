@@ -309,6 +309,28 @@ through this host's supported REST transport as part of the follow-up task. Foll
 gh api "repos/{owner}/{repo}/labels/priority%3A%20P2" --jq .name   # one call per label
 ```
 
+For a confirmed missing label, write `<runstate>/rest/<slug>-label.json` with
+`name`, `color` and `description` copied exactly from its `.github/labels.yml` entry:
+
+```json
+{"name": "<YAML name>", "color": "<YAML color>", "description": "<YAML description>"}
+```
+
+Create it, then fetch it by its URL-encoded name:
+
+```bash
+gh api -X POST repos/{owner}/{repo}/labels \
+  --input <runstate>/rest/<slug>-label.json --jq '{name, color, description}'
+gh api 'repos/{owner}/{repo}/labels/<URL-encoded-name>' --jq '{name, color, description}'
+```
+
+These are the documented [create](https://docs.github.com/en/rest/issues/labels#create-a-label)
+and [get](https://docs.github.com/en/rest/issues/labels#get-a-label) label operations
+(checked 2026-10-18). Compare both responses with all three YAML fields before
+filing the issue. An access or transport failure is not evidence that a label is
+missing. If creation fails, re-read the label to check for a concurrent creation;
+continue only when the definition matches, otherwise report the mismatch or error.
+
 The body file `<runstate>/followups/<slug>.md` holds what `triaging-issues` asks of a
 body, then — exactly as `shipping-issues`' `file_followup.py` would have written them —
 a `## Dependencies` section with one `Depends on: #N` line per blocker (only when there

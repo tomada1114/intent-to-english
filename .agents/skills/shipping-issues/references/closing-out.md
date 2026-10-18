@@ -34,9 +34,14 @@ extends the run past its first merge.
 
 ## Cleanup scope
 
+Preview first. Inspect the target branches, worktrees and any gitignored artifacts
+before confirming the concrete deletions, reusing an approval that covers them.
+Only after confirmation, run the same cleanup command without `--dry-run` and verify
+its result. The preflight cache update follows cleanup when applicable.
+
 ```bash
-.agents/skills/shipping-issues/scripts/cleanup_run.sh --branch <name> [--branch <name> ...] \
-    [--remote] [--dry-run] [--worktree-root <runstate>/worktrees] [--merged-only] [--force]
+.agents/skills/shipping-issues/scripts/cleanup_run.sh --dry-run --branch <name> [--branch <name> ...] \
+    [--remote] [--worktree-root <runstate>/worktrees] [--merged-only] [--force]
 .agents/skills/shipping-issues/scripts/preflight.sh \
     --profile-cache <runstate>/repo-profile.json --set-worktree-viable <yes|no>
 ```
