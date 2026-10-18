@@ -1,1 +1,52 @@
 @import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+}
+
+@theme {
+  --font-sans:
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI",
+    Meiryo, system-ui, sans-serif;
+  --font-en: ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-canvas: light-dark(#ffffff, #15171b);
+  --color-surface: light-dark(#f6f7f9, #1b1e23);
+  --color-line: light-dark(#e2e5ea, #2c3038);
+  --color-line-strong: light-dark(#c9ced6, #444a55);
+  --color-field-edge: light-dark(#8a919c, #6b7380);
+
+  --color-ink: light-dark(#1c1f24, #eceef1);
+  --color-ink-muted: light-dark(#5a606b, #a7adb8);
+  --color-ink-subtle: light-dark(#6b7280, #8c93a0);
+  --color-on-ink: light-dark(#ffffff, #15171b);
+  --color-ink-edge: light-dark(#000000, #9aa1ad);
+
+  --color-partner: light-dark(#f2f9e4, #1d2915);
+  --color-partner-edge: light-dark(#bfe08a, #4a6b26);
+  --color-partner-ink: light-dark(#3d6e12, #b5dc7a);
+
+  --color-coach: light-dark(#fff9e6, #2a2415);
+  --color-coach-edge: light-dark(#f0d68a, #6b5820);
+  --color-marker: light-dark(#ffe680, #5c4a0f);
+
+  --color-miss: light-dark(#b93815, #ff9b85);
+  --color-miss-tint: light-dark(#ffede5, #3a1d16);
+  --color-improve: light-dark(#1f5fbf, #8db4ff);
+  --color-improve-tint: light-dark(#e8f0fd, #18243a);
+
+  --color-success: light-dark(#1e7f3b, #6fd08c);
+  --color-success-tint: light-dark(#e7f6ec, #15291c);
+
+  --color-danger: light-dark(#b42318, #ff9b85);
+  --color-danger-tint: light-dark(#fdecea, #2e1a16);
+  --color-danger-edge: light-dark(#f5c2bc, #6b2e24);
+
+  --color-badge: light-dark(#fff4cc, #2e2610);
+  --color-badge-ink: light-dark(#6b4f00, #f0cd6e);
+
+  --color-focus: light-dark(#2563eb, #6e9bff);
+
+  --radius-panel: 12px;
+  --radius-slot: 8px;
+}

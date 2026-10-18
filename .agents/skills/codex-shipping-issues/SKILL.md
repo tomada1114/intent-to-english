@@ -70,6 +70,8 @@ uncommitted changes. Verify worktree registration when using a host-managed work
 - Before lengthy implementation, run a minimal ordinary check and inspect actual
   cache/build and hook output destinations. Isolate outputs in this worktree;
   serialize shared Git mutations and preserve hooks.
+  Follow AGENTS.md's "Quick Reference" for uv cache handling in direct commands
+  as well as recipes; do not discover the same inaccessible cache on every run.
 
 Never copy `.env*`, personal settings, credentials, `.venv` or `node_modules` across
 checkouts.

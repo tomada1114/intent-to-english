@@ -77,8 +77,8 @@ def test_mypy_backend_targets_cover_the_app_strictly() -> None:
 
 def test_mypy_hook_uses_the_shared_target_configuration() -> None:
     hooks = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
-    assert "entry: uv run --locked mypy\n" in hooks
-    assert "entry: uv run --locked --directory backend mypy\n" in hooks
+    assert "entry: uv --no-cache run --locked mypy\n" in hooks
+    assert "entry: uv --no-cache run --locked --directory backend mypy\n" in hooks
 
 
 class FrontmatterError(ValueError):
