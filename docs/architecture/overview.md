@@ -193,7 +193,9 @@ is 「終わる」.
    task runner binds each of the ten tasks to its role, port method and output check; the
    evaluation can use that same table without a session. Every attempt is recorded in
    `model_calls` as soon as it ends, before any repair starts. Model failures end the task
-   without a retry. An empty model-produced wrap-up is a schema violation and gets the one
+   without a retry. The service checks that the submission is still pending before a call
+   and after each attempt is recorded, so cancelled work cannot start a repair. An empty
+   model-produced wrap-up is a schema violation and gets the one
    repair; an empty stored wrap-up means there was nothing to make.
 4. A second transaction re-reads the submission. If it is still `pending`, the service
    appends the timeline entries, updates the stage, `turn_state`, and `version`, and marks it
