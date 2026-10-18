@@ -348,8 +348,8 @@ conversation.
 
 ## 6. Open questions
 
-- The model library behind the ports (PydanticAI or a hand-written HTTP adapter) — stage 7.
-- Where evaluation reports live and how the README presents them — stage 7.
+None. The model library behind the ports and where evaluation reports live are decided in
+`docs/architecture/overview.md` § Decisions.
 
 ## 7. Decision log
 

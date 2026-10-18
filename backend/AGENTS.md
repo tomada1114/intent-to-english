@@ -58,6 +58,12 @@ backend/
 - The schema belongs to the migrations: the app never creates or alters a table,
   and `just backend db-upgrade` (which `just backend dev` runs first) applies them
   (`persisting-data`).
+- The app's own design — the stage machine, the two model roles and their ports, the
+  four tables, the API, and the decisions behind them — is
+  `docs/architecture/overview.md`; its "Shape" table says which module each new piece
+  goes in.
+- The model roles are ports in `core/`; `pydantic_ai` and `openai` are imported only by
+  the model adapters, and no test makes a live model call (`calling-models`).
 
 ## Skills for the backend
 
@@ -68,6 +74,8 @@ The root `AGENTS.md`'s Skills table lists every skill; these are the backend's:
 - `building-api-routes` — an HTTP route, request or response model, or API
   dependency, and its TestClient tests.
 - `designing-errors` — a failure mode, or the HTTP status a domain error becomes.
+- `calling-models` — a model task, a prompt, an output check, the model adapters,
+  their settings, or the evaluation harness.
 - `persisting-data` — a table, a SQL statement, the engine, or an Alembic
   revision.
 - `placing-tests` — where a backend test or fixture goes, running one test, or

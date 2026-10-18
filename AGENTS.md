@@ -3,7 +3,9 @@
 ## Overview
 
 A FastAPI application in a [uv](https://docs.astral.sh/uv/) workspace, laid out
-by area. The sample domain is a to-do list — replace it with your own.
+by area. The app's design — its principles, layers, data, flows, and decisions — is
+`docs/architecture/overview.md`; the to-do domain still in the tree is the template's
+sample, which an implementing issue removes.
 
 | Area | Holds |
 |---|---|
@@ -23,7 +25,11 @@ Where to work:
 
 Every task here:
 
-- Write everything — code, docs, commits, pull requests — in English.
+- Write everything — code, docs, commits, pull requests — in English, except the
+  Japanese the product itself speaks: UI copy, prompts, fixed responses and test data,
+  and the quoted copy and learner inputs in `docs/product/conversation-rules.md` and the
+  evaluation cases. Identifiers, comments, commit messages, pull requests, and document
+  prose stay English.
 - Do what has been asked; nothing more, nothing less. Note an improvement
   outside the current scope instead of making it (`triaging-issues`).
 - Create no file unless it is absolutely necessary, and no documentation file
@@ -170,8 +176,8 @@ prose or a test count in a prompt.
 ## Before changing the architecture
 
 The design is recorded as it stands now, never as a log of decisions: this file's
-Product section, `backend/AGENTS.md`'s "Architecture" section, and the skill that owns
-the subject say together how the app is built and why, and git history holds what it
+Product section, `docs/architecture/overview.md`, `backend/AGENTS.md`'s "Architecture"
+section, and the skill that owns the subject say together how the app is built and why, and git history holds what it
 used to be. The changes below, which the skills call design changes, are hard to
 reverse, so the pull request that makes one also rewrites that description: the current
 design and the reasoning behind it (what it protects and, where it matters, the
@@ -207,6 +213,7 @@ Skills are authored under `.agents/skills/` (Codex CLI) and mirrored into
 | `authoring-skills` | adding, editing, or reviewing a skill under `.agents/skills/`, or a skill never fires |
 | `building-api-routes` | adding or changing an HTTP route, request or response model, or API dependency, and the TestClient tests for it |
 | `building-screens` | adding or changing a screen, route, or feature under `frontend/src/`: server data through the generated client, API errors, styling, accessibility, and its component tests |
+| `calling-models` | adding or changing a model task, a prompt, an output check, the OpenRouter adapter, the fixed-response mode, a model setting, a test that touches a model, the evaluation harness, or a new provider |
 | `changing-gates` | editing a hook, a CI workflow, the ruleset, or a ruff, mypy, pytest, coverage, Vitest, Biome, `tsconfig.json`, or `pnpm-workspace.yaml` setting, or asking whether a change weakens a gate |
 | `cloud-claude-shipping-issues` | Claude Code cloud sessions only (`CLAUDE_CODE_REMOTE=true`): shipping the next issue or the backlog over REST `gh api` calls, serially — rank, implement, PR, the PR's review, CI, merge, follow-ups |
 | `codex-shipping-issues` | shipping one GitHub issue from a Codex-managed checkout through a regular PR, up to three Codex review rounds with their findings addressed, current-head CI, and an explicitly authorized merge |
@@ -303,6 +310,9 @@ sign-off for exactly those, for that invocation only:
   follow-up issues; and removing `blocked: dependency` from the issues its merge
   unblocked — never a force-push, a branch deletion, a reply to or resolution of a
   review thread, `@codex review`, `just labels`, or Auto-fix.
+- `codex-shipping-issues`: beyond the writes its request authorizes, removing
+  `blocked: dependency` through GitHub MCP from each open issue whose every
+  `Depends on: #N` is closed once its own merge lands — never another label.
 - `create-pr`: pushing the current branch, `gh pr create` for it, and
   `gh pr edit` on its own open pull request — never a force-push or a merge.
 - `smart-commit`: the commits it makes on the current branch, and pushing that

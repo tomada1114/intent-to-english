@@ -96,8 +96,8 @@ can't say" field (1–200 characters), and the Coach question box (1–500 chara
 - Only `transform` and `opacity` animate.
 - Reduced motion (`prefers-reduced-motion: reduce`): the rise is dropped (opacity only, same
   duration); expand/collapse and scrolling are instant.
-- Durations come from the design direction's motion tokens once they exist; cite the token
-  names here then.
+- The durations are Tailwind duration utilities, not tokens (`docs/architecture/overview.md`
+  § Design lock).
 
 ## Language and copy
 
