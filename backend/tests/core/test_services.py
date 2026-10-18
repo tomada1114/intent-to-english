@@ -1232,6 +1232,18 @@ async def test_conversation_skip_ends_without_a_model_and_sets_practice(
             "I cannot stay; can't've been easy.",
             id="contraction-is-a-whole-word",
         ),
+        pytest.param(
+            coaching.ReadingNote(" starting ", "studying"),
+            "I am starting English.",
+            "I am studying English.",
+            id="written-whitespace",
+        ),
+        pytest.param(
+            coaching.ReadingNote("starting", " studying "),
+            "I am starting English.",
+            "I am studying English.",
+            id="replacement-whitespace",
+        ),
     ],
 )
 async def test_reading_notes_preserve_word_internal_apostrophes(
@@ -1249,3 +1261,35 @@ async def test_reading_notes_preserve_word_internal_apostrophes(
     assert view.entries[-1].payload == m.TurnDonePayload(
         expected, m.TurnEnd.NO_FIX_NEEDED
     )
+
+
+@pytest.mark.parametrize(
+    "readings",
+    [("live", " live "), ("\tlive", "live\n")],
+    ids=["spaces", "line-whitespace"],
+)
+async def test_reading_options_colliding_after_normalization_get_one_schema_repair(
+    make_conversation, nth_id, readings
+):
+    h = make_conversation()
+    session = m.Session(nth_id(50), h.clock.now, stage=m.Stage.INTENT)
+    await h.repository.create(session)
+    h.coach.feedback_call.outputs.extend(
+        [
+            _parsed(coaching.ReadingQuestion("leave", readings)),
+            _parsed(coaching.Feedback("いいですね")),
+        ]
+    )
+    view = await h.service.act(
+        session.id,
+        m.ActionRequest(m.Action.ENGLISH_DIRECT, 0, m.TextInput("I live here.")),
+    )
+    assert view.stage is m.Stage.PARTNER_TURN
+    assert len(h.coach.feedback_call.requests) == 2
+    calls = await h.repository.model_calls(session.id)
+    assert tuple(call.call.outcome for call in calls) == (
+        m.CallOutcome.INVALID_OUTPUT,
+        m.CallOutcome.REPAIRED,
+    )
+    assert tuple(v.check for v in calls[0].call.violations) == (m.CheckId.SCHEMA,)
+    assert not any(entry.kind is m.EntryKind.READING_QUESTION for entry in view.entries)

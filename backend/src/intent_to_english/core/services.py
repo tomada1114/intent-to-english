@@ -200,17 +200,8 @@ async def run_model_task[Request, Output](
             if isinstance(parsed, ParseFailure)
             else check(request, parsed.output)
         )
-        if (
-            task is ModelTask.WRAP_UP
-            and isinstance(parsed, Parsed)
-            and isinstance(parsed.output, coaching.WrapUp)
-            and not parsed.output.items
-        ):
-            violations += (
-                Violation(
-                    CheckId.SCHEMA, "A model wrap-up must contain at least one item"
-                ),
-            )
+        if isinstance(parsed, Parsed):
+            violations += _schema_violations(task, parsed.output)
         outcome = (
             CallOutcome.INVALID_OUTPUT
             if violations
@@ -224,6 +215,28 @@ async def run_model_task[Request, Output](
             return TaskRun(parsed.output, tuple(attempts), None)
         repair = Repair(violations)
     return TaskRun(None, tuple(attempts), ModelOutputInvalidError(task))
+
+
+def _schema_violations(task: ModelTask, output: object) -> tuple[Violation, ...]:
+    if (
+        task is ModelTask.WRAP_UP
+        and isinstance(output, coaching.WrapUp)
+        and not output.items
+    ):
+        return (
+            Violation(CheckId.SCHEMA, "A model wrap-up must contain at least one item"),
+        )
+    if (
+        task is ModelTask.FEEDBACK
+        and isinstance(output, coaching.ReadingQuestion)
+        and output.readings[0].strip() == output.readings[1].strip()
+    ):
+        return (
+            Violation(
+                CheckId.SCHEMA, "Reading options must stay distinct after trimming"
+            ),
+        )
+    return ()
 
 
 class ModelTaskDefinition(Protocol):
@@ -1000,9 +1013,9 @@ def _final_english(work: _ActionWork) -> str:
 
 def _apply_reading(english: str, note: coaching.ReadingNote) -> str:
     def replacement(_match: re.Match[str]) -> str:
-        return note.read_as
+        return note.read_as.strip()
 
     # An apostrophe joins word characters inside a contraction, but a quote
     # surrounding a standalone word must not prevent its replacement.
-    pattern = rf"(?<!\w)(?<!\w['\u2019]){re.escape(note.written)}(?!\w)(?!['\u2019]\w)"
+    pattern = rf"(?<!\w)(?<!\w['\u2019]){re.escape(note.written.strip())}(?!\w)(?!['\u2019]\w)"
     return re.sub(pattern, replacement, english)
