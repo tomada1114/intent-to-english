@@ -1,6 +1,10 @@
 # Development task runner — requires Just (https://just.systems)
 # All commands also work without Just by running the uv and pnpm commands directly.
 
+# Keep ordinary tasks inside their temporary/worktree outputs, including uv's
+# child processes. A caller may opt into its own cache with UV_NO_CACHE=0.
+export UV_NO_CACHE := env("UV_NO_CACHE", "1")
+
 # The FastAPI app in backend/: `just backend <recipe>`
 mod backend
 
