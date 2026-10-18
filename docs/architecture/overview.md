@@ -175,10 +175,20 @@ is 「終わる」.
    the stage must allow the action (`action_not_allowed`). Only when every check passes
    does the transaction mark superseded work `cancelled` and store the new submission
    `pending` with the process's boot id. A refused begin cancels nothing.
+   Before beginning, `ConversationService` checks the same order against its snapshot,
+   then the extra action guards, normalized input limits and chosen reading. Invalid input
+   stores no submission; the transaction repeats the existence, version, pending, ended
+   and stage checks so a concurrent action cannot invalidate the snapshot.
 3. When a model task is needed, outside any transaction the service builds its request — for the
    Partner, only the English lines — and calls the port within 60 s. A failed check, or an
-   output that does not parse, gets one repair call carrying the violations. Every call is
-   recorded in `model_calls`.
+   output that does not parse, gets one repair call carrying the violations. The standalone
+   task runner binds each of the ten tasks to its role, port method and output check; the
+   evaluation can use that same table without a session. Every attempt is recorded in
+   `model_calls` as soon as it ends, before any repair starts. Model failures end the task
+   without a retry. The service checks that the submission is still pending before a call
+   and after each attempt is recorded, so cancelled work cannot start a repair. An empty
+   model-produced wrap-up is a schema violation and gets the one
+   repair; an empty stored wrap-up means there was nothing to make.
 4. A second transaction re-reads the submission. If it is still `pending`, the service
    appends the timeline entries, updates the stage, `turn_state`, and `version`, and marks it
    `completed`, then returns the new `SessionView`. If the learner cancelled meanwhile, it
@@ -200,11 +210,12 @@ ending never waits for its model call; the late output is discarded and its call
 Each process start makes a boot id. A `pending` submission carrying another boot id belongs
 to a process that stopped, so reading the session reports it as interrupted: the stage is as
 before and the text is offered again (ux-flows F-5). A `pending` submission older than its
-call budget (two calls of 60 s, plus a margin) is reported the same way. A pending submission
+150 s call budget (two calls of 60 s, plus a 30 s margin) is reported the same way. A pending submission
 of this process within its budget remains `pending` in the view, so a reopened screen waits
-for its stored result. A new submission atomically marks an
-interrupted pending one `failed` with code `interrupted` before taking its version. A closed tab does not interrupt anything: the server finishes the call and stores the result, which the reopened
-screen shows.
+for its stored result. A new submission atomically marks an interrupted pending one
+`failed` with code `interrupted` before taking its version. A closed tab does not interrupt
+anything: the server finishes the call and stores the result, which the reopened screen
+shows.
 
 ### The session view
 
