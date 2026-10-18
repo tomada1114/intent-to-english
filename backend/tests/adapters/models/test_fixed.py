@@ -431,3 +431,22 @@ async def test_one_word_refreshing_cannot_leak_its_entire_completed_sentence(eng
     output = (await fixed.FixedCoachModel().feedback(request)).output
     assert c.check_feedback(request, output) == ()
     assert output == c.Feedback("いいですね\uff01そのままで伝わります")
+
+
+@pytest.mark.parametrize(
+    "english", ["Hello .", "refreshing ?", "Hello ...", "REFRESHING ."]
+)
+async def test_standalone_punctuation_does_not_add_a_word_to_the_utterance(english):
+    request = c.FeedbackRequest(None, english, None, (), ())
+    output = (await fixed.FixedCoachModel().feedback(request)).output
+    assert c.check_feedback(request, output) == ()
+    assert output == c.Feedback("いいですね\uff01そのままで伝わります")
+
+
+async def test_two_words_with_standalone_punctuation_keep_the_default_fix():
+    request = c.FeedbackRequest(None, "Hello , friend .", None, (), ())
+    output = (await fixed.FixedCoachModel().feedback(request)).output
+    assert isinstance(output, c.Feedback)
+    assert output.fixes[0].original == "Hello"
+    assert output.fixes[0].replacement == "Actually, Hello"
+    assert c.check_feedback(request, output) == ()

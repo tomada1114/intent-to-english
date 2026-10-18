@@ -21,6 +21,7 @@ Unchosen leave asks leave/live; a choice never asks again. Choosing live records
 leave as live (「leave は live として読みました」) and interprets the English that way.
 Bang means no fix: 「いいですね\uff01そのままで伝わります」. A one-word input also
 uses that line so a single replacement cannot leak the whole completed sentence.
+Standalone punctuation does not add a word to that count.
 After leave/!, learner text containing circled numbers ① through ⑳ or two consecutive
 underscores uses that no-fix line too: those reserved template markers cannot be
 copied into a retry without violating the core checks. Reading notes are retained.
@@ -150,7 +151,10 @@ class FixedCoachModel:
         if english.rstrip().endswith("!") or _RESERVED_MARKER.search(english):
             return _parsed(c.Feedback(_NO_FIX, readings_noted=notes))
         words = english.split()
-        if len(words) <= 1:
+        word_count = sum(
+            any(character.isalnum() for character in word) for word in words
+        )
+        if word_count <= 1:
             return _parsed(c.Feedback(_NO_FIX, readings_noted=notes))
         refreshing = _REFRESHING.search(english)
         if refreshing is not None:
