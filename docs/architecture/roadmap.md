@@ -21,7 +21,7 @@ issues record what has shipped; `git log` shows the local history.
 The owner decides what the page says; an agent proposes a change to it in a pull
 request, and the change lands only once the owner has approved it.
 
-- **Last reviewed:** 2026-10-17, before the first issues were filed
+- **Last reviewed:** 2026-10-17, when the first issues were filed
 
 ## Now
 
@@ -29,16 +29,16 @@ The outcomes being worked on, one to three of them. Each has its issues filed.
 
 - **The whole conversation runs in the browser on fixed responses** — the core
   interaction is the product, so it must work end to end before any model bills.
-  Issues: none yet. Done when: `just e2e` drives a session through start, a turn with a
+  Issues: #9 and its sub-issues. Done when: `just e2e` drives a session through start, a turn with a
   fix and its retry, the check-in, the end, and a resume after reload (ux-flows F-1,
   F-2, F-3, F-5) with `INTENT_TO_ENGLISH_MODEL_MODE=fixed`.
 - **Practice runs on real models, every output checked before it is shown** — the turn
-  only teaches when the Coach's feedback is real. Issues: none yet. Done when: with
+  only teaches when the Coach's feedback is real. Issues: #10 and its sub-issues. Done when: with
   `OPENROUTER_API_KEY` set, the owner finishes one session in the browser, and every
   call of it has a `model_calls` row with its tokens, cost, latency, and outcome.
 - **The evaluation set runs against the configured models and its report is
   committed** — the quality evidence the portfolio needs, and what decides whether the
-  Coach can move to Haiku. Issues: none yet. Done when: the human-run evaluation recipe
+  Coach can move to Haiku. Issues: #11 and its sub-issues. Done when: the human-run evaluation recipe
   writes a report for 10–20 cases under `backend/evals/reports/`, and the README's
   evaluation section shows its summary.
 
