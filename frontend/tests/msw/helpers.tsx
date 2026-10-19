@@ -1,9 +1,16 @@
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import {
+  defaultScheduler,
+  notifyManager,
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { act, render } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { type ReactElement, type ReactNode, StrictMode } from "react";
-import { afterEach, vi } from "vitest";
+import { afterEach, onTestFinished, vi } from "vitest";
 import type {
+  CancelSessionRequest,
   PerformSessionActionData,
   SessionResponse,
   SessionSummaryResponse,
@@ -14,6 +21,10 @@ import {
   sessionQueryOptions,
 } from "../../src/features/conversation";
 import { TranscriptScreen } from "../../src/features/transcript";
+import {
+  ServerStatusProvider,
+  ServerUnreachableBanner,
+} from "../../src/lib/ServerStatus";
 import { server } from "./server";
 
 const clients = new Set<QueryClient>();
@@ -112,9 +123,10 @@ export function sessionView(overrides: Partial<SessionResponse> = {}): SessionRe
 export type ActionBody = PerformSessionActionData["body"];
 
 /**
- * Serve one session: GET answers the server's current view, and each posted
+ * Serve one session: GET answers the server's current view, each posted
  * action is recorded and answered by `respond` — a new view (which becomes the
- * current one) or any other response, such as a Problem Details error.
+ * current one) or any other response, such as a Problem Details error — and
+ * each cancel is recorded and answered by `cancel`, 204 unless it says otherwise.
  */
 export function serveSession(
   initial: SessionResponse,
@@ -123,9 +135,12 @@ export function serveSession(
     current: SessionResponse,
   ) => SessionResponse | Response | Promise<SessionResponse | Response> = () =>
     HttpResponse.error(),
+  cancel: (body: CancelSessionRequest) => Response | Promise<Response> = () =>
+    new HttpResponse(null, { status: 204 }),
 ) {
   let current = initial;
   const bodies: ActionBody[] = [];
+  const cancels: CancelSessionRequest[] = [];
   server.use(
     http.get(`/api/sessions/${SESSION_ID}`, () =>
       HttpResponse.json<SessionResponse>(current),
@@ -138,9 +153,15 @@ export function serveSession(
       current = result;
       return HttpResponse.json<SessionResponse>(result);
     }),
+    http.post(`/api/sessions/${SESSION_ID}/cancel`, async ({ request }) => {
+      const body = (await request.json()) as CancelSessionRequest;
+      cancels.push(body);
+      return cancel(body);
+    }),
   );
   return {
     bodies,
+    cancels,
     current: () => current,
     /** Change the server's view, as another tab's action would. */
     set: (next: SessionResponse) => {
@@ -159,11 +180,13 @@ function SessionHarness({
   // The route's own read: the screen renders whatever the session query holds.
   const query = useQuery(sessionQueryOptions(SESSION_ID));
   const Screen = screen === "transcript" ? TranscriptScreen : ConversationScreen;
+  // The root layout's server-unreachable banner, above the screen.
   return (
-    <>
+    <ServerStatusProvider>
+      <ServerUnreachableBanner />
       {before}
       {query.data && <Screen view={query.data} />}
-    </>
+    </ServerStatusProvider>
   );
 }
 
@@ -230,4 +253,40 @@ export function deferred() {
       resolve();
     },
   };
+}
+
+/**
+ * Fake timers for a test of behavior driven by time (the 300 ms delay, the
+ * 10 s long wait, the 2 s poll), undone when the test finishes. The test moves
+ * time only with `advance`, never `findBy` or `waitFor`.
+ *
+ * - Testing Library recognizes fake timers only through a `jest` global, so
+ *   one is stubbed for it to advance them: its async wrapper (which user-event
+ *   runs in) waits on a zero-delay timeout.
+ * - TanStack Query batches its notifications on a zero-delay timeout, which
+ *   fake timers fire 1 ms late when it is set while they run; a microtask
+ *   keeps each notification at the instant it belongs to.
+ */
+export function installFakeClock() {
+  vi.useFakeTimers();
+  vi.stubGlobal("jest", {
+    advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms),
+  });
+  notifyManager.setScheduler(queueMicrotask);
+  onTestFinished(() => {
+    notifyManager.setScheduler(defaultScheduler);
+    vi.useRealTimers();
+  });
+}
+
+/**
+ * Move fake time on by `ms`, then let everything due at that instant settle
+ * without moving it further: a response takes several turns of the microtask
+ * queue and a zero-delay timer or two to reach the screen.
+ */
+export async function advance(ms: number) {
+  await act(() => vi.advanceTimersByTimeAsync(ms));
+  for (let turn = 0; turn < 5; turn += 1) {
+    await act(() => vi.advanceTimersByTimeAsync(0));
+  }
 }

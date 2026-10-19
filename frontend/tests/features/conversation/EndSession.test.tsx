@@ -1,7 +1,16 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProblemDetails } from "../../../src/api/generated/types.gen";
 import { EndSession } from "../../../src/features/conversation";
+import {
+  deferred,
+  entry,
+  renderSession,
+  serveSession,
+  sessionView,
+} from "../../msw/helpers";
 
 const QUESTION = "終えて振り返りを作りますか？";
 
@@ -99,5 +108,73 @@ describe("EndSession", () => {
 
     expect(screen.getByRole("button", { name: "終える" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "戻る" })).toBeDisabled();
+  });
+});
+
+describe("ConversationScreen ending while a request is in flight (REQ-010)", () => {
+  const intent = sessionView({
+    stage: "intent",
+    version: 1,
+    entries: [
+      entry("partner_line", {
+        text: "Hey! How's it going?",
+        has_question: true,
+        line_kind: "opener",
+        restate_mode: null,
+      }),
+    ],
+    allowed_actions: ["intent", "english_direct", "end"],
+  });
+  const ended = sessionView({
+    ...intent,
+    status: "ended",
+    stage: "ended",
+    version: 2,
+    ended_at: "2026-10-17T10:00:00Z",
+    allowed_actions: [],
+  });
+  const cancelled: ProblemDetails = {
+    type: "about:blank",
+    title: "Conflict",
+    status: 409,
+    detail: "The action was cancelled",
+    code: "action_cancelled",
+    request_id: "req-1",
+  };
+
+  it("keeps 会話を終える usable, posts end with the shown version, renders the ended view at once, and ignores the abandoned request's 409", async () => {
+    const hold = deferred();
+    const served = serveSession(intent, async (body) => {
+      if (body.action === "end") return ended;
+      await hold.promise;
+      return HttpResponse.json<ProblemDetails>(cancelled, { status: 409 });
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSession(intent);
+
+    await user.type(
+      screen.getByRole("textbox", { name: "あなたの日本語" }),
+      "久しぶりに映画を見た",
+    );
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+    await waitFor(() => expect(served.bodies).toHaveLength(1));
+    const start = screen.getByRole("button", { name: "会話を終える" });
+    expect(start).toBeEnabled();
+    await user.click(start);
+    await user.click(screen.getByRole("button", { name: "終える" }));
+
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(screen.queryByText(/👉 次/)).not.toBeInTheDocument();
+    expect(served.bodies).toEqual([
+      { action: "intent", text: "久しぶりに映画を見た", version: 1 },
+      { action: "end", version: 1 },
+    ]);
+    hold.release();
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("Partner が返事を考えています…")).not.toBeInTheDocument();
+    expect(screen.queryByText("コーチが確認しています…")).not.toBeInTheDocument();
   });
 });

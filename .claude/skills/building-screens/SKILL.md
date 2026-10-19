@@ -100,7 +100,17 @@ Every error a query or mutation throws goes through the Problem Details helpers 
   on `detail` text, for a domain 422 that names no field. The conversation screen shows
   both the parsing 422's `fieldErrors.text` and the domain `invalid_input` 422 under its
   composer.
-- **Everything else renders through `ErrorMessage`.** For a 5xx it shows a generic
+- **No response at all is the layout's, on every screen.** A query with
+  `kind: "unknown"` reaches the server-unreachable banner under the header by itself,
+  through `ServerStatusProvider`'s watch on the query cache; a mutation reports one with
+  `useServerStatus().report(key, retry)` and resolves it once it gets through, as S1's
+  start, the conversation screen's actions, and S3's wrap-up do
+  (`src/lib/ServerStatus.tsx`). A query's entry also clears once no screen reads it.
+- **A failure the screen names renders through `Banner`** (`src/lib/Banner.tsx`): the
+  danger tint, an icon, Japanese copy chosen by `code` (never `status`: two codes share
+  502), and the one action that recovers. The conversation screen names a model failure
+  with `modelFailureReason` (`src/lib/submission.ts`), which S3 shares.
+- **Anything else renders through `ErrorMessage`.** For a 5xx it shows a generic
   message plus the request id when the body carries one; for `kind: "unknown"` (no
   response) a generic connection message, with no request id to show; for another 4xx,
   the body's `detail`, else its `title`.

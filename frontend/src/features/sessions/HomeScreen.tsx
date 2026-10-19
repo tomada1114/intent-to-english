@@ -6,16 +6,20 @@ import {
   listSessionsInfiniteOptions,
 } from "../../api/generated/@tanstack/react-query.gen";
 import type { SessionSummaryResponse } from "../../api/generated/types.gen";
+import { useDelayedLoading } from "../../lib/delayed-loading";
 import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatCount, formatStart } from "../../lib/format";
 import { toApiError } from "../../lib/problem-details";
+import { useServerStatus } from "../../lib/ServerStatus";
 import { FOCUS_RING, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../../lib/ui";
-import { useDelayedLoading } from "./hooks";
 
 /** One page of the list, as requirements §3.9 sets it. */
 export const SESSION_PAGE_SIZE = 20;
 /** How many characters of the opener a row shows before 「…」. */
 export const OPENER_LIMIT = 60;
+
+/** The key S1's start reports a request with no response under. */
+const START_KEY = "session-start";
 
 const TAGLINE = "英語で話す前に、日本語で言いたいことを決める練習";
 const SKELETON_ROWS = [0, 1, 2];
@@ -38,7 +42,7 @@ function repliesLabel(count: number): string {
  */
 export function HomeScreen() {
   return (
-    <div className="mx-auto max-w-[880px] space-y-8 px-4 py-8">
+    <div className="mx-auto w-full max-w-[880px] space-y-8 px-4 py-8">
       <div className="space-y-6">
         <h1 className="text-2xl leading-[1.35] font-bold">{TAGLINE}</h1>
         <StartSession />
@@ -53,13 +57,22 @@ function StartSession() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const button = useRef<HTMLButtonElement>(null);
+  const status = useServerStatus();
   const start = useMutation({
     ...createSessionMutation(),
     onSuccess: async (view) => {
       void queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
       await navigate({ to: "/sessions/$sessionId", params: { sessionId: view.id } });
     },
+    // No response at all is the layout's banner, whose 再試行 starts it again.
+    onError: (error) => {
+      if (toApiError(error).kind === "unknown") {
+        status.report(START_KEY, () => start.mutate({}));
+      }
+    },
   });
+  const failure = start.isError ? toApiError(start.error) : null;
+  useEffect(() => () => status.resolve(START_KEY), [status]);
   useEffect(() => {
     // No scroll: coming back from a session, the router has already restored
     // where the learner was in the list.
@@ -71,12 +84,15 @@ function StartSession() {
         ref={button}
         type="button"
         disabled={start.isPending}
-        onClick={() => start.mutate({})}
+        onClick={() => {
+          status.resolve(START_KEY);
+          start.mutate({});
+        }}
         className={PRIMARY_BUTTON}
       >
         新しい会話を始める
       </button>
-      {start.isError && <ErrorMessage error={toApiError(start.error)} />}
+      {failure?.kind === "problem" && <ErrorMessage error={failure} />}
     </div>
   );
 }
@@ -91,7 +107,11 @@ function SessionList() {
     // the default five minutes; coming back must find every page it loaded.
     gcTime: Number.POSITIVE_INFINITY,
   });
-  const skeleton = useDelayedLoading(query.isPending);
+  // While nothing is shown yet, a read (the first, or a retry) shows the
+  // skeleton after 300 ms, as the session route does.
+  const skeleton = useDelayedLoading(query.data === undefined && query.isFetching);
+  // No response at all is the layout's banner, with its 再試行: one alert.
+  const loadFailed = query.isError && toApiError(query.error).kind === "problem";
   const heading = (
     <h2 id={headingId} className="text-xl font-bold">
       これまでの会話
@@ -106,8 +126,8 @@ function SessionList() {
       </section>
     );
   }
-  if (query.isPending) return null;
-  if (query.isError && query.data === undefined) {
+  if (query.data === undefined) {
+    if (!loadFailed) return null;
     return (
       <section aria-labelledby={headingId} className="space-y-3">
         {heading}
@@ -150,7 +170,7 @@ function SessionList() {
             さらに表示
           </button>
         )}
-        {query.isError && (
+        {loadFailed && (
           <LoadFailed
             retrying={query.isFetching}
             onRetry={() =>

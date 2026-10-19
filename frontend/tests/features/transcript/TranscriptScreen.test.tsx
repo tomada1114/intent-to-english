@@ -389,14 +389,48 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(server.bodies).toEqual([{ action: "wrap_up", version: 11 }]);
   });
 
-  it("shows a failure without a reason when the wrap-up request gets no answer", async () => {
+  it("leaves a wrap-up with no answer to the layout's banner, with no failure line of its own", async () => {
     const server = serveSession(ended(DUE), () => HttpResponse.error());
     renderTranscript(ended(DUE));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "振り返りを作れませんでした。",
-    );
+    const banner = (
+      await screen.findByText(
+        "アプリのサーバーに接続できません。起動しているか確認してください。",
+      )
+    ).closest('[role="alert"]') as HTMLElement;
+    expect(screen.getAllByRole("alert")).toEqual([banner]);
+    expect(screen.queryByText(/振り返りを作れませんでした/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "もう一度" })).not.toBeInTheDocument();
     expect(server.bodies).toHaveLength(1);
+  });
+
+  it("reports a wrap-up with no answer to the server-unreachable banner, whose 再試行 sends it again", async () => {
+    let calls = 0;
+    const server = serveSession(ended(DUE), (_, current) => {
+      calls += 1;
+      return calls === 1
+        ? HttpResponse.error()
+        : { ...current, version: current.version + 1, wrap_up: { items: [] } };
+    });
+    const user = userEvent.setup();
+    renderTranscript(ended(DUE));
+
+    const banner = (
+      await screen.findByText(
+        "アプリのサーバーに接続できません。起動しているか確認してください。",
+      )
+    ).closest('[role="alert"]') as HTMLElement;
+    await user.click(within(banner).getByRole("button", { name: "再試行" }));
+
+    await waitFor(() => expect(server.bodies).toHaveLength(2));
+    expect(server.bodies[1]).toEqual(server.bodies[0]);
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "アプリのサーバーに接続できません。起動しているか確認してください。",
+        ),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("sends the wrap-up over another action's failure from before the end", async () => {

@@ -251,15 +251,14 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     expect(field).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("keeps the text and shows any other error through ErrorMessage", async () => {
+  it("keeps the text and shows any other error as the pane's failure banner", async () => {
     serveSession(intent, () => rejected({ status: 500, code: "internal_error" }));
     renderSession(intent);
 
     const field = await sendIntent("久しぶりに映画を見た");
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Something went wrong on our side. Try again.");
-    expect(alert).toHaveTextContent("Request ID: req-7");
+    expect(alert).toHaveTextContent("コーチの返事を受け取れませんでした。");
     expect(field).toHaveValue("久しぶりに映画を見た");
     expect(field).not.toHaveAttribute("aria-invalid");
   });
@@ -271,7 +270,7 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     const field = await sendIntent("久しぶりに映画を見た");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not reach the server. Check your connection and try again.",
+      "アプリのサーバーに接続できません。起動しているか確認してください。",
     );
     await waitFor(() => expect(field).toBeEnabled());
     expect(field).toHaveValue("久しぶりに映画を見た");

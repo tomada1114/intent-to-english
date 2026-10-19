@@ -25,3 +25,24 @@ export function useDelayedLoading(loading: boolean): boolean {
   }, [loading, shown]);
   return shown;
 }
+
+/**
+ * Run `request`, and when it outlasts the 300 ms delay (so its indicator
+ * shows), hold its result or failure until the indicator's 500 ms minimum has
+ * passed: the result renders when the minimum ends.
+ */
+export async function settleAfterMinimum<T>(request: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  try {
+    return await request();
+  } finally {
+    const elapsed = Date.now() - start;
+    const hold =
+      elapsed < LOADING_DELAY_MS ? 0 : LOADING_DELAY_MS + LOADING_MIN_MS - elapsed;
+    if (hold > 0) {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, hold);
+      });
+    }
+  }
+}

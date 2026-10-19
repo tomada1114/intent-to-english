@@ -13,6 +13,12 @@ import type { SessionResponse } from "../../api/generated/types.gen";
 import { formatStart, formatTime } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { toApiError } from "../../lib/problem-details";
+import { useServerStatus } from "../../lib/ServerStatus";
+import {
+  modelFailureReason,
+  SUBMISSION_POLL_MS,
+  submissionPending,
+} from "../../lib/submission";
 import { COACH_ENGLISH, ENTER, FOCUS_RING, SECONDARY_BUTTON } from "../../lib/ui";
 import {
   ConversationTimeline,
@@ -23,32 +29,22 @@ import {
 } from "../conversation";
 
 /** How often a wrap-up another tab or an earlier load started is read again. */
-export const WRAP_UP_POLL_MS = 2000;
-
-const REASONS: Readonly<Record<string, string>> = {
-  model_timeout: "時間切れ",
-  model_rate_limited: "混み合っています",
-  model_unavailable: "接続できません",
-  model_error: "接続できません",
-  model_output_invalid: "返事の形式が正しくありませんでした",
-};
+export const WRAP_UP_POLL_MS = SUBMISSION_POLL_MS;
 
 /** 「振り返りを作れませんでした（<reason>）。」, without a reason it cannot name. */
 export function wrapUpFailureLine(code: string | null | undefined): string {
-  const reason = code === null || code === undefined ? undefined : REASONS[code];
+  const reason = modelFailureReason(code);
   return reason === undefined
     ? "振り返りを作れませんでした。"
     : `振り返りを作れませんでした（${reason}）。`;
 }
 
+/** The key S3's wrap-up reports a request with no response under. */
+const WRAP_UP_KEY = "wrap-up";
+
 function codeOf(error: unknown): string | undefined {
   const apiError = toApiError(error);
   return apiError.kind === "problem" ? apiError.code : undefined;
-}
-
-/** Any submission still running on the server, which a wrap-up must wait for. */
-function submissionPending(view: SessionView | undefined): boolean {
-  return view?.last_submission?.state === "pending";
 }
 
 interface Turn {
@@ -111,6 +107,7 @@ export function TranscriptScreen({
       submissionPending(query.state.data) ? WRAP_UP_POLL_MS : false,
   });
 
+  const status = useServerStatus();
   const wrapUp = useMutation({
     ...performSessionActionMutation(),
     onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
@@ -120,8 +117,14 @@ export function TranscriptScreen({
       );
       await queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
     },
-    // The server records the failure on the session: read it back.
-    onError: () => queryClient.invalidateQueries({ queryKey: sessionKey }),
+    // The server records the failure on the session: read it back. No
+    // response at all is also the layout's banner, whose 再試行 sends it again.
+    onError: (error) => {
+      if (toApiError(error).kind === "unknown") {
+        status.report(WRAP_UP_KEY, () => latestSend.current());
+      }
+      return queryClient.invalidateQueries({ queryKey: sessionKey });
+    },
     onSettled: () => {
       inFlight.current = false;
     },
@@ -130,11 +133,19 @@ export function TranscriptScreen({
   function sendWrapUp() {
     if (inFlight.current) return;
     inFlight.current = true;
+    status.resolve(WRAP_UP_KEY);
     wrapUp.mutate({
       path: { session_id: view.id },
       body: { action: "wrap_up", version: view.version },
     });
   }
+
+  // What the layout's 再試行 calls: this render's send, at the version shown.
+  const latestSend = useRef(sendWrapUp);
+  useEffect(() => {
+    latestSend.current = sendWrapUp;
+  });
+  useEffect(() => () => status.resolve(WRAP_UP_KEY), [status]);
 
   const due = view.wrap_up === null;
   const autoSend = useEffectEvent(() => sendWrapUp());
@@ -159,10 +170,17 @@ export function TranscriptScreen({
   });
 
   const stored = view.last_submission;
+  // No response at all: the layout's banner and its 再試行 are the only way
+  // on, so the section shows neither its failure line nor a waiting line.
+  const unanswered =
+    due &&
+    stored?.state !== "pending" &&
+    wrapUp.isError &&
+    toApiError(wrapUp.error).kind === "unknown";
   // A wrap-up the refreshed view shows running (another tab's) outranks this
   // tab's own refused request: wait for it instead of offering [もう一度].
   const failure: string | null =
-    !due || stored?.state === "pending"
+    !due || stored?.state === "pending" || unanswered
       ? null
       : wrapUp.isPending
         ? null
@@ -171,7 +189,7 @@ export function TranscriptScreen({
           : stored !== null && stored.action === "wrap_up"
             ? wrapUpFailureLine(stored.failure_code)
             : null;
-  const waiting = due && failure === null;
+  const waiting = due && failure === null && !unanswered;
 
   function toggle(turn: number) {
     setOpen((previous) => {
@@ -320,7 +338,10 @@ export function TranscriptScreen({
       </HeaderItems>
       <h1 className="sr-only">{`${startLabel} からの会話（終了）`}</h1>
       {wide ? (
-        <div className="grid h-[calc(100dvh-3rem)] grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]">
+        <div
+          data-fill-viewport=""
+          className="grid min-h-0 flex-1 grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]"
+        >
           <section
             aria-label="会話"
             className="flex min-h-0 flex-col border-r border-line bg-canvas"
@@ -332,7 +353,7 @@ export function TranscriptScreen({
           </section>
         </div>
       ) : (
-        <div className="flex h-[calc(100dvh-3rem)] flex-col">
+        <div data-fill-viewport="" className="flex min-h-0 flex-1 flex-col">
           <div
             role="tablist"
             aria-label="会話とコーチ"

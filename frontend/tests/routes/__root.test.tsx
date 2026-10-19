@@ -5,12 +5,20 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-import type { MetaResponse, ProblemDetails } from "../../src/api/generated/types.gen";
+import type {
+  MetaResponse,
+  ProblemDetails,
+  SessionPageResponse,
+  SessionResponse,
+} from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
+import { SESSION_ID, serveSession, sessionView } from "../msw/helpers";
 import { server } from "../msw/server";
 
 const BADGE = "固定応答モード";
+const UNREACHABLE =
+  "アプリのサーバーに接続できません。起動しているか確認してください。";
 const TOOLTIP =
   "OpenRouter のキーが未設定のため、決まった応答で動いています。品質の確認には使えません。";
 
@@ -142,4 +150,158 @@ describe("the root layout", () => {
       );
     },
   );
+
+  it("shows the server-unreachable banner under the header on S1, and 再試行 reads the list again", async () => {
+    useMeta("openrouter");
+    let reachable = false;
+    let requests = 0;
+    server.use(
+      http.get("/api/sessions", () => {
+        requests += 1;
+        return reachable
+          ? HttpResponse.json<SessionPageResponse>({ items: [], next_cursor: null })
+          : HttpResponse.error();
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/");
+
+    // The query client retries a request with no response once, after a second.
+    const banner = await screen.findByText(
+      "アプリのサーバーに接続できません。起動しているか確認してください。",
+      {},
+      { timeout: 3000 },
+    );
+    const alert = banner.closest('[role="alert"]') as HTMLElement;
+    expect(
+      screen.getByRole("banner").compareDocumentPosition(alert) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(requests).toBe(2);
+    // One outage, one alert: S1's own load-failed banner stays out of it, also
+    // once the skeleton's minimum has ended.
+    await waitFor(() => expect(screen.queryByText("読み込んでいます…")).toBeNull());
+    expect(screen.getAllByRole("alert")).toEqual([alert]);
+    expect(
+      screen.queryByText("会話の一覧を読み込めませんでした。"),
+    ).not.toBeInTheDocument();
+    reachable = true;
+
+    await user.click(within(alert).getByRole("button", { name: "再試行" }));
+
+    expect(
+      await screen.findByText("まだ会話はありません。最初の会話を始めましょう。"),
+    ).toBeInTheDocument();
+    expect(requests).toBe(3);
+    expect(
+      screen.queryByText(
+        "アプリのサーバーに接続できません。起動しているか確認してください。",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the server-unreachable banner on S4 when the header's own request gets no response", async () => {
+    server.use(http.get("/api/meta", () => HttpResponse.error()));
+    renderAt("/settings");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "この会話は見つかりませんでした。",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "再試行" }, { timeout: 3000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the server-unreachable banner for S1's start with no response, and 再試行 starts it again", async () => {
+    useMeta("openrouter");
+    serveSession(sessionView());
+    let starts = 0;
+    server.use(
+      http.post("/api/sessions", () => {
+        starts += 1;
+        return starts === 1
+          ? HttpResponse.error()
+          : HttpResponse.json<SessionResponse>(sessionView(), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    const router = renderAt("/");
+
+    await user.click(await screen.findByRole("button", { name: "新しい会話を始める" }));
+
+    const banner = (await screen.findByText(UNREACHABLE)).closest(
+      '[role="alert"]',
+    ) as HTMLElement;
+    expect(screen.getAllByRole("alert")).toEqual([banner]);
+    await user.click(within(banner).getByRole("button", { name: "再試行" }));
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}`),
+    );
+    expect(starts).toBe(2);
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+  });
+
+  it("hides the server-unreachable banner once the screen whose read failed is left for a healthy one", async () => {
+    useMeta("openrouter");
+    server.use(http.get(`/api/sessions/${SESSION_ID}`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    const router = renderAt(`/sessions/${SESSION_ID}`);
+    expect(
+      await screen.findByText(UNREACHABLE, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Intent to English" }));
+
+    expect(
+      await screen.findByText("まだ会話はありません。最初の会話を始めましょう。"),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+  });
+
+  it("hides the server-unreachable banner once a later read gets an answer, even an error (S4)", async () => {
+    useMeta("openrouter");
+    let reads = 0;
+    server.use(
+      http.get(`/api/sessions/${SESSION_ID}`, () => {
+        reads += 1;
+        return reads <= 2
+          ? HttpResponse.error()
+          : HttpResponse.json<ProblemDetails>(
+              {
+                type: "about:blank",
+                title: "Not Found",
+                status: 404,
+                detail: "No such session",
+                code: "session_not_found",
+                request_id: "req-9",
+              },
+              { status: 404 },
+            );
+      }),
+    );
+    const router = renderAt(`/sessions/${SESSION_ID}`);
+    expect(
+      await screen.findByText(UNREACHABLE, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    // A read the screen makes by itself (not the banner's 再試行) gets an answer.
+    await act(() =>
+      router.options.context.queryClient.invalidateQueries({
+        queryKey: [{ _id: "getSession" }],
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "この会話は見つかりませんでした。",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+  });
 });
