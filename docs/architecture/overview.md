@@ -586,9 +586,6 @@ source of every value named here.
   result that gives the piece (conversation-rules §5.3, §5.4, §6). The owner decides how such a
   reply is coached; until then the checks apply as written and the fixed-response mode answers a
   one-word reply with no fix.
-- The long-wait line says 「時間がかかっています（最大60秒）」 (ux-guidelines § States), but an
-  action whose output fails its checks makes a second call with its own 60 s, so it can wait
-  about two minutes. The owner decides the copy; until then the screen shows it as written.
 - The Bedrock adapter's output mode: Claude Sonnet 5.5 rejects a forced tool call there too, so
   the adapter must use the JSON schema mode Bedrock's model supports — checked when the
   account's Bedrock quota allows (§2 Later).

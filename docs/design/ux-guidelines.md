@@ -50,7 +50,7 @@
 | Load failed | the list or the session failed to load | inline banner in place of the content; anything already shown stays | 再読み込み | 「会話の一覧を読み込めませんでした。」 / 「この会話を読み込めませんでした。」 |
 | Server unreachable | the app's own API does not answer (the local server is stopped) | banner under the header on every screen | 再試行 | 「アプリのサーバーに接続できません。起動しているか確認してください。」 |
 | Waiting for a model | a Partner or Coach call is running | nothing for the first 300 ms; then the status line (「Partner が返事を考えています…」 left pane, 「コーチが確認しています…」 right pane); the composer is disabled with its text kept | — | — |
-| Long wait | the same call passes 10 s | the status line becomes 「時間がかかっています（最大60秒）」 with [中止] | 中止 | — |
+| Long wait | the same action passes 10 s from the send | the status line becomes 「時間がかかっています（最大2分）」 with [中止] | 中止 | — |
 | Cancelled | 中止 | the stage as before the submission, the text back in an enabled composer, one quiet line 「中止しました。」 | 送信 | 「中止しました。」 |
 | Model failed | timeout (60 s), rate limited, provider unreachable or erroring, output still invalid after one repair | inline banner in the pane that expected the result; the stage does not move; the composer keeps the text | もう一度 | 「コーチの返事を受け取れませんでした（時間切れ）。」 — reasons: 時間切れ / 混み合っています / 接続できません / 返事の形式が正しくありませんでした; 「Partner の返事を…」 in the left pane |
 | Stale state | the server rejects a submission whose stage moved on (another tab, a double send) | banner at the top of the right pane; both panes reload | — | 「別の画面でこの会話が進みました。最新の状態を読み込みました。」 |
@@ -62,10 +62,10 @@
 | Rule | Value |
 |---|---|
 | Loading indicator delay | nothing under 300 ms; shown after 300 ms; once shown, kept at least 500 ms — avoids a flash on fast local calls |
-| Long waits | at 10 s the status says 「時間がかかっています（最大60秒）」 and offers [中止]; the call's own limit is 60 s (requirements §3.10) |
+| Long waits | at 10 s from the send the status says 「時間がかかっています（最大2分）」 and offers [中止]. Each model call's limit is 60 s (requirements §3.10), and one action may make two (a repair after a failed check), so the screen keeps no timer of its own and never abandons a request by itself: 「時間切れ」 comes from the server's 504 |
 | Cancel | abandons the wait: the stage stays as before the submission and the text returns to the composer; a result that arrives after the cancel is discarded by the server, never shown |
 | Submissions | wait for the server — no optimistic stage changes, since the next stage depends on a model's output; the send control shows the pending state and blocks a second send |
-| Ending a session | 「会話を終える」 becomes, in place, 「終えて振り返りを作りますか？ [終える] [戻る]」; it reverts by itself after 5 s untouched. No confirmation for [終わる] at the 3-reply check-in, which is already an explicit choice |
+| Ending a session | 「会話を終える」 stays usable while a call runs and ends the session at once: the server supersedes the call, and its late result is discarded, never shown. It becomes, in place, 「終えて振り返りを作りますか？ [終える] [戻る]」; it reverts by itself after 5 s untouched. No confirmation for [終わる] at the 3-reply check-in, which is already an explicit choice |
 | Error placement | input limits → under the composer; a failed load or model call → an inline banner in the pane concerned; a missing session → S4. No toasts, no modals |
 | Success feedback | the next block appearing is the confirmation; no separate "sent" messages |
 

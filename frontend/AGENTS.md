@@ -66,7 +66,7 @@ frontend/
 │   ├── routeTree.gen.ts  # Generated from routes/ by the router plugin; committed, never hand-edited
 │   ├── routes/           # File-based routes: __root.tsx (the layout and header), index.tsx (/), sessions.$sessionId.tsx (S2, S3 once ended), -NotFound.tsx (S4)
 │   ├── features/         # Screens and components grouped by feature (sessions/ for S1, conversation/ for S2, transcript/ for S3)
-│   ├── lib/              # Cross-feature query policy, Problem Details helpers, shared class lists and formats, and the header's HeaderItems slot
+│   ├── lib/              # Cross-feature query policy, Problem Details helpers, shared class lists and formats, the header's HeaderItems slot, the delayed loading indicator, model failure reasons, the failure Banner, and the server-unreachable status
 │   └── styles.css        # `@import "tailwindcss";`, imported by main.tsx only
 └── tests/            # Vitest tests (*.test.ts, *.test.tsx), mirroring src/, and setup.ts
 ```
