@@ -9,12 +9,16 @@ import type {
   MetaResponse,
   ProblemDetails,
   SessionPageResponse,
+  SessionResponse,
 } from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
+import { SESSION_ID, serveSession, sessionView } from "../msw/helpers";
 import { server } from "../msw/server";
 
 const BADGE = "固定応答モード";
+const UNREACHABLE =
+  "アプリのサーバーに接続できません。起動しているか確認してください。";
 const TOOLTIP =
   "OpenRouter のキーが未設定のため、決まった応答で動いています。品質の確認には使えません。";
 
@@ -202,5 +206,53 @@ describe("the root layout", () => {
     expect(
       await screen.findByRole("button", { name: "再試行" }, { timeout: 3000 }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the server-unreachable banner for S1's start with no response, and 再試行 starts it again", async () => {
+    useMeta("openrouter");
+    serveSession(sessionView());
+    let starts = 0;
+    server.use(
+      http.post("/api/sessions", () => {
+        starts += 1;
+        return starts === 1
+          ? HttpResponse.error()
+          : HttpResponse.json<SessionResponse>(sessionView(), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    const router = renderAt("/");
+
+    await user.click(await screen.findByRole("button", { name: "新しい会話を始める" }));
+
+    const banner = (await screen.findByText(UNREACHABLE)).closest(
+      '[role="alert"]',
+    ) as HTMLElement;
+    expect(screen.getAllByRole("alert")).toEqual([banner]);
+    await user.click(within(banner).getByRole("button", { name: "再試行" }));
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}`),
+    );
+    expect(starts).toBe(2);
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+  });
+
+  it("hides the server-unreachable banner once the screen whose read failed is left for a healthy one", async () => {
+    useMeta("openrouter");
+    server.use(http.get(`/api/sessions/${SESSION_ID}`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    const router = renderAt(`/sessions/${SESSION_ID}`);
+    expect(
+      await screen.findByText(UNREACHABLE, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Intent to English" }));
+
+    expect(
+      await screen.findByText("まだ会話はありません。最初の会話を始めましょう。"),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
   });
 });

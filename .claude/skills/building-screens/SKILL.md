@@ -103,8 +103,9 @@ Every error a query or mutation throws goes through the Problem Details helpers 
 - **No response at all is the layout's, on every screen.** A query with
   `kind: "unknown"` reaches the server-unreachable banner under the header by itself,
   through `ServerStatusProvider`'s watch on the query cache; a mutation reports one with
-  `useServerStatus().report(key, retry)` and resolves it once it gets through, as the
-  conversation screen does (`src/lib/ServerStatus.tsx`).
+  `useServerStatus().report(key, retry)` and resolves it once it gets through, as S1's
+  start, the conversation screen's actions, and S3's wrap-up do
+  (`src/lib/ServerStatus.tsx`). A query's entry also clears once no screen reads it.
 - **A failure the screen names renders through `Banner`** (`src/lib/Banner.tsx`): the
   danger tint, an icon, Japanese copy chosen by `code` (never `status`: two codes share
   502), and the one action that recovers. The conversation screen names a model failure

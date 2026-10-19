@@ -10,12 +10,16 @@ import { useDelayedLoading } from "../../lib/delayed-loading";
 import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatCount, formatStart } from "../../lib/format";
 import { toApiError } from "../../lib/problem-details";
+import { useServerStatus } from "../../lib/ServerStatus";
 import { FOCUS_RING, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../../lib/ui";
 
 /** One page of the list, as requirements §3.9 sets it. */
 export const SESSION_PAGE_SIZE = 20;
 /** How many characters of the opener a row shows before 「…」. */
 export const OPENER_LIMIT = 60;
+
+/** The key S1's start reports a request with no response under. */
+const START_KEY = "session-start";
 
 const TAGLINE = "英語で話す前に、日本語で言いたいことを決める練習";
 const SKELETON_ROWS = [0, 1, 2];
@@ -53,13 +57,22 @@ function StartSession() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const button = useRef<HTMLButtonElement>(null);
+  const status = useServerStatus();
   const start = useMutation({
     ...createSessionMutation(),
     onSuccess: async (view) => {
       void queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
       await navigate({ to: "/sessions/$sessionId", params: { sessionId: view.id } });
     },
+    // No response at all is the layout's banner, whose 再試行 starts it again.
+    onError: (error) => {
+      if (toApiError(error).kind === "unknown") {
+        status.report(START_KEY, () => start.mutate({}));
+      }
+    },
   });
+  const failure = start.isError ? toApiError(start.error) : null;
+  useEffect(() => () => status.resolve(START_KEY), [status]);
   useEffect(() => {
     // No scroll: coming back from a session, the router has already restored
     // where the learner was in the list.
@@ -71,12 +84,15 @@ function StartSession() {
         ref={button}
         type="button"
         disabled={start.isPending}
-        onClick={() => start.mutate({})}
+        onClick={() => {
+          status.resolve(START_KEY);
+          start.mutate({});
+        }}
         className={PRIMARY_BUTTON}
       >
         新しい会話を始める
       </button>
-      {start.isError && <ErrorMessage error={toApiError(start.error)} />}
+      {failure?.kind === "problem" && <ErrorMessage error={failure} />}
     </div>
   );
 }

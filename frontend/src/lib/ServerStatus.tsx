@@ -53,9 +53,18 @@ export function ServerStatusProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       queryClient.getQueryCache().subscribe((event) => {
+        const key = `query:${event.query.queryHash}`;
+        // A query no screen reads any more (the learner left it), or one gone
+        // from the cache, no longer holds the banner up.
+        if (
+          event.type === "removed" ||
+          (event.type === "observerRemoved" && event.query.getObserversCount() === 0)
+        ) {
+          status.resolve(key);
+          return;
+        }
         if (event.type !== "updated") return;
         const { query, action } = event;
-        const key = `query:${query.queryHash}`;
         if (action.type === "success") {
           status.resolve(key);
         } else if (

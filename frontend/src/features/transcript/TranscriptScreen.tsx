@@ -13,6 +13,7 @@ import type { SessionResponse } from "../../api/generated/types.gen";
 import { formatStart, formatTime } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { toApiError } from "../../lib/problem-details";
+import { useServerStatus } from "../../lib/ServerStatus";
 import {
   modelFailureReason,
   SUBMISSION_POLL_MS,
@@ -37,6 +38,9 @@ export function wrapUpFailureLine(code: string | null | undefined): string {
     ? "振り返りを作れませんでした。"
     : `振り返りを作れませんでした（${reason}）。`;
 }
+
+/** The key S3's wrap-up reports a request with no response under. */
+const WRAP_UP_KEY = "wrap-up";
 
 function codeOf(error: unknown): string | undefined {
   const apiError = toApiError(error);
@@ -103,6 +107,7 @@ export function TranscriptScreen({
       submissionPending(query.state.data) ? WRAP_UP_POLL_MS : false,
   });
 
+  const status = useServerStatus();
   const wrapUp = useMutation({
     ...performSessionActionMutation(),
     onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
@@ -112,8 +117,14 @@ export function TranscriptScreen({
       );
       await queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
     },
-    // The server records the failure on the session: read it back.
-    onError: () => queryClient.invalidateQueries({ queryKey: sessionKey }),
+    // The server records the failure on the session: read it back. No
+    // response at all is also the layout's banner, whose 再試行 sends it again.
+    onError: (error) => {
+      if (toApiError(error).kind === "unknown") {
+        status.report(WRAP_UP_KEY, () => latestSend.current());
+      }
+      return queryClient.invalidateQueries({ queryKey: sessionKey });
+    },
     onSettled: () => {
       inFlight.current = false;
     },
@@ -122,11 +133,19 @@ export function TranscriptScreen({
   function sendWrapUp() {
     if (inFlight.current) return;
     inFlight.current = true;
+    status.resolve(WRAP_UP_KEY);
     wrapUp.mutate({
       path: { session_id: view.id },
       body: { action: "wrap_up", version: view.version },
     });
   }
+
+  // What the layout's 再試行 calls: this render's send, at the version shown.
+  const latestSend = useRef(sendWrapUp);
+  useEffect(() => {
+    latestSend.current = sendWrapUp;
+  });
+  useEffect(() => () => status.resolve(WRAP_UP_KEY), [status]);
 
   const due = view.wrap_up === null;
   const autoSend = useEffectEvent(() => sendWrapUp());
