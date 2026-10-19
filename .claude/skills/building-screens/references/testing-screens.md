@@ -15,8 +15,9 @@ waiting, and the `baseUrl` trap under `jsdom` — is `writing-tests`'
 - A route test renders `createAppRouter(createQueryClient(), { history })` with
   `createMemoryHistory({ initialEntries: [path] })` inside a `QueryClientProvider`, as
   `frontend/tests/routes/index.test.tsx` does.
-- `todo(...)` in the same helpers builds a typed to-do for a handler's response, so a
-  contract change fails `tsc` in the test as well.
+- `sessionView(...)`, `sessionRow(...)`, and `entry(...)` in the same helpers build a
+  typed session for a handler's response, so a contract change fails `tsc` in the test
+  as well.
 
 ## The states a screen's test covers
 
@@ -24,7 +25,7 @@ Each state the screen renders gets its own `it`, with the handler that produces 
 
 - **Loading:** hold the handler on `deferred()`, assert the loading message or the
   disabled control, then `release()` it and wait for the settled state.
-- **Empty and data:** the default `GET /api/todos` handler answers an empty page; a
+- **Empty and data:** the default `GET /api/sessions` handler answers an empty page; a
   `server.use(...)` handler answers with items.
 - **A 422 next to its field:** a Problem Details body with `errors[].loc` naming the
   field; assert the message by `getByRole("alert")` and the input's `aria-invalid` and

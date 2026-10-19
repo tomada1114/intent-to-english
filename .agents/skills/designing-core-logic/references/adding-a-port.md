@@ -27,7 +27,7 @@ engine, a client) between calls. `SKILL.md` holds the rules these steps apply.
 
 ## Current composition wiring
 
-The builder returns both services, with the selected mode and resource ownership.
+The builder returns the service and model ports, with the selected mode and resource ownership.
 This illustration follows `composition.py`; the module holds the imports and types:
 
 ```python
@@ -39,8 +39,7 @@ def build_container(
     boot_id: UUID | None = None,
 ) -> Container:
     resources = ResourceClosers()
-    todo_repository, session_repository = _build_repositories(settings, resources)
-    todos = TodoService(todo_repository, clock, new_id)
+    session_repository = _build_repository(settings, resources)
     models = ModelPorts(FixedPartnerModel(), FixedCoachModel())
     conversations = ConversationService(
         session_repository,
@@ -50,8 +49,8 @@ def build_container(
         new_id,
         boot_id if boot_id is not None else uuid.uuid7(),
     )
+    # The live composition branch belongs to #28; a key never activates billing here.
     return Container(
-        todos=todos,
         conversations=conversations,
         models=models,
         model_mode="fixed",
@@ -59,8 +58,8 @@ def build_container(
     )
 ```
 
-`_build_repositories` registers one SQL engine's disposer and passes that engine to
-both repositories. A missing database URL selects independent memory repositories.
+`_build_repository` registers one SQL engine's disposer and passes that engine to the
+SQL session repository. A missing database URL selects the memory repository.
 
 ## An adapter that holds a resource
 

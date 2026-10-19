@@ -19,7 +19,7 @@ in general (`writing-python`).
 ## Two kinds of failure
 
 - **Expected:** the user's input or the state of their data breaks a domain rule — an
-  unknown id, an invalid title. It is raised as an `AppError` subclass, and the API
+  unknown id, an over-long text. It is raised as an `AppError` subclass, and the API
   turns it into an HTTP status in exactly one place. It is reported, not logged, and
   never shows a traceback.
 - **A bug:** anything else — a naive `datetime` from a clock, a driver error nobody
@@ -27,9 +27,9 @@ in general (`writing-python`).
   traceback: the API answers 500 Problem Details with code `internal_error` and
   detail `An unexpected error occurred`; the traceback goes only to the log. Never catch `Exception` to dress a bug up as a domain error.
 
-`core/models.py` draws the line in one function: `_check_invariants` raises
-`InvalidTodoError` for a bad title but a plain `ValueError` for a naive `created_at`,
-because "That is a bug in a clock or an adapter, not bad user input".
+The core draws the line by who supplied the value: `core/flow.py`'s `check_input` raises
+`InvalidInputError` for a learner's over-long text, but `core/models.py`'s `check_aware`
+raises a plain `ValueError` for a naive timestamp, a bug in a clock or an adapter.
 
 ## The hierarchy
 
@@ -50,25 +50,25 @@ caller needs data it carries. Otherwise raise an existing class with a new messa
   It must be safe to hand a client: never a credential, a SQL statement, a server path,
   or a stack detail.
 
-`TodoNotFoundError` has all three properties. Excerpts in this skill drop docstrings
+`SessionNotFoundError` has all three properties. Excerpts in this skill drop docstrings
 where marked; the real code keeps them, because ruff's `D` rules require them.
 
 ```python
-class TodoNotFoundError(AppError):
+class SessionNotFoundError(AppError):
     # ... docstrings elided
-    code: ClassVar[str] = "todo_not_found"
+    code: ClassVar[str] = "session_not_found"
 
-    def __init__(self, todo_id: UUID) -> None:
-        super().__init__(todo_id)
-        self.todo_id = todo_id
+    def __init__(self, session_id: UUID) -> None:
+        super().__init__(session_id)
+        self.session_id = session_id
 
     def __str__(self) -> str:
-        return f"To-do {self.todo_id} not found"
+        return f"Session {self.session_id} not found"
 ```
 
 A message-only error takes the message as its one argument, built in a variable first:
-`normalize_title` builds `msg` and raises `InvalidTodoError(msg)`; `InvalidCursorError`
-and `InvalidPageLimitError` are message-only too. `InvalidCursorError`'s fixed message
+`check_page_limit` builds `msg` and raises `InvalidPageLimitError(msg)`;
+`InvalidCursorError` is message-only too. `InvalidCursorError`'s fixed message
 never echoes the cursor, which is client input of any length.
 
 ## Raise in the core, translate in the adapter
@@ -76,11 +76,11 @@ never echoes the cursor, which is client input of any length.
 The core raises a domain error where it checks the rule. An adapter translates its
 driver's failure into the error the port's `Raises:` section promises, because the
 port's docstring is the contract and
-`backend/tests/adapters/test_repository_contract.py` holds every adapter to it.
-`InMemoryTodoRepository` turns a `KeyError` into
-`TodoNotFoundError`, and both repositories raise `InvalidCursorError` for a page cursor
-they did not issue (`adapters/cursor.py`). A port may also promise a builtin exception
-for a bug: `add` of an id already stored raises `ValueError`, so `SqlTodoRepository`
+`backend/tests/adapters/test_session_repository_contract.py` holds every adapter to it.
+`InMemorySessionRepository` turns a `KeyError` into
+`SessionNotFoundError`, and both repositories raise `InvalidCursorError` for a page cursor
+that is malformed or not in the canonical `session:` encoding (`adapters/cursor.py`). A port may also promise a builtin exception
+for a bug: `create` of an id already stored raises `ValueError`, so `SqlSessionRepository`
 translates only SQLAlchemy's `IntegrityError` into it. A driver failure with no meaning
 in the port — a locked database, a full disk, a missing table — stays a bug and
 propagates.
@@ -93,10 +93,19 @@ table is `_status_for` in `api/app.py`, and nowhere else:
 | Core error | HTTP status | Code |
 |---|---|---|
 | `AppError` (fallback) | 400 | `app_error` |
-| `TodoNotFoundError` | 404 | `todo_not_found` |
-| `InvalidTodoError` | 422 | `invalid_todo` |
+| `SessionNotFoundError` | 404 | `session_not_found` |
 | `InvalidCursorError` | 422 | `invalid_cursor` |
 | `InvalidPageLimitError` | 422 | `invalid_page_limit` |
+| `InvalidInputError` | 422 | `invalid_input` |
+| `StaleSessionError` | 409 | `stale_session` |
+| `ActionInProgressError` | 409 | `action_in_progress` |
+| `ActionNotAllowedError` | 409 | `action_not_allowed` |
+| `SessionEndedError` | 409 | `session_ended` |
+| `ActionCancelledError` | 409 | `action_cancelled` |
+| `ModelTimeoutError` | 504 | `model_timeout` |
+| `ModelRateLimitedError` | 503 | `model_rate_limited` |
+| `ModelUnavailableError` | 502 | `model_unavailable` |
+| `ModelOutputInvalidError` | 502 | `model_output_invalid` |
 
 Every error is `application/problem+json`, serialized with `exclude_none=True`:
 `{"type": "about:blank", "title": <HTTPStatus phrase>, "status": <number>,
@@ -117,7 +126,7 @@ The factory also handles non-domain failures:
   Never echo exception text; test with `raise_server_exceptions=False`.
 
 Each status names a cause. 404 means the named thing does not exist. 422 means the
-request parsed but its input breaks a domain rule on a field — `InvalidTodoError`'s
+request parsed but its input breaks a domain rule on a field — `InvalidInputError`'s
 kind of failure, and a cursor or page limit the core rejects. A new error class gets
 its own case when a specific status names its cause: 404 for something missing, 409
 `HTTPStatus.CONFLICT` for a conflict with the current state such as a duplicate, 422
@@ -142,10 +151,11 @@ Adding a status for a new error:
 
 ```python
 match error:
-    case TodoNotFoundError():
+    case SessionNotFoundError():
         status = HTTPStatus.NOT_FOUND
-    case InvalidTodoError() | InvalidCursorError() | InvalidPageLimitError():
+    case InvalidCursorError() | InvalidPageLimitError() | InvalidInputError():
         status = HTTPStatus.UNPROCESSABLE_CONTENT
+    # ... the 409, 502, 503, and 504 cases elided
     case _:
         status = HTTPStatus.BAD_REQUEST
 return status

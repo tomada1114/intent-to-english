@@ -65,7 +65,7 @@ env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPEN
 
 Set `INTENT_TO_ENGLISH_DATABASE_URL=` for the in-memory store, or point it at a file in a
 directory from `mktemp -d`, outside the checkout
-(`db="sqlite+aiosqlite:///$(mktemp -d)/todos.db"`); a relative path would create the
+(`db="sqlite+aiosqlite:///$(mktemp -d)/sessions.db"`); a relative path would create the
 file in the working directory. Never point it at `backend/var/dev.db`, the developer's
 database. The app never creates its schema, so migrate the scratch file first, in the
 same shell command (**BACKGROUND:** `persisting-data`):
@@ -118,7 +118,7 @@ if [ "$rc" = 1 ]; then
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
   if uv --no-cache run --locked python -c "$ready" "$log" "$port" && kill -0 "$pid" 2>/dev/null; then
     curl -sS -i "http://127.0.0.1:$port/healthz"; echo
-    curl -sS -i -X POST "http://127.0.0.1:$port/api/todos" -H 'content-type: application/json' -d '{"title": "buy milk"}'; echo
+    curl -sS -i -X POST "http://127.0.0.1:$port/api/sessions"; echo
   else
     echo "the server did not start; nothing was sent"
   fi
@@ -149,34 +149,34 @@ fi
 - **A host that runs long commands in the background** follows the same steps; the stop
   and the final check still happen before the turn ends.
 
-The output collected before request-id logging was added, under bash and zsh,
-observed 2026-10-09 (the port, the
-timestamps, and the generated id vary):
+The output under bash and zsh, observed 2026-10-19 (the port, the timestamps, and the
+generated ids vary):
 
 ```console
 HTTP/1.1 200 OK
-date: Fri, 09 Oct 2026 18:06:37 GMT
+date: Mon, 19 Oct 2026 18:47:29 GMT
 server: uvicorn
 content-length: 15
 content-type: application/json
+x-request-id: 01a1557d-7b53-70e2-811b-f2d491febf85
 
 {"status":"ok"}
 HTTP/1.1 201 Created
-date: Fri, 09 Oct 2026 18:06:37 GMT
+date: Mon, 19 Oct 2026 18:47:29 GMT
 server: uvicorn
-content-length: 125
+content-length: 283
 content-type: application/json
+x-request-id: 01a1557d-7b60-7458-9c09-e4d59fe9f679
 
-{"id":"01a121d8-7aea-7490-9f79-a15feba20afd","title":"buy milk","completed":false,"created_at":"2026-10-09T18:06:37.802851Z"}
-nothing listening on 60945
-INFO:     Uvicorn running on http://127.0.0.1:60945 (Press CTRL+C to quit)
-INFO:     Finished server process [98971]
+{"id":"01a1557d-7b74-7069-bd73-f948d7c0f26c","status":"in_progress","stage":"opening","version":0,"turn_index":1,"finished_replies":0,"started_at":"2026-10-19T18:47:29.396702Z","ended_at":null,"allowed_actions":["open","ask","end"],"entries":[],"last_submission":null,"wrap_up":null}
+nothing listening on 61901
+INFO:     Uvicorn running on http://127.0.0.1:61901 (Press CTRL+C to quit)
+INFO:     Finished server process [8473]
 ```
 
-The server command is the one `just backend dev` serves with, minus `--reload`, plus
-`--port`; unlike `just dev`, it migrates nothing and, with `INTENT_TO_ENGLISH_DATABASE_URL`
-explicitly empty, keeps to-dos in memory even when `backend/.env` sets a URL. That
-store starts empty on every start; create what a request needs with a `POST` first.
+The server command is the one `just backend dev` serves with, minus `--reload`, plus `--port`; unlike `just dev`, it migrates nothing and,
+with `INTENT_TO_ENGLISH_DATABASE_URL` explicitly empty, keeps sessions in memory even when `backend/.env` sets a URL.
+That store starts empty on every start; create what a request needs with a `POST` first.
 
 ## Running a `just dev` pair of your own
 

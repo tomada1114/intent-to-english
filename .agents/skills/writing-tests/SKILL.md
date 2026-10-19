@@ -52,7 +52,7 @@ timer. The rules, the MSW server's unhandled-request behavior, and why the clien
 - Test *behavior and contracts*, not implementation details. A test that breaks on a
   refactor while behavior is unchanged was testing the implementation.
 - Go through each layer's public modules —
-  `from intent_to_english.core.services import TodoService` — never a private helper directly.
+  `from intent_to_english.core.services import ConversationService` — never a private helper directly.
   Wanting to reach a private helper means the module is the wrong shape, not that the
   test needs an exception.
 - Cover the happy path **and** the error path of every public function.
@@ -107,7 +107,7 @@ checked.
 - **Empty inputs:** empty string, empty list, empty dict, `None` where optional.
 - **Boundary values:** 0, 1, -1, the largest and smallest values the code accepts,
   `float("inf")`, `float("nan")`; one past every documented limit
-  (`MAX_TITLE_LENGTH` + 1).
+  (`MAX_TEXT_LENGTH` + 1).
 - **Type boundaries:** very long strings, unicode and emoji, mixed encodings,
   surrounding whitespace.
 - **Collection boundaries:** a single element, duplicate elements, the largest expected
@@ -142,7 +142,7 @@ checked.
 
 - Prefer a factory fixture to a static one: it returns a callable that builds a
   customizable object (`def make_user(**overrides)`). `make_container` and
-  `backend/tests/api/test_todos.py`'s `make_todo` are the shape.
+  `backend/tests/core/conftest.py`'s `make_conversation` are the shape.
 - `tmp_path` for every file the test writes; never write into the repository tree.
 - `monkeypatch` for environment variables and attributes — `monkeypatch.setenv`,
   never `os.environ[...] =` — so the change is undone after the test.
@@ -156,7 +156,7 @@ checked.
 - Mock only at a boundary: I/O, network, clock, a subprocess, an external service —
   never the unit under test and never an internal collaborator.
 - Prefer a fake (a real in-memory implementation) to a mock for a repository or a store.
-  `InMemoryTodoRepository` is the core's fake, `fixed_clock` fixes time, and `new_id`
+  `InMemorySessionRepository` is the core's fake, `fixed_clock` fixes time, and `new_id`
   fixes ids; all are real code paths, so the code under test runs as in production.
 - Assert on outcomes and captured arguments, not on how many times something was called
   — except when the call itself is the contract: retry or rate-limit behavior, a step

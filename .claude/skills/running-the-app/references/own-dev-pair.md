@@ -58,7 +58,7 @@ for _ in range(600):
 sys.exit(1)'
 free='import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
 api=$(uv --no-cache run --locked python -c "$free"); vite=$(uv --no-cache run --locked python -c "$free")
-db="sqlite+aiosqlite:///$(mktemp -d)/todos.db"
+db="sqlite+aiosqlite:///$(mktemp -d)/sessions.db"
 log=$(mktemp)
 uv --no-cache run --locked python -c "$probe" "$api"; a=$?
 uv --no-cache run --locked python -c "$probe" "$vite"; v=$?
@@ -68,7 +68,7 @@ if [ "$a" = 1 ] && [ "$v" = 1 ] && [ "$api" != "$vite" ]; then
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
   if uv --no-cache run --locked python -c "$ready" "$log" "$api" "$vite" "$pid"; then
     curl -sS -i "http://localhost:$vite/healthz"; echo
-    curl -sS -i -X POST "http://localhost:$vite/api/todos" -H 'content-type: application/json' -d '{"title": "buy milk"}'; echo
+    curl -sS -i -X POST "http://localhost:$vite/api/sessions"; echo
   else
     echo "the pair did not start; nothing was sent"
   fi
@@ -89,8 +89,8 @@ fi
 
 ## What it prints
 
-The output, observed 2026-10-14 under bash and zsh (the ports, the timestamps, and the
-ids vary; headers trimmed to the status line):
+The output, observed 2026-10-19 under bash and zsh (the ports, the timestamps, the ids,
+and the order of the two server lines vary; headers trimmed to the status line):
 
 ```console
 HTTP/1.1 200 OK
@@ -98,13 +98,13 @@ HTTP/1.1 200 OK
 {"status":"ok"}
 HTTP/1.1 201 Created
 
-{"id":"01a1385e-c7b2-7465-8688-af3c8fe99376","title":"buy milk","completed":false,"created_at":"2026-10-14T03:04:58.034427Z"}
+{"id":"01a15583-9238-731a-a2e1-de669035f939","status":"in_progress","stage":"opening","version":0,"turn_index":1,"finished_replies":0,"started_at":"2026-10-19T18:54:08.440828Z","ended_at":null,"allowed_actions":["open","ask","end"],"entries":[],"last_submission":null,"wrap_up":null}
 just dev exited 143
-nothing listening on 61985
-nothing listening on 61986
-INFO:     Uvicorn running on http://127.0.0.1:61985 (Press CTRL+C to quit)
-  ➜  Local:   http://localhost:61986/
-INFO:     Finished server process [53220]
+nothing listening on 62760
+nothing listening on 62761
+  ➜  Local:   http://localhost:62761/
+INFO:     Uvicorn running on http://127.0.0.1:62760 (Press CTRL+C to quit)
+INFO:     Finished server process [53334]
 ```
 
 A taken `VITE_PORT` shows the failure path: Vite prints `Port <port> is already in use`

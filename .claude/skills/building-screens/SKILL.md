@@ -58,14 +58,14 @@ checks are `frontend/AGENTS.md`'s.
 - **A mutation invalidates the queries it changes**, in its `onSuccess` or `onSettled`.
   A generated query key is an array of one object whose `_id` is the operation name, and
   `queryKey: [{ _id: "<operation>" }]` matches every key of that operation, whatever its
-  parameters, plain and infinite alike (observed in
-  `frontend/tests/features/todos/CreateTodoForm.test.tsx`, 2026-10-13). Invalidate in
-  `onSettled` when a failure can also mean the cache is stale. The to-do form
-  invalidates `[{ _id: "listTodos" }]` after a create, and each to-do row on every
-  settlement, so its loaded pages refetch from the first cursor even after a 404.
+  parameters, plain and infinite alike (observed on the `listSessionsOptions` and
+  `listSessionsInfiniteOptions` keys, 2026-10-19). Invalidate in `onSettled` when a
+  failure can also mean the cache is stale. The home screen's start button invalidates
+  `[{ _id: "listSessions" }]` after a create, and the conversation screen after each
+  action's result, so the list's loaded pages refetch from the first cursor.
 - **A paged list passes its own cursor rule** to `useInfiniteQuery`: the generated
   infinite options' `getNextPageParam` stops after one page, so the caller overrides
-  it. The to-do screen passes `initialPageParam: {}` and reads `next_cursor`.
+  it. The home screen's session list passes `initialPageParam: {}` and reads `next_cursor`.
 - **Server state lives in the TanStack Query cache, never in component state.** Read
   `query.data` where it is rendered; a `useState` copied from it goes stale on the next
   refetch.
@@ -97,16 +97,16 @@ Every error a query or mutation throws goes through the Problem Details helpers 
 - **A field error renders next to its input**, never only in a banner: the input gets
   `aria-invalid` and `aria-describedby` pointing at the message element, which has
   `role="alert"`. Read `fieldErrors[<field name>]` on a 422, and branch on `code`, not
-  on `detail` text, for a domain 422 that names no field. The to-do form shows both the
-  parsing 422's `fieldErrors.title` and the domain `invalid_todo` 422 under its title
-  input.
+  on `detail` text, for a domain 422 that names no field. The conversation screen shows
+  both the parsing 422's `fieldErrors.text` and the domain `invalid_input` 422 under its
+  composer.
 - **Everything else renders through `ErrorMessage`.** For a 5xx it shows a generic
   message plus the request id when the body carries one; for `kind: "unknown"` (no
   response) a generic connection message, with no request id to show; for another 4xx,
   the body's `detail`, else its `title`.
 - A screen that handles a code itself still parses the error with `toApiError` first.
-  The to-do row reads `code === "todo_not_found"` on a 404 and reloads the list instead
-  of showing an error.
+  The conversation screen reads `code === "invalid_input"` on a 422 and shows its
+  `detail` under the composer instead of in a banner.
 
 ## Styling
 

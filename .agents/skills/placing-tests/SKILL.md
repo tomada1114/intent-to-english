@@ -43,7 +43,7 @@ Both hold a `tests` package, so each tree runs on its own.
 Three files hold a rule for a whole layer rather than one module, and grow by a new case
 rather than by a new file:
 
-- `backend/tests/adapters/test_repository_contract.py` — the one contract suite every
+- `backend/tests/adapters/test_session_repository_contract.py` — the one contract suite every
   repository adapter runs; how an adapter joins it, and what goes in its own file
   instead. **REQUIRED:** `designing-core-logic`.
 - `backend/tests/core/test_imports.py` — the core's import boundary. **BACKGROUND:**
@@ -82,7 +82,7 @@ The frontend's suite is `frontend/tests/`, run by Vitest with
   otherwise never runs and moves no number.
 - A screen is tested through its feature component, and its route file through the
   router; a component a screen renders may be covered by the screen's test instead of
-  a file of its own (`TodoList.tsx` is). **REQUIRED:** `building-screens`.
+  a file of its own (`HintRequest.tsx` is). **REQUIRED:** `building-screens`.
 - Shared test code lives under `frontend/tests/`: `setup.ts` (the jest-dom matchers and
   `cleanup`, run before every file), `msw/server.ts` (the MSW server and its default
   handlers), and `msw/helpers.tsx` (`renderWithQuery`, `deferred`, and the typed session
@@ -102,8 +102,8 @@ uv run --locked --directory backend pytest tests/<layer>/   # one app layer
 just backend test                                           # the app's suite, coverage floor
 uv run --locked pytest tests/test_<script>.py               # one root test file
 just test                                                   # both suites and the frontend's
-pnpm --dir frontend exec vitest run tests/features/todos/TodoItem.test.tsx  # one frontend file
-pnpm --dir frontend exec vitest run TodoItem -t "TodoItem > completes"       # one frontend test
+pnpm --dir frontend exec vitest run tests/features/conversation/EndSession.test.tsx  # one frontend file
+pnpm --dir frontend exec vitest run EndSession -t "EndSession > ends the session"     # one frontend test
 just frontend test                                          # the frontend's suite, coverage gate
 just e2e                                                    # the browser test
 ```
