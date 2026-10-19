@@ -53,13 +53,12 @@ def act_session(client):
 
 
 @pytest.fixture
-def conversation_container(make_container, fixed_clock, new_id, nth_id):
+def conversation_container(fixed_clock, new_id, nth_id):
     """Inject a scripted Partner through the real memory conversation service."""
 
     def build(partner):
         models = ModelPorts(partner, FixedCoachModel())
         return Container(
-            make_container().todos,
             models=models,
             conversations=ConversationService(
                 InMemorySessionRepository(),

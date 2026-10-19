@@ -11,8 +11,6 @@ from intent_to_english.core.errors import (
     AppError,
     InvalidCursorError,
     InvalidPageLimitError,
-    InvalidTodoError,
-    TodoNotFoundError,
 )
 from intent_to_english.core.models import Action, ModelTask, Stage
 
@@ -42,8 +40,6 @@ SESSION_ERRORS = [
     "error",
     [
         *SESSION_ERRORS,
-        pytest.param(TodoNotFoundError(SOME_ID), id="not-found"),
-        pytest.param(InvalidTodoError("bad title"), id="invalid"),
         pytest.param(InvalidCursorError("bad cursor"), id="invalid-cursor"),
         pytest.param(InvalidPageLimitError("bad limit"), id="invalid-page-limit"),
     ],
@@ -52,19 +48,10 @@ def test_domain_error_is_an_app_error(error):
     assert isinstance(error, AppError)
 
 
-def test_todo_not_found_error_keeps_the_missing_id_and_names_it():
-    error = TodoNotFoundError(SOME_ID)
-
-    assert error.todo_id == SOME_ID
-    assert str(error) == "To-do 01900000-0000-7000-8000-00000000002a not found"
-
-
 @pytest.mark.parametrize(
     "error",
     [
         *SESSION_ERRORS,
-        pytest.param(TodoNotFoundError(SOME_ID), id="not-found"),
-        pytest.param(InvalidTodoError("bad title"), id="invalid"),
         pytest.param(InvalidCursorError("bad cursor"), id="invalid-cursor"),
         pytest.param(InvalidPageLimitError("bad limit"), id="invalid-page-limit"),
     ],
@@ -75,12 +62,6 @@ def test_domain_error_pickle_round_trip_keeps_type_message_and_args(error):
     assert type(restored) is type(error)
     assert str(restored) == str(error)
     assert restored.args == error.args
-
-
-def test_todo_not_found_error_pickle_round_trip_keeps_the_id():
-    restored = pickle.loads(pickle.dumps(TodoNotFoundError(SOME_ID)))  # noqa: S301 - our own bytes
-
-    assert restored.todo_id == SOME_ID
 
 
 def test_every_app_error_declares_its_own_unique_code():

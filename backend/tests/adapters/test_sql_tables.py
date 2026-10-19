@@ -13,40 +13,44 @@ from sqlalchemy.schema import CreateIndex
 
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
-from intent_to_english.adapters.sql.tables import UtcDateTime, metadata, todos
+from intent_to_english.adapters.sql.tables import UtcDateTime, metadata, sessions
 from intent_to_english.core import coaching, models
 from intent_to_english.core.errors import SessionNotFoundError
 
 pytestmark = pytest.mark.anyio
 
 TOKYO = timezone(timedelta(hours=9))
-TODO_ID = UUID("01900000-0000-7000-8000-000000000001")
+SESSION_ID = UUID("01900000-0000-7000-8000-000000000001")
 
 
 @pytest.fixture
 async def engine(tmp_path):
-    built = make_engine(f"sqlite+aiosqlite:///{tmp_path / 'todos.db'}")
+    built = make_engine(f"sqlite+aiosqlite:///{tmp_path / 'app.db'}")
     async with built.begin() as connection:
         await connection.run_sync(metadata.create_all)
     yield built
     await built.dispose()
 
 
-def _row(created_at: datetime) -> dict[str, object]:
+def _row(started_at: datetime) -> dict[str, object]:
     return {
-        "id": TODO_ID,
-        "title": "buy milk",
-        "is_completed": False,
-        "created_at": created_at,
+        "id": SESSION_ID,
+        "started_at": started_at,
+        "status": "in_progress",
+        "stage": "opening",
+        "turn_index": 1,
+        "turn_state": {},
+        "version": 0,
+        "finished_replies": 0,
     }
 
 
 async def test_utc_datetime_aware_value_is_stored_as_naive_utc(engine):
     async with engine.begin() as connection:
         await connection.execute(
-            insert(todos), _row(datetime(2026, 1, 2, 21, 4, 5, tzinfo=TOKYO))
+            insert(sessions), _row(datetime(2026, 1, 2, 21, 4, 5, tzinfo=TOKYO))
         )
-        stored = await connection.scalar(text("SELECT created_at FROM todos"))
+        stored = await connection.scalar(text("SELECT started_at FROM sessions"))
 
     assert stored == "2026-01-02 12:04:05.000000"
 
@@ -54,8 +58,8 @@ async def test_utc_datetime_aware_value_is_stored_as_naive_utc(engine):
 async def test_utc_datetime_read_back_is_the_same_instant_in_utc(engine):
     written = datetime(2026, 1, 2, 21, 4, 5, tzinfo=TOKYO)
     async with engine.begin() as connection:
-        await connection.execute(insert(todos), _row(written))
-        read = await connection.scalar(select(todos.c.created_at))
+        await connection.execute(insert(sessions), _row(written))
+        read = await connection.scalar(select(sessions.c.started_at))
 
     assert read == written
     assert read.tzinfo is UTC
@@ -66,24 +70,30 @@ async def test_utc_datetime_naive_value_raises_and_stores_nothing(engine):
 
     with pytest.raises(StatementError, match=r"must be timezone-aware"):
         async with engine.begin() as connection:
-            await connection.execute(insert(todos), _row(naive))
+            await connection.execute(insert(sessions), _row(naive))
 
     async with engine.connect() as connection:
-        assert await connection.scalar(select(todos.c.id)) is None
+        assert await connection.scalar(select(sessions.c.id)) is None
 
 
 async def test_utc_datetime_none_passes_through_both_ways(engine):
-    # A nullable column of this type (none exists yet) stores and reads NULL.
-    async with engine.connect() as connection:
-        read = await connection.scalar(
+    # A nullable column of this type, ended_at, stores and reads NULL.
+    async with engine.begin() as connection:
+        await connection.execute(
+            insert(sessions),
+            _row(datetime(2026, 1, 2, tzinfo=UTC)) | {"ended_at": None},
+        )
+        read = await connection.scalar(select(sessions.c.ended_at))
+        unbound = await connection.scalar(
             select(bindparam("nothing", None, type_=UtcDateTime))
         )
 
     assert read is None
+    assert unbound is None
 
 
 def test_metadata_names_constraints_by_the_naming_convention():
-    assert todos.primary_key.name == "pk_todos"
+    assert sessions.primary_key.name == "pk_sessions"
 
 
 def test_session_tables_have_the_documented_columns_and_nullability():

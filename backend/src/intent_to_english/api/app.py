@@ -20,7 +20,7 @@ from intent_to_english.api.middleware import (
     RequestIdMiddleware,
     ServerDiagnosticMiddleware,
 )
-from intent_to_english.api.routers import health, meta, sessions, todos
+from intent_to_english.api.routers import health, meta, sessions
 from intent_to_english.api.schemas import (
     PROBLEM_MEDIA_TYPE,
     ProblemDetails,
@@ -37,7 +37,6 @@ from intent_to_english.core.errors import (
     InvalidCursorError,
     InvalidInputError,
     InvalidPageLimitError,
-    InvalidTodoError,
     ModelOutputInvalidError,
     ModelRateLimitedError,
     ModelTimeoutError,
@@ -45,7 +44,6 @@ from intent_to_english.core.errors import (
     SessionEndedError,
     SessionNotFoundError,
     StaleSessionError,
-    TodoNotFoundError,
 )
 from intent_to_english.logging_config import configure_logging, request_id_var
 from intent_to_english.settings import Settings
@@ -190,7 +188,6 @@ def create_app(
     app.cors_origins = tuple(settings.cors_origins)
     app.state.container = services
     app.include_router(health.router)
-    app.include_router(todos.router, prefix=API_PREFIX)
     app.include_router(sessions.router, prefix=API_PREFIX)
     app.include_router(meta.router, prefix=API_PREFIX)
     # The decorator form, unlike add_exception_handler, type-checks a handler
@@ -216,14 +213,9 @@ def _status_for(error: AppError) -> HTTPStatus:
         The status to answer with.
     """
     match error:
-        case TodoNotFoundError() | SessionNotFoundError():
+        case SessionNotFoundError():
             status = HTTPStatus.NOT_FOUND
-        case (
-            InvalidTodoError()
-            | InvalidCursorError()
-            | InvalidPageLimitError()
-            | InvalidInputError()
-        ):
+        case InvalidCursorError() | InvalidPageLimitError() | InvalidInputError():
             status = HTTPStatus.UNPROCESSABLE_CONTENT
         case (
             StaleSessionError()

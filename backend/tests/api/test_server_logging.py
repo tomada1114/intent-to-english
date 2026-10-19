@@ -241,7 +241,7 @@ async def test_server_error_before_headers_keeps_safe_correlated_diagnostics(
         owned_server(tmp_path, migrated_sqlite_url, fmt) as evidence,
         httpx.AsyncClient(base_url=f"http://127.0.0.1:{evidence.port}") as client,
     ):
-        seed = await client.post("/api/todos", json={"title": "safe seed"})
+        seed = await client.post("/api/sessions")
         assert seed.status_code == 201  # Open the actual migrated SQL engine.
         response = await client.post(
             "/probe/before",

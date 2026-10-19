@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, override
 
 from sqlalchemy import (
     JSON,
-    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -26,8 +25,6 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
 )
-
-from intent_to_english.core.models import MAX_TITLE_LENGTH
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Dialect
@@ -50,7 +47,7 @@ class UtcDateTime(TypeDecorator[datetime]):
     in, so storing naive UTC behaves the same on both: an aware value is
     converted to UTC and stored without its offset, and a value read back has
     UTC attached. A naive value is refused rather than guessed at: it is a bug
-    in a clock or a caller, as ``Todo`` treats it.
+    in a clock or a caller, as ``Session`` treats it.
     """
 
     impl = DateTime
@@ -83,17 +80,6 @@ class UtcDateTime(TypeDecorator[datetime]):
 
 
 metadata = MetaData(naming_convention=NAMING_CONVENTION)
-
-todos = Table(
-    "todos",
-    metadata,
-    # The application generates ids (UUIDv7, ascending in creation order);
-    # pages read in id order.
-    Column("id", Uuid, primary_key=True),
-    Column("title", String(MAX_TITLE_LENGTH), nullable=False),
-    Column("is_completed", Boolean, nullable=False),
-    Column("created_at", UtcDateTime, nullable=False),
-)
 
 sessions = Table(
     "sessions",

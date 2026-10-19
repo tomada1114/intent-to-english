@@ -33,6 +33,19 @@ def _inspect(url: str) -> Iterator[Inspector]:
         engine.dispose()
 
 
+APP_TABLES = {"sessions", "timeline_entries", "submissions", "model_calls"}
+TODOS_REVISION = "f58f944d0d8e"
+SESSIONS_REVISION = "de3f10d569ec"
+
+
+def _todos_shape(inspector: Inspector) -> tuple[object, ...]:
+    columns = [
+        (column["name"], str(column["type"]), column["nullable"])
+        for column in inspector.get_columns("todos")
+    ]
+    return (columns, inspector.get_pk_constraint("todos"))
+
+
 def test_upgrade_head_matches_metadata(alembic_config, sqlite_url):
     command.upgrade(alembic_config, "head")
 
@@ -42,22 +55,37 @@ def test_upgrade_head_matches_metadata(alembic_config, sqlite_url):
         assert set(inspector.get_table_names()) == {"alembic_version", *metadata.tables}
 
 
-def test_upgrade_head_creates_todos_as_tables_declares(alembic_config, sqlite_url):
+def test_upgrade_head_leaves_only_the_session_tables(alembic_config, sqlite_url):
     command.upgrade(alembic_config, "head")
 
     with _inspect(sqlite_url) as inspector:
-        columns = {
-            column["name"]: column["nullable"]
-            for column in inspector.get_columns("todos")
-        }
-        primary_key = inspector.get_pk_constraint("todos")
+        assert set(inspector.get_table_names()) == {"alembic_version", *APP_TABLES}
 
-    assert columns == {
-        "id": False,
-        "title": False,
-        "is_completed": False,
-        "created_at": False,
-    }
+
+def test_downgrade_one_step_recreates_todos_as_its_revision_made_it(
+    alembic_config, sqlite_url
+):
+    command.upgrade(alembic_config, SESSIONS_REVISION)
+    with _inspect(sqlite_url) as inspector:
+        before = _todos_shape(inspector)
+    command.upgrade(alembic_config, "head")
+
+    command.downgrade(alembic_config, "-1")
+
+    with _inspect(sqlite_url) as inspector:
+        assert set(inspector.get_table_names()) == {
+            "alembic_version",
+            "todos",
+            *APP_TABLES,
+        }
+        assert _todos_shape(inspector) == before
+    columns, primary_key = before
+    assert columns == [
+        ("id", "CHAR(32)", False),
+        ("title", "VARCHAR(200)", False),
+        ("is_completed", "BOOLEAN", False),
+        ("created_at", "DATETIME", False),
+    ]
     assert primary_key == {"constrained_columns": ["id"], "name": "pk_todos"}
 
 
@@ -71,7 +99,7 @@ def test_check_table_missing_from_migrations_raises_naming_it(alembic_config):
         metadata.remove(unmigrated)
 
 
-def test_downgrade_base_leaves_no_todos_table(alembic_config, sqlite_url):
+def test_downgrade_base_leaves_only_the_version_table(alembic_config, sqlite_url):
     command.upgrade(alembic_config, "head")
 
     command.downgrade(alembic_config, "base")
@@ -80,9 +108,9 @@ def test_downgrade_base_leaves_no_todos_table(alembic_config, sqlite_url):
         assert set(inspector.get_table_names()) == {"alembic_version"}
 
 
-def test_downgrade_sessions_revision_preserves_todos(alembic_config, sqlite_url):
+def test_downgrade_to_first_revision_keeps_only_todos(alembic_config, sqlite_url):
     command.upgrade(alembic_config, "head")
-    command.downgrade(alembic_config, "f58f944d0d8e")
+    command.downgrade(alembic_config, TODOS_REVISION)
     with _inspect(sqlite_url) as inspector:
         assert set(inspector.get_table_names()) == {"alembic_version", "todos"}
 

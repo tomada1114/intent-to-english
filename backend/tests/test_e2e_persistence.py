@@ -1,9 +1,10 @@
 """e2e/verify_persistence.py, the browser test's independent persistence check.
 
 The Playwright spec runs it as a process of its own on the run's SQLite file,
-after the screen has created and completed a to-do. These tests run it the same
-way, against migrated scratch files, so a check that passed on a to-do the API
-only kept in memory, or on another database, fails here.
+after the screen has started a session and shown the Partner's opener. These
+tests run it the same way, against migrated scratch files, so a check that
+passed on a session the API only kept in memory, or on another database, fails
+here.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from sqlalchemy import event
 
 from intent_to_english import composition
 from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.core import models as m
 from intent_to_english.settings import ENV_PREFIX, Settings
 from tests.settings_env import without_settings_env
 
@@ -30,13 +32,13 @@ if TYPE_CHECKING:
     from types import ModuleType
 
     from intent_to_english.composition import Container
-    from intent_to_english.core.models import Todo
 
 E2E = Path(__file__).resolve().parents[2] / "e2e"
 VERIFIER = E2E / "verify_persistence.py"
 ENVIRONMENT_TS = E2E / "environment.ts"
 ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
-TITLE = "Buy milk (e2e)"
+# The first fixed opener (adapters/models/fixed.py), which a fresh database gets.
+OPENER = "Hey! How's it going?"
 E2E_VALUES: dict[str, object] = {
     "cors_origins": [],
     "log_level": "INFO",
@@ -61,10 +63,10 @@ def verifier() -> ModuleType:
 
 
 async def _verify(
-    database_url: str, todo_id: object, title: str = TITLE, **env: str
+    database_url: str, session_id: object, opener: str = OPENER, **env: str
 ) -> subprocess.CompletedProcess[bytes]:
     return await anyio.run_process(
-        [sys.executable, str(VERIFIER), database_url, str(todo_id), title],
+        [sys.executable, str(VERIFIER), database_url, str(session_id), opener],
         check=False,
         env=without_settings_env(os.environ) | env,
     )
@@ -74,64 +76,87 @@ async def _stored(
     make_container: Callable[[Settings], Container],
     database_url: str | None,
     *,
-    complete: bool,
-) -> Todo:
+    opened: bool = True,
+    ended: bool = False,
+) -> m.SessionView:
     container = make_container(Settings(database_url=database_url))
-    todo = await container.todos.create(TITLE)
-    if complete:
-        await container.todos.complete(todo.id)
+    view = await container.conversations.start()
+    if opened:
+        view = await container.conversations.act(
+            view.id, m.ActionRequest(m.Action.OPEN, view.version)
+        )
+    if ended:
+        view = await container.conversations.act(
+            view.id, m.ActionRequest(m.Action.END, view.version)
+        )
     await container.aclose()
-    return todo
+    return view
 
 
-async def test_verifier_completed_todo_in_the_file_passes(
+async def test_verifier_session_at_intent_in_the_file_passes(
     make_container, migrated_sqlite_url
 ):
-    todo = await _stored(make_container, migrated_sqlite_url, complete=True)
+    view = await _stored(make_container, migrated_sqlite_url)
+    path = migrated_sqlite_url.removeprefix("sqlite+aiosqlite:///")
 
-    result = await _verify(migrated_sqlite_url, todo.id)
+    result = await _verify(migrated_sqlite_url, view.id)
 
     assert result.returncode == 0, result.stderr
-    assert f"to-do {todo.id} is stored, completed" in result.stdout.decode()
+    assert result.stdout.decode() == (
+        f"session {view.id} is stored at intent in {path}\n"
+    )
 
 
-async def test_verifier_todo_the_api_kept_in_memory_fails(
+async def test_verifier_session_the_api_kept_in_memory_fails(
     make_container, migrated_sqlite_url
 ):
-    # The API pointed at the in-memory store: the screen sees the to-do, and
+    # The API pointed at the in-memory store: the screen sees the session, and
     # survives nothing but a reload; the database file stays empty.
-    todo = await _stored(make_container, None, complete=True)
+    view = await _stored(make_container, None)
 
-    result = await _verify(migrated_sqlite_url, todo.id)
-
-    assert result.returncode == 1
-    assert f"no to-do {todo.id} is stored" in result.stderr.decode()
-
-
-async def test_verifier_open_todo_fails(make_container, migrated_sqlite_url):
-    todo = await _stored(make_container, migrated_sqlite_url, complete=False)
-
-    result = await _verify(migrated_sqlite_url, todo.id)
+    result = await _verify(migrated_sqlite_url, view.id)
 
     assert result.returncode == 1
-    assert "but not completed" in result.stderr.decode()
+    assert f"no session {view.id} is stored" in result.stderr.decode()
 
 
-async def test_verifier_other_title_fails(make_container, migrated_sqlite_url):
-    todo = await _stored(make_container, migrated_sqlite_url, complete=True)
+async def test_verifier_session_still_opening_fails(
+    make_container, migrated_sqlite_url
+):
+    view = await _stored(make_container, migrated_sqlite_url, opened=False)
 
-    result = await _verify(migrated_sqlite_url, todo.id, title="Buy bread (e2e)")
+    result = await _verify(migrated_sqlite_url, view.id)
 
     assert result.returncode == 1
-    assert f"with title {TITLE!r}" in result.stderr.decode()
+    assert "at opening, not intent" in result.stderr.decode()
+
+
+async def test_verifier_ended_session_fails(make_container, migrated_sqlite_url):
+    view = await _stored(make_container, migrated_sqlite_url, ended=True)
+
+    result = await _verify(migrated_sqlite_url, view.id)
+
+    assert result.returncode == 1
+    assert "stored ended, not in_progress" in result.stderr.decode()
+
+
+async def test_verifier_other_opener_fails(make_container, migrated_sqlite_url):
+    view = await _stored(make_container, migrated_sqlite_url)
+
+    result = await _verify(
+        migrated_sqlite_url, view.id, opener="Hi! How was your weekend?"
+    )
+
+    assert result.returncode == 1
+    assert f"with openers [{OPENER!r}]" in result.stderr.decode()
 
 
 async def test_verifier_ignores_an_inherited_database_url(
     make_container, migrated_sqlite_url, tmp_path
 ):
-    # The inherited variable names a database that holds the to-do; the run's
+    # The inherited variable names a database that holds the session; the run's
     # own, given as an argument, does not.
-    todo = await _stored(make_container, migrated_sqlite_url, complete=True)
+    view = await _stored(make_container, migrated_sqlite_url)
     empty = f"sqlite+aiosqlite:///{tmp_path / 'empty.db'}"
     await anyio.run_process(
         [sys.executable, "-m", "alembic", "-c", str(ALEMBIC_INI), "upgrade", "head"],
@@ -145,11 +170,11 @@ async def test_verifier_ignores_an_inherited_database_url(
     )
 
     result = await _verify(
-        empty, todo.id, INTENT_TO_ENGLISH_DATABASE_URL=migrated_sqlite_url
+        empty, view.id, INTENT_TO_ENGLISH_DATABASE_URL=migrated_sqlite_url
     )
 
     assert result.returncode == 1
-    assert f"no to-do {todo.id} is stored" in result.stderr.decode()
+    assert f"no session {view.id} is stored" in result.stderr.decode()
 
 
 async def test_verifier_missing_file_fails_without_creating_it(tmp_path):
@@ -162,6 +187,16 @@ async def test_verifier_missing_file_fails_without_creating_it(tmp_path):
     assert not missing.exists()
 
 
+async def test_verifier_unmigrated_file_fails_as_unreadable(tmp_path):
+    unmigrated = tmp_path / "unmigrated.db"
+    unmigrated.touch()
+
+    result = await _verify(f"sqlite+aiosqlite:///{unmigrated}", "0" * 32)
+
+    assert result.returncode == 1
+    assert f"could not read {unmigrated}" in result.stderr.decode()
+
+
 async def test_verifier_other_database_url_is_a_usage_error():
     result = await _verify("postgresql+asyncpg://localhost/x", "0" * 32)
 
@@ -169,10 +204,17 @@ async def test_verifier_other_database_url_is_a_usage_error():
     assert "not a SQLite URL" in result.stderr.decode()
 
 
-async def test_verifier_find_todo_closes_its_engine(
+async def test_verifier_malformed_session_id_is_a_usage_error(tmp_path):
+    result = await _verify(f"sqlite+aiosqlite:///{tmp_path / 'e2e.db'}", "not-a-uuid")
+
+    assert result.returncode == 2
+    assert "session_id" in result.stderr.decode()
+
+
+async def test_verifier_find_session_closes_its_engine(
     verifier, make_container, migrated_sqlite_url, monkeypatch
 ):
-    todo = await _stored(make_container, migrated_sqlite_url, complete=True)
+    view = await _stored(make_container, migrated_sqlite_url)
     opened, disposed = [], []
 
     def recording_make_engine(url):
@@ -185,12 +227,12 @@ async def test_verifier_find_todo_closes_its_engine(
 
     monkeypatch.setattr(composition, "make_engine", recording_make_engine)
 
-    found = await verifier.find_todo(
-        verifier.isolated_settings(migrated_sqlite_url), todo.id
+    found = await verifier.find_session(
+        verifier.isolated_settings(migrated_sqlite_url), view.id
     )
 
     assert found is not None
-    assert (found.id, found.title, found.is_completed) == (todo.id, TITLE, True)
+    assert (found.id, found.stage) == (view.id, m.Stage.INTENT)
     assert len(opened) == 1
     assert disposed == opened
 

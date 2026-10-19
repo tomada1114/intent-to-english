@@ -24,38 +24,6 @@ class AppError(Exception):
     code: ClassVar[str] = "app_error"
 
 
-class TodoNotFoundError(AppError):
-    """Raised when no to-do has the requested id."""
-
-    code: ClassVar[str] = "todo_not_found"
-
-    def __init__(self, todo_id: UUID) -> None:
-        """Keep the missing id so callers can report it without parsing text.
-
-        The id is the exception's only argument, so pickling (as process
-        pools and some task queues do) rebuilds an equal error.
-
-        Args:
-            todo_id: The id that matched no stored to-do.
-        """
-        super().__init__(todo_id)
-        self.todo_id = todo_id
-
-    def __str__(self) -> str:
-        """Return the message entry points show their users.
-
-        A ``UUID`` formats as its canonical hyphenated form, whatever spelling
-        the caller parsed it from.
-        """
-        return f"To-do {self.todo_id} not found"
-
-
-class InvalidTodoError(AppError):
-    """Raised when input would create a to-do that breaks a domain rule."""
-
-    code: ClassVar[str] = "invalid_todo"
-
-
 class InvalidCursorError(AppError):
     """Raised when a page cursor is not one the store issued.
 

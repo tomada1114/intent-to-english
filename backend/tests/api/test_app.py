@@ -24,8 +24,7 @@ from intent_to_english.core.errors import (
     AppError,
     InvalidCursorError,
     InvalidPageLimitError,
-    InvalidTodoError,
-    TodoNotFoundError,
+    SessionNotFoundError,
 )
 from intent_to_english.settings import Settings
 
@@ -90,31 +89,31 @@ def test_create_app_without_settings_reads_the_environment(
     monkeypatch.setenv("INTENT_TO_ENGLISH_DATABASE_URL", migrated_sqlite_url)
 
     with TestClient(create_app()) as writer:
-        created = writer.post("/api/todos", json={"title": "from env"})
+        created = writer.post("/api/sessions")
     with TestClient(create_app()) as reader:
-        titles = [todo["title"] for todo in reader.get("/api/todos").json()["items"]]
+        ids = [row["id"] for row in reader.get("/api/sessions").json()["items"]]
 
     assert created.status_code == HTTPStatus.CREATED
-    assert titles == ["from env"]
+    assert ids == [created.json()["id"]]
 
 
 def test_create_app_each_call_owns_an_independent_store():
     with TestClient(create_app(Settings())) as first:
-        first.post("/api/todos", json={"title": "only in first"})
+        first.post("/api/sessions")
 
     with TestClient(create_app(Settings())) as second:
-        assert second.get("/api/todos").json()["items"] == []
+        assert second.get("/api/sessions").json()["items"] == []
 
 
-def test_create_app_with_sql_keeps_todos_across_apps(migrated_sqlite_url):
+def test_create_app_with_sql_keeps_sessions_across_apps(migrated_sqlite_url):
     settings = Settings(database_url=migrated_sqlite_url)
     with TestClient(create_app(settings)) as first:
-        first.post("/api/todos", json={"title": "survives"})
+        created = first.post("/api/sessions").json()
 
     with TestClient(create_app(settings)) as second:
-        titles = [todo["title"] for todo in second.get("/api/todos").json()["items"]]
+        ids = [row["id"] for row in second.get("/api/sessions").json()["items"]]
 
-    assert titles == ["survives"]
+    assert ids == [created["id"]]
 
 
 def test_create_app_on_unmigrated_database_answers_500(sqlite_url):
@@ -123,7 +122,7 @@ def test_create_app_on_unmigrated_database_answers_500(sqlite_url):
     app = create_app(Settings(database_url=sqlite_url))
 
     with TestClient(app, raise_server_exceptions=False) as client:
-        response = client.get("/api/todos")
+        response = client.get("/api/sessions")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -160,7 +159,6 @@ def test_create_app_shutdown_closes_factory_built_container(
     resources.push_async_callback(_record, closed, "built")
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -189,7 +187,6 @@ async def test_create_app_cancelled_shutdown_finishes_factory_owned_cleanup(
     resources.push_async_callback(close)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -216,7 +213,6 @@ async def test_create_app_shutdown_leaves_supplied_container_caller_owned(
     resources.push_async_callback(_record, closed, "supplied")
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -238,16 +234,15 @@ async def _record(log: list[str], name: str) -> None:
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        pytest.param("GET", "/todos", id="list"),
-        pytest.param("POST", "/todos", id="create"),
+        pytest.param("GET", "/sessions", id="list"),
+        pytest.param("POST", "/sessions", id="create"),
+        pytest.param("GET", "/sessions/01900000-0000-7000-8000-000000000001", id="get"),
         pytest.param(
             "POST",
-            "/todos/01900000-0000-7000-8000-000000000001/complete",
-            id="complete",
+            "/sessions/01900000-0000-7000-8000-000000000001/actions",
+            id="act",
         ),
-        pytest.param(
-            "DELETE", "/todos/01900000-0000-7000-8000-000000000001", id="delete"
-        ),
+        pytest.param("GET", "/meta", id="meta"),
     ],
 )
 def test_resource_routes_require_api_prefix(client, method, path):
@@ -255,7 +250,7 @@ def test_resource_routes_require_api_prefix(client, method, path):
 
 
 def test_api_prefixed_list_returns_empty_page(client):
-    response = client.get("/api/todos")
+    response = client.get("/api/sessions")
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"items": [], "next_cursor": None}
@@ -277,10 +272,6 @@ def test_operation_ids_are_unique_function_names(make_container):
 
     assert set(operations) == {
         "healthz",
-        "list_todos",
-        "create_todo",
-        "complete_todo",
-        "delete_todo",
         "create_session",
         "list_sessions",
         "get_session",
@@ -344,7 +335,7 @@ def test_cors_preflight_checks_origins_and_allows_json_post(
     )
     with TestClient(create_app()) as client:
         response = client.options(
-            "/api/todos",
+            "/api/sessions",
             headers={
                 "Origin": origin,
                 "Access-Control-Request-Method": "POST",
@@ -409,7 +400,7 @@ def test_cors_rejected_preflight_returns_problem_details(
     }
     origin = headers["Origin"]
     with TestClient(app) as client:
-        response = client.options("/api/todos", headers=headers)
+        response = client.options("/api/sessions", headers=headers)
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
     assert response.headers["content-type"] == "application/problem+json"
@@ -469,7 +460,7 @@ def test_cors_headers_cover_unhandled_errors(sqlite_url, origin, allowed):
         Settings(database_url=sqlite_url, cors_origins=["https://app.example.com"])
     )
     with TestClient(app, raise_server_exceptions=False) as client:
-        response = client.get("/api/todos", headers={"Origin": origin})
+        response = client.get("/api/sessions", headers={"Origin": origin})
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     assert response.headers.get("access-control-allow-origin") == allowed
@@ -495,7 +486,7 @@ def test_create_app_supplied_container_ignores_invalid_storage_env_but_reads_cor
     monkeypatch.setenv("INTENT_TO_ENGLISH_CORS_ORIGINS", "https://APP.EXAMPLE.COM:443")
     with TestClient(create_app(container=container)) as client:
         response = client.get(
-            "/api/todos", headers={"Origin": "https://app.example.com"}
+            "/api/sessions", headers={"Origin": "https://app.example.com"}
         )
 
     assert response.status_code == HTTPStatus.OK
@@ -507,8 +498,7 @@ def test_create_app_supplied_container_ignores_invalid_storage_env_but_reads_cor
     ("error", "status", "code"),
     [
         (AppError("base failure"), 400, "app_error"),
-        (TodoNotFoundError(UUID(int=1)), 404, "todo_not_found"),
-        (InvalidTodoError("bad title"), 422, "invalid_todo"),
+        (SessionNotFoundError(UUID(int=1)), 404, "session_not_found"),
         (InvalidCursorError("bad cursor"), 422, "invalid_cursor"),
         (InvalidPageLimitError("bad limit"), 422, "invalid_page_limit"),
     ],
@@ -539,7 +529,7 @@ def test_domain_error_returns_problem_details(make_container, error, status, cod
     ("method", "path", "status", "code"),
     [
         ("GET", "/api/nope", 404, "not_found"),
-        ("PUT", "/api/todos", 405, "method_not_allowed"),
+        ("PUT", "/api/meta", 405, "method_not_allowed"),
     ],
 )
 def test_routing_error_returns_problem_details(client, method, path, status, code):
@@ -725,9 +715,6 @@ def test_openapi_documents_every_error_as_problem_details(client):
         "Stage",
         "TextInputResponse",
         "TimelineEntryResponse",
-        "TodoCreateRequest",
-        "TodoPageResponse",
-        "TodoResponse",
         "TurnDoneEntryResponse",
         "TurnDonePayloadResponse",
         "TurnEnd",

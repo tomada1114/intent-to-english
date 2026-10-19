@@ -6,30 +6,10 @@ from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import Depends, Request
 
-from intent_to_english.core.services import ConversationService, TodoService
+from intent_to_english.core.services import ConversationService
 
 if TYPE_CHECKING:
     from intent_to_english.composition import Container
-
-
-def get_todo_service(request: Request) -> TodoService:
-    """Hand a route the to-do service from the container ``create_app`` stored.
-
-    Reading it from the app, not a module global, lets every ``create_app``
-    call — one per test — own an independent store.
-
-    Args:
-        request: The current request, which carries its application.
-
-    Returns:
-        The application's ``TodoService``.
-    """
-    container: Container = request.app.state.container
-    return container.todos
-
-
-TodoServiceDep = Annotated[TodoService, Depends(get_todo_service)]
-"""Declare a route parameter with this type to receive the ``TodoService``."""
 
 
 def get_conversation_service(request: Request) -> ConversationService:

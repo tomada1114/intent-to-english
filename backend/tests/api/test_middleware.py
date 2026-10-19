@@ -42,8 +42,13 @@ def test_request_id_malformed_is_replaced(make_container, value):
 @pytest.mark.parametrize(
     "case",
     [
-        ("delete", "/api/todos/01900000-0000-7000-8000-ffffffffffff", {}, 404),
-        ("post", "/api/todos", {"json": {}}, 422),
+        ("get", "/api/sessions/01900000-0000-7000-8000-ffffffffffff", {}, 404),
+        (
+            "post",
+            "/api/sessions/01900000-0000-7000-8000-ffffffffffff/actions",
+            {"json": {}},
+            422,
+        ),
         ("get", "/missing", {}, 404),
         ("post", "/healthz", {}, 405),
         ("get", "/failure", {}, 500),
@@ -81,8 +86,12 @@ def test_logs_never_contain_body_or_query(make_container, caplog):
         caplog.at_level("INFO", logger="intent_to_english"),
         TestClient(create_app(container=make_container())) as client,
     ):
-        client.post("/api/todos", json={"title": "SENTINEL-TITLE"})
-        client.get("/api/todos?limit=5&cursor=SENTINEL-CURSOR")
+        session = client.post("/api/sessions").json()
+        client.post(
+            f"/api/sessions/{session['id']}/actions",
+            json={"action": "intent", "version": 0, "text": "SENTINEL-TEXT"},
+        )
+        client.get("/api/sessions?limit=5&cursor=SENTINEL-CURSOR")
     assert "SENTINEL" not in caplog.text
     assert all(
         "SENTINEL" not in str(value)
@@ -97,7 +106,7 @@ def test_cors_preflight_problem_and_response_share_request_id(make_container):
     )
     with TestClient(app) as client:
         response = client.options(
-            "/api/todos",
+            "/api/sessions",
             headers={
                 "Origin": "https://other.example",
                 "Access-Control-Request-Method": "POST",
