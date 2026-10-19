@@ -50,7 +50,7 @@ like this:
 | Storage | adapters | `adapters/sql/`, `adapters/memory.py` | the four tables below; the in-memory repository for tests and a run without a database URL |
 | Model roles | adapters | `adapters/models/` | `fixed.py` (the fixed-response mode), `openrouter.py` (PydanticAI agents on OpenRouter), `prompts.py` (the messages each task sends), `schemas.py` (the Pydantic models each task's JSON schema comes from) |
 | HTTP | api | `api/routers/sessions.py`, `api/routers/meta.py`, `api/schemas.py` | the routes in § Decisions › The API |
-| Evaluation | its own package | `evaluation/` | the harness that runs `backend/evals/cases/` and writes `backend/evals/reports/` |
+| Evaluation | its own package | `evaluation/cases.py`, `expectations.py`, `observed.py`, `harness.py`, `reports.py`, `__main__.py` | strict TOML, code expectations, observed task-runner calls, JSON/Markdown reports and `just backend eval` |
 | Wiring | root | `settings.py`, `composition.py` | the settings in § Decisions › Keys, models, and the mode; the adapter choice |
 
 The screen lives under `frontend/src/`: `routes/index.tsx` (S1), `routes/sessions.$sessionId.tsx`
@@ -384,6 +384,9 @@ while whitespace-only ids fail at startup naming their variables. One boot id is
 per container build, independently of entity ids. With SQL selected, the two repository
 ports share one lazy engine and one disposal callback. This keeps the full HTTP flow
 usable without a key while the live composition branch remains #28's separate scope.
+`Container.models` holds those same role ports in a frozen `ModelPorts` value. The
+evaluation uses the same container and selected mode with memory storage explicitly
+selected, so it shares model choice and owned cleanup without opening a database.
 
 The adapter builds the `openai.AsyncOpenAI` client with the key, OpenRouter's base URL, the
 app's attribution header, and `max_retries=0`, and hands it to the provider, so no environment
@@ -435,18 +438,44 @@ is already complete. The separate `wrap_up` action returns the new ended view.
 
 ### Evaluation lives in the repository
 
-Cases are TOML files under `backend/evals/cases/`, one case each, read with the standard
-library's `tomllib`: the task, its request, and expectations from a closed set the harness
-implements ("flags *refreshing* as ミス", "marks nothing as ミス", "the Partner line does not
-mention Sapporo"), so code decides pass or fail (§3.11). The harness (`evaluation/`) runs each
-case through the configured adapters and the core checks, and writes a Markdown and a JSON
-report to `backend/evals/reports/`, named by date and the two model ids: pass rate per check
-and per expectation, for the first attempt and after the repair, cost and latency per task, the models, the date, and the commit. Every
-report is committed, and the README's evaluation section shows the latest run's summary table
-with a link. The owner runs it with a human-run recipe, since it bills; a backend test runs
-the harness over every case in the fixed-response mode, which proves the cases parse and a
-report renders without judging quality. Rejected: reports kept local with a hand-written
-README summary, and one report overwritten on each run.
+The 16 TOML cases under `backend/evals/cases/` are read with `tomllib`: `task` as
+`role.method`, `source`, the exact request dataclass fields in `[request]`, optional
+`[context]` notes and `[[expect]]` values. Required nullable fields use the explicit
+`{ none = true }` marker; empty strings remain strings, nested defaults follow their
+dataclasses, and unknown or missing required fields fail with the filename and key.
+Context never reaches a model, including the Sapporo intent kept outside its Partner
+request. A set may hold 10–20 cases, with no fixed sixteen-case limit in the loader.
+
+The closed expectation set is `tagged`, `not_tagged`, `no_tag`, `no_fix`, `max_fixes`,
+`missing_point`, `fix_to`, `reading_question`, `accepted`, `reading_noted`, `absent`,
+`no_question` and `differs_from`. Each has strict arguments and task applicability;
+missing-point expectations assert no tag. Code decides pass or fail without a model
+grader or candidate checks (§3.11).
+
+`just backend eval` is billed and human-run. It uses `Container.models` through the
+shared task runner and one repair, observes each actual return without another call,
+and holds attempt records only in memory. A provider error is recorded and the next
+case still runs. Fixed mode refuses before calls or writes, naming the key and mode
+variables; until #28 every configured mode therefore refuses. Both report paths and
+exactly one ordered README marker pair are checked before calls. Existing reports
+are never overwritten; exclusive writes also guard against a concurrent writer.
+
+The Markdown and JSON reports under `backend/evals/reports/` use
+`<UTC-date>_<coach-id>_<partner-id>`, replacing `/` with `-` in model ids. They include
+both configured ids, the UTC date, commit and dirty state passed by the recipe,
+first-attempt and final rates per check and expectation, all outcomes per task,
+reported cost labelled credits, and nearest-rank p50/p95 latency. Repairs count as
+separate calls. Missing cost is empty; provider failures and unparsed content are
+N/A in quality denominators, with schema failures still counted for schema. Each
+case retains its safe decisions and outcomes, without raw provider responses.
+
+Both reports are committed. The README summary between `eval-summary:start` and
+`eval-summary:end` links the latest report and uses its generated task table; before
+the first owner-run evaluation it says no run exists. The command rereads README
+after calls and preserves outside edits. Fixed-port tests render the full seed set
+and rewrite a temporary README without judging any pass rate. A completed report
+returns 0 even with failed expectations; refusals/failures return 1 and usage errors
+2. Rejected: local-only reports, a hand-written summary and overwriting a prior run.
 
 ### Japanese in the repository
 

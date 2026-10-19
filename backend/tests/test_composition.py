@@ -20,9 +20,11 @@ from intent_to_english.adapters.memory import (
     InMemorySessionRepository,
     InMemoryTodoRepository,
 )
+from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.composition import Container, build_container, utc_now
+from intent_to_english.core import coaching, partner
 from intent_to_english.core import models as m
 from intent_to_english.core.models import Page
 from intent_to_english.settings import Settings
@@ -30,6 +32,39 @@ from intent_to_english.settings import Settings
 PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_evaluation_and_conversation_share_the_selected_ports(
+    monkeypatch, make_container
+):
+    usage = m.Usage("fixed", "fixed", None, None, None, 0)
+
+    class ProbePartner(FixedPartnerModel):
+        async def open(self, request, repair=None):
+            del request, repair
+            return m.Parsed(partner.PartnerLine("Hello from the shared port!"), usage)
+
+    class ProbeCoach(FixedCoachModel):
+        async def acknowledge(self, request, repair=None):
+            del request, repair
+            return m.Parsed(coaching.Acknowledgment("同じポートです"), usage)
+
+    partner_port, coach_port = ProbePartner(), ProbeCoach()
+    monkeypatch.setattr(composition, "FixedPartnerModel", lambda: partner_port)
+    monkeypatch.setattr(composition, "FixedCoachModel", lambda: coach_port)
+    container = make_container()
+
+    assert container.models.partner is partner_port
+    assert container.models.coach is coach_port
+    view = await container.conversations.start()
+    view = await container.conversations.act(
+        view.id, m.ActionRequest(m.Action.OPEN, view.version)
+    )
+    assert view.entries[-1].payload.text == "Hello from the shared port!"
+    view = await container.conversations.act(
+        view.id, m.ActionRequest(m.Action.INTENT, view.version, m.TextInput("意図"))
+    )
+    assert view.entries[-1].payload.line == "同じポートです"
 
 
 @pytest.fixture
@@ -289,7 +324,10 @@ async def test_container_aclose_releases_registered_resource_once(make_container
     resources.push_async_callback(_record, closed, "resource")
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     await container.aclose()
@@ -314,7 +352,10 @@ async def test_container_context_cancelled_scope_finishes_callbacks_once(
     resources.push_async_callback(cleanup, "second")
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     with anyio.CancelScope() as cancelled:
@@ -343,7 +384,10 @@ async def test_container_aclose_cancelled_scope_finishes_before_cancellation(
     resources.push_async_callback(cleanup)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     with anyio.CancelScope() as cancelled:
@@ -387,7 +431,10 @@ async def test_container_suspended_cleanup_finishes_before_caller_outcome(
     resources.push_async_callback(suspended)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     async def close(task_status=anyio.TASK_STATUS_IGNORED):
@@ -434,7 +481,10 @@ async def test_container_concurrent_close_callers_share_complete_lifo_cleanup(
     resources.push_async_callback(suspended)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     async def close(task_status=anyio.TASK_STATUS_IGNORED):
@@ -467,7 +517,10 @@ async def test_container_concurrent_exits_propagate_each_body_error(make_contain
     resources.push_async_callback(close)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     async def fail(error, task_status=anyio.TASK_STATUS_IGNORED):
@@ -526,6 +579,7 @@ async def test_container_entered_manager_rejected_and_exits_in_caller_scope(
             return Container(
                 services.todos,
                 conversations=services.conversations,
+                models=services.models,
                 _resources=resources,
             )
 
@@ -544,7 +598,10 @@ async def test_container_context_exit_releases_registered_resource(make_containe
     resources.push_async_callback(_record, closed, "resource")
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     async with container as entered:
@@ -560,7 +617,10 @@ async def test_container_context_failure_releases_registered_resource(make_conta
     resources.push_async_callback(_record, closed, "resource")
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     message = "operation failed"
@@ -585,7 +645,10 @@ async def test_container_cleanup_failure_runs_remaining_callbacks_and_propagates
     resources.push_async_callback(fail_cleanup)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     with pytest.raises(ValueError, match="cleanup failed"):
@@ -638,7 +701,10 @@ async def test_container_context_cleanup_failure_chains_original_body_error(
     resources.push_async_callback(fail_cleanup)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     with pytest.raises(RuntimeError, match="cleanup failed") as caught:
@@ -661,7 +727,10 @@ async def test_container_disposal_callbacks_cannot_suppress_body_error(make_cont
     resources.push_async_callback(close)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
     error = ValueError("operation failed")
 
@@ -678,7 +747,10 @@ async def test_container_registration_after_ownership_transfer_rejected(make_con
     resources = composition.ResourceClosers()
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     with pytest.raises(RuntimeError, match="before building the Container"):

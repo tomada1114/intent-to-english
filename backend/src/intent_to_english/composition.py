@@ -33,7 +33,9 @@ if TYPE_CHECKING:
 
     from intent_to_english.core.ports import (
         Clock,
+        CoachModel,
         IdFactory,
+        PartnerModel,
         SessionRepository,
         TodoRepository,
     )
@@ -90,11 +92,20 @@ class _CleanupState:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelPorts:
+    """The selected role ports shared by conversation and evaluation."""
+
+    partner: PartnerModel
+    coach: CoachModel
+
+
+@dataclass(frozen=True, slots=True)
 class Container:
     """The services an entry point may call, built once per process."""
 
     todos: TodoService
     conversations: ConversationService = field(kw_only=True)
+    models: ModelPorts = field(kw_only=True)
     model_mode: Literal["fixed", "openrouter"] = field(default="fixed", kw_only=True)
     _resources: ResourceClosers = field(
         default_factory=ResourceClosers, repr=False, compare=False
@@ -201,10 +212,11 @@ def build_container(
     resources = ResourceClosers()
     todo_repository, session_repository = _build_repositories(settings, resources)
     todos = TodoService(todo_repository, clock, new_id)
+    models = ModelPorts(FixedPartnerModel(), FixedCoachModel())
     conversations = ConversationService(
         session_repository,
-        FixedPartnerModel(),
-        FixedCoachModel(),
+        models.partner,
+        models.coach,
         clock,
         new_id,
         boot_id if boot_id is not None else uuid.uuid7(),
@@ -213,6 +225,7 @@ def build_container(
     return Container(
         todos=todos,
         conversations=conversations,
+        models=models,
         model_mode="fixed",
         _resources=resources,
     )

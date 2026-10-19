@@ -1,0 +1,28 @@
+task = "coach.feedback"
+source = "docs/product/conversation-rules.md §7 ①"
+
+[request]
+intent = "毎日私は英語の勉強とプログラムの勉強を習慣にしてるんだけれども、今日は朝のうちに全部済ませられてすごく気分がいいよ。"
+english = "I feel refreshing today because I completed my study routine in the morning about English and programming every day."
+reading = { none = true }
+earlier_english = []
+conversation = []
+
+[[expect]]
+kind = "tagged"
+original = "refreshing"
+tag = "miss"
+
+[[expect]]
+kind = "not_tagged"
+original = "completed"
+tag = "miss"
+
+[[expect]]
+kind = "not_tagged"
+original = "in the morning"
+tag = "miss"
+
+[[expect]]
+kind = "max_fixes"
+max = 5

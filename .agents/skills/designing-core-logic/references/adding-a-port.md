@@ -41,10 +41,11 @@ def build_container(
     resources = ResourceClosers()
     todo_repository, session_repository = _build_repositories(settings, resources)
     todos = TodoService(todo_repository, clock, new_id)
+    models = ModelPorts(FixedPartnerModel(), FixedCoachModel())
     conversations = ConversationService(
         session_repository,
-        FixedPartnerModel(),
-        FixedCoachModel(),
+        models.partner,
+        models.coach,
         clock,
         new_id,
         boot_id if boot_id is not None else uuid.uuid7(),
@@ -52,6 +53,7 @@ def build_container(
     return Container(
         todos=todos,
         conversations=conversations,
+        models=models,
         model_mode="fixed",
         _resources=resources,
     )

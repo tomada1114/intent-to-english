@@ -1,0 +1,10 @@
+task = "partner.reply"
+source = "docs/product/conversation-rules.md §7 ⑦ follow-on"
+
+[request]
+conversation = [{ speaker = "partner", text = "What kind of programming are you working on these days?" }, { speaker = "learner", text = "I'm interested in building AI agents." }, { speaker = "partner", text = "Which AWS service are you learning right now?" }, { speaker = "learner", text = "I'm interested in building AI agents these days, so I'm studying AWS services related to them." }, { speaker = "partner", text = "I tried building a chatbot for my team, but it gave weird answers." }, { speaker = "learner", text = "How did you build it?" }]
+share = false
+
+[[expect]]
+kind = "absent"
+text = "What about you"

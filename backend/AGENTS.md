@@ -2,8 +2,8 @@
 
 The FastAPI app: a uv workspace member built with
 [hatchling](https://hatch.pypa.io/), in a strict `src/` layout with strict type
-checking and linting. A framework-free core carries one entry point, the HTTP
-API. This file adds the backend's own rules to the root `AGENTS.md`, which
+checking and linting. A framework-free core serves the HTTP API and the human-run
+evaluation command. This file adds the backend's own rules to the root `AGENTS.md`, which
 still applies in full — its approval rules and gates above all.
 
 ## Validating a change
@@ -39,6 +39,7 @@ backend/
 │   ├── core/            # Framework-free: domain model, ports (Protocols), services, errors
 │   ├── adapters/        # Memory/SQL repositories and fixed/OpenRouter model roles
 │   ├── api/             # FastAPI: create_app(settings) factory, routers (api/routers/), Pydantic schemas
+│   ├── evaluation/      # Strict cases, code expectations, task runner, reports and the billed command
 │   ├── settings.py      # Prefixed settings and the unprefixed OPENROUTER_API_KEY secret alias
 │   └── composition.py   # Composition root: wires adapters into services for the API
 └── tests/           # The app's suite, mirroring src/intent_to_english/ (`placing-tests`)
@@ -57,6 +58,9 @@ backend/
   repositories share one lazy engine and disposal callback; without a database URL
   both stores are in memory. Both model roles currently use the fixed adapters in
   every configured mode, and meta reads that selected mode from the container.
+- `Container.models` holds the same two model ports the conversation service uses.
+  Evaluation calls those ports through the shared task runner, with memory storage
+  and the same owned cleanup. It neither opens nor writes an application database.
 - The OpenRouter Partner adapter has three retry-free PydanticAI task agents and
   an explicitly owned client, but is not selected by composition until #28. Model
   SDK imports stay under `adapters/models/`; the suite blocks real model requests.

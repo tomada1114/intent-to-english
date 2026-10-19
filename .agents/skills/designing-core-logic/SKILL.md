@@ -171,7 +171,7 @@ A new setting is a field on `Settings`:
 `composition.py` is the only module that constructs adapters and services.
 `build_container(settings, clock=utc_now, new_id=uuid.uuid7, *, boot_id=None)` picks
 repositories through `_build_repositories` and returns a frozen `Container` with
-`todos`, keyword-only `conversations`, and the selected `model_mode`; the API stores
+`todos`, keyword-only `conversations` and `models`, and the selected `model_mode`; the API stores
 it on `app.state`. A new service is a new `Container` field
 built in `build_container`; a new adapter choice is a branch in the function that picks
 it, driven by a setting.
@@ -181,6 +181,8 @@ database URL each uses its memory adapter. The conversation service receives bot
 fixed model roles in every mode until #28. One default `uuid.uuid7()` boot id per
 build is independent of entity ids, or injectable for interruption tests. The current
 wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
+`ModelPorts` holds the exact Partner and Coach instances used by the conversation
+service; evaluation shares them through `Container.models`, with storage disabled.
 
 Tests build containers through the same function: `backend/tests/conftest.py`'s
 `make_container` passes the fixed clock, `new_id`, and in-memory storage by default, and

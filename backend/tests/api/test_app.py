@@ -160,7 +160,10 @@ def test_create_app_shutdown_closes_factory_built_container(
     resources.push_async_callback(_record, closed, "built")
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
     monkeypatch.setattr(app_module, "build_container", lambda _: container)
 
@@ -186,7 +189,10 @@ async def test_create_app_cancelled_shutdown_finishes_factory_owned_cleanup(
     resources.push_async_callback(close)
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
     monkeypatch.setattr(app_module, "build_container", lambda _: container)
     app = create_app(Settings(database_url=None))
@@ -210,7 +216,10 @@ async def test_create_app_shutdown_leaves_supplied_container_caller_owned(
     resources.push_async_callback(_record, closed, "supplied")
     services = make_container()
     container = Container(
-        services.todos, conversations=services.conversations, _resources=resources
+        services.todos,
+        conversations=services.conversations,
+        models=services.models,
+        _resources=resources,
     )
 
     with TestClient(create_app(container=container)) as client:

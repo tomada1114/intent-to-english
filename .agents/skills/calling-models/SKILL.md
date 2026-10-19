@@ -160,15 +160,17 @@ Where each file goes is **REQUIRED:** `placing-tests`; how each is written,
 
 ## The evaluation harness
 
-A case is one TOML file under `backend/evals/cases/`: the task, its request, and
-expectations from a closed set the harness implements, so code decides pass or fail.
-The harness runs each case through the configured adapters and the core checks and
-writes a Markdown and a JSON report under `backend/evals/reports/`. Every report is
-committed, and the README's evaluation section shows the latest summary. The owner runs
-it with the human-run evaluation recipe, since it bills; a backend test runs every case
-in the fixed-response mode, which proves the cases parse and a report renders. A new
-expectation is a new member of the closed set, implemented and tested in `evaluation/`.
-The rest is § Decisions › "Evaluation lives in the repository".
+A case under `backend/evals/cases/` has task/source, the exact request fields and
+closed expectations; nullable fields use `{ none = true }`, and context notes never
+enter a model request. The 16 seeds are tested on fixed ports without a quality floor.
+`just backend eval` is billed and human-run: it uses `Container.models`, the shared
+task runner and one repair, with memory storage and owned cleanup. It refuses fixed
+mode and existing report paths or invalid README markers before any call. Until #28
+every configured mode refuses. JSON/Markdown reports retain first/final quality rates,
+outcomes, credits, latency, ids, UTC date and revision; missing cost stays empty and
+unobserved content is N/A. Reports are committed and generate the README summary.
+A new expectation joins the tested closed vocabulary in `evaluation/`. The file
+contract and rationale are § Decisions › "Evaluation lives in the repository".
 
 ## Adding a provider
 

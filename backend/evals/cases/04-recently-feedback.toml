@@ -1,0 +1,24 @@
+task = "coach.feedback"
+source = "docs/product/conversation-rules.md §7 ③"
+
+[request]
+intent = "最近私はAIエージェントを作ることに興味があるから、それに関係するサービスを勉強してるよ。"
+english = "I'm interested in creating AI agents recently, so I'm studying AWS services related to AI."
+reading = { none = true }
+earlier_english = []
+conversation = []
+
+[[expect]]
+kind = "tagged"
+original = "recently"
+tag = "miss"
+
+[[expect]]
+kind = "not_tagged"
+original = "creating"
+tag = "miss"
+
+[[expect]]
+kind = "not_tagged"
+original = "AI"
+tag = "miss"
