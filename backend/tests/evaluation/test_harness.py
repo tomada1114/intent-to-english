@@ -139,7 +139,22 @@ async def test_all_seed_cases_render_reports_and_rewrite_only_temporary_readme(
     # Quality is a measured result here, never a fixed-adapter acceptance threshold.
 
 
-async def test_task_percentiles_and_reported_zero_cost_are_not_missing():
+@pytest.mark.parametrize(
+    ("first_cost", "later_cost", "expected"),
+    [
+        (Decimal("0.00"), None, None),
+        (Decimal("0.00"), Decimal("0.00"), "0.00"),
+        (
+            Decimal("0.123456789012345678901234567890"),
+            Decimal(0),
+            "0.123456789012345678901234567890",
+        ),
+    ],
+    ids=["partial-cost-unknown", "reported-zero", "exact-decimal"],
+)
+async def test_task_percentiles_and_reported_cost_completeness(
+    first_cost, later_cost, expected
+):
     class TimedPartner(FixedPartnerModel):
         def __init__(self):
             self.calls = 0
@@ -154,7 +169,7 @@ async def test_task_percentiles_and_reported_zero_cost_are_not_missing():
                     "model",
                     None,
                     None,
-                    Decimal("0.00") if self.calls == 1 else None,
+                    first_cost if self.calls == 1 else later_cost,
                     self.calls,
                 ),
             )
@@ -169,4 +184,4 @@ async def test_task_percentiles_and_reported_zero_cost_are_not_missing():
     task = report.as_dict()["tasks"]["partner.open"]
     assert task["latency_p50_ms"] == 10
     assert task["latency_p95_ms"] == 19
-    assert task["cost_credits"] == "0.00"
+    assert task["cost_credits"] == expected

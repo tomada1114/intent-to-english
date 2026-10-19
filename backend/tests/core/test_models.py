@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 
@@ -9,6 +10,20 @@ from intent_to_english.core import models
 from intent_to_english.core.coaching import Feedback, RetryAccepted
 from intent_to_english.core.errors import InvalidTodoError
 from intent_to_english.core.models import MAX_TITLE_LENGTH, Todo, normalize_title
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [((), None), ((None, Decimal(0)), Decimal(0))],
+    ids=["unknown", "reported-zero"],
+)
+def test_sum_reported_costs_preserves_unknown_and_zero(values, expected):
+    assert models.sum_reported_costs(values) == expected
+
+
+def test_sum_reported_costs_rejects_nonfinite_accounting():
+    with pytest.raises(ValueError, match="must be finite"):
+        models.sum_reported_costs((Decimal("NaN"),))
 
 
 @pytest.mark.parametrize(

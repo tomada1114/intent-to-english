@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass
-from decimal import Decimal
 from math import ceil
 from typing import TYPE_CHECKING, TypedDict
 
-from intent_to_english.core.models import CallOutcome
+from intent_to_english.core.models import CallOutcome, sum_reported_costs
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -175,7 +174,7 @@ class Report:
             f"Coach: `{_cell(meta['coach_model'])}`; Partner: `{_cell(meta['partner_model'])}`",
             f"Commit: `{_cell(meta['commit'])}`; dirty: {str(meta['dirty']).lower()}",
             "",
-            "Rates include applicable observed outputs only. A parse failure fails schema; content checks and expectations are N/A. Provider failures are N/A for output quality and remain counted in outcomes. Final means the last actual attempt, including a failed repair.",
+            "Rates include applicable observed outputs only. A parse failure fails schema; content checks and expectations are N/A. Provider failures are N/A for output quality and remain counted in outcomes. Final means the last actual attempt, including a failed repair. Task cost is empty if any attempt has no reported cost.",
             "",
         ]
         for heading, key in (("Checks", "checks"), ("Expectations", "expectations")):
@@ -253,7 +252,10 @@ def _rate(values: Iterable[bool | None]) -> Rate:
 
 def _task_data(attempts: list[CallAttempt]) -> TaskData:
     latencies = sorted(item.usage.latency_ms for item in attempts)
-    costs = [item.usage.cost for item in attempts if item.usage.cost is not None]
+    costs = [item.usage.cost for item in attempts]
+    cost = (
+        sum_reported_costs(costs) if all(value is not None for value in costs) else None
+    )
     return TaskData(
         calls=len(attempts),
         outcomes={
@@ -262,7 +264,7 @@ def _task_data(attempts: list[CallAttempt]) -> TaskData:
         },
         providers=sorted({item.usage.provider for item in attempts}),
         models=sorted({item.usage.model for item in attempts}),
-        cost_credits=str(sum(costs, Decimal())) if costs else None,
+        cost_credits=str(cost) if cost is not None else None,
         latency_p50_ms=latencies[ceil(len(latencies) * 0.50) - 1],
         latency_p95_ms=latencies[ceil(len(latencies) * 0.95) - 1],
     )

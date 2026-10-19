@@ -465,7 +465,9 @@ The Markdown and JSON reports under `backend/evals/reports/` use
 both configured ids, the UTC date, commit and dirty state passed by the recipe,
 first-attempt and final rates per check and expectation, all outcomes per task,
 reported cost labelled credits, and nearest-rank p50/p95 latency. Repairs count as
-separate calls. Missing cost is empty; provider failures and unparsed content are
+separate calls. A task's cost is empty if any attempt has no reported cost; known
+costs are summed without rounding provider decimals through the shared core helper.
+Provider failures and unparsed content are
 N/A in quality denominators, with schema failures still counted for schema. Each
 case retains its safe decisions and outcomes, without raw provider responses.
 
