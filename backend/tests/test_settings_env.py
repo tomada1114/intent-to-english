@@ -9,6 +9,16 @@ from intent_to_english.settings import Settings
 from tests.settings_env import without_settings_env
 
 
+def test_settings_env_provider_alias_is_removed_in_either_case():
+    assert without_settings_env(
+        {
+            "OPENROUTER_API_KEY": "dummy",
+            "openrouter_api_key": "dummy-lowercase",
+            "PATH": "preserved",
+        }
+    ) == {"PATH": "preserved"}
+
+
 def test_settings_env_prefix_and_model_aliases_are_removed(monkeypatch):
     monkeypatch.setitem(
         Settings.model_fields,

@@ -126,12 +126,12 @@ live practice behave alike (§ Decisions › "Checks and the one repair live in 
 | Setting | Read as |
 |---|---|
 | `OPENROUTER_API_KEY` | unprefixed, through a validation alias, as a secret; unset or blank means no key |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` (OpenRouter when a key is set) or `fixed` |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` or `fixed`; both currently select the fixed adapters |
 | `INTENT_TO_ENGLISH_COACH_MODEL`, `INTENT_TO_ENGLISH_PARTNER_MODEL` | OpenRouter model ids, checked only to be non-empty |
 
 Defaults and reasons are § Decisions › "Keys, models, and the mode". `composition.py`
-picks the fixed-response adapter when there is no key or the mode is `fixed`, and
-OpenRouter otherwise; `GET /api/meta` reports which. The README's configuration table
+picks the fixed adapters in every mode until #28 adds the live branch;
+`GET /api/meta` reports that selection. The README's configuration table
 lists all four (**REQUIRED:** `updating-docs`). How a setting is validated and isolated
 in tests: **REQUIRED:** `designing-core-logic`'s "Settings are read once, at the boundary".
 

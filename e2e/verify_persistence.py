@@ -29,7 +29,12 @@ from typing import TYPE_CHECKING, Any
 
 from intent_to_english.composition import build_container
 from intent_to_english.core.models import MAX_PAGE_LIMIT
-from intent_to_english.settings import SQLITE_URL_PREFIX, Settings
+from intent_to_english.settings import (
+    DEFAULT_COACH_MODEL,
+    DEFAULT_PARTNER_MODEL,
+    SQLITE_URL_PREFIX,
+    Settings,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -55,6 +60,10 @@ def isolated_settings(database_url: str) -> Settings:
         cors_origins=[],
         log_level="INFO",
         log_format="text",
+        OPENROUTER_API_KEY=None,
+        model_mode="fixed",
+        coach_model=DEFAULT_COACH_MODEL,
+        partner_model=DEFAULT_PARTNER_MODEL,
     )
 
 

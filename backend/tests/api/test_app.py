@@ -158,7 +158,10 @@ def test_create_app_shutdown_closes_factory_built_container(
     closed: list[str] = []
     resources = ResourceClosers()
     resources.push_async_callback(_record, closed, "built")
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
     monkeypatch.setattr(app_module, "build_container", lambda _: container)
 
     app = create_app(Settings())
@@ -181,7 +184,10 @@ async def test_create_app_cancelled_shutdown_finishes_factory_owned_cleanup(
         closed.append("owned")
 
     resources.push_async_callback(close)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
     monkeypatch.setattr(app_module, "build_container", lambda _: container)
     app = create_app(Settings(database_url=None))
 
@@ -202,7 +208,10 @@ async def test_create_app_shutdown_leaves_supplied_container_caller_owned(
     closed: list[str] = []
     resources = ResourceClosers()
     resources.push_async_callback(_record, closed, "supplied")
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     with TestClient(create_app(container=container)) as client:
         assert client.get("/healthz").status_code == HTTPStatus.OK
@@ -263,6 +272,12 @@ def test_operation_ids_are_unique_function_names(make_container):
         "create_todo",
         "complete_todo",
         "delete_todo",
+        "create_session",
+        "list_sessions",
+        "get_session",
+        "perform_session_action",
+        "cancel_session_action",
+        "get_meta",
     }
     assert sorted(operations) == sorted(endpoint_names)
     assert len(operations) == len(set(operations))
@@ -617,12 +632,102 @@ def test_openapi_documents_every_error_as_problem_details(client):
     assert "request_id" in schemas["ProblemDetails"]["required"]
     assert schemas["ProblemDetails"]["properties"]["request_id"]["type"] == "string"
     assert set(schemas) == {
+        "AcknowledgmentEntryResponse",
+        "AcknowledgmentPayloadResponse",
+        "Action",
+        "ActionInputResponse",
+        "AnswerEntryResponse",
+        "AnswerPayloadResponse",
+        "AskActionRequest",
+        "BlankOffResponse",
+        "CancelSessionRequest",
+        "CheckInAnswer",
+        "CheckInAnswerEntryResponse",
+        "CheckInAnswerPayloadResponse",
+        "CheckInEntryResponse",
+        "CoachAnswerEntryResponse",
+        "CoachAnswerPayloadResponse",
+        "EmptyPayloadResponse",
+        "EndActionRequest",
+        "EnglishActionRequest",
+        "EnglishDirectActionRequest",
+        "EnglishEntryResponse",
+        "EnglishPayloadResponse",
+        "FeedbackEntryResponse",
+        "FeedbackPayloadResponse",
+        "FeedbackResponse",
+        "FixResponse",
+        "FixTag",
+        "GapHintEntryResponse",
+        "GapHintPayloadResponse",
         "HealthResponse",
+        "HintActionRequest",
+        "HintInputResponse",
+        "HintRequestEntryResponse",
+        "HintRequestPayloadResponse",
+        "IntentActionRequest",
+        "IntentEntryResponse",
+        "IntentPayloadResponse",
+        "LastSubmissionResponse",
+        "LastSubmissionState",
+        "LineKind",
+        "MetaResponse",
+        "NoInputResponse",
+        "OpenActionRequest",
+        "PartnerLineEntryResponse",
+        "PartnerLinePayloadResponse",
+        "PartnerReplyActionRequest",
+        "PieceGivenResponse",
+        "PieceResponse",
+        "PracticeAgainActionRequest",
+        "PracticeEntryResponse",
+        "PracticePayloadResponse",
+        "PracticeResultEntryResponse",
+        "PracticeResultPayloadResponse",
         "ProblemDetails",
         "ProblemFieldError",
+        "QuestionEntryResponse",
+        "QuestionPayloadResponse",
+        "ReadingActionRequest",
+        "ReadingChoiceEntryResponse",
+        "ReadingChoicePayloadResponse",
+        "ReadingInputResponse",
+        "ReadingNoteResponse",
+        "ReadingQuestionEntryResponse",
+        "ReadingQuestionPayloadResponse",
+        "RestateActionRequest",
+        "RestateInputResponse",
+        "RestateMode",
+        "RetryAcceptedResponse",
+        "RetryActionRequest",
+        "RetryEntryResponse",
+        "RetryPayloadResponse",
+        "RetryResultEntryResponse",
+        "RetryResultPayloadResponse",
+        "RetryResultResponse",
+        "RewriteIntentActionRequest",
+        "SessionPageResponse",
+        "SessionResponse",
+        "SessionStatus",
+        "SessionSummaryResponse",
+        "ShowAnswerActionRequest",
+        "SkipActionRequest",
+        "SkipEntryResponse",
+        "Stage",
+        "TextInputResponse",
+        "TimelineEntryResponse",
         "TodoCreateRequest",
         "TodoPageResponse",
         "TodoResponse",
+        "TurnDoneEntryResponse",
+        "TurnDonePayloadResponse",
+        "TurnEnd",
+        "TypedCopyActionRequest",
+        "TypedCopyEntryResponse",
+        "TypedCopyPayloadResponse",
+        "WrapUpActionRequest",
+        "WrapUpItemResponse",
+        "WrapUpResponse",
     }
     seen_errors = 0
     for path in document["paths"].values():

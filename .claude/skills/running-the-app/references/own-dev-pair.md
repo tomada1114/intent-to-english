@@ -57,16 +57,16 @@ for _ in range(600):
     time.sleep(0.1)
 sys.exit(1)'
 free='import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
-api=$(uv run --locked python -c "$free"); vite=$(uv run --locked python -c "$free")
+api=$(uv --no-cache run --locked python -c "$free"); vite=$(uv --no-cache run --locked python -c "$free")
 db="sqlite+aiosqlite:///$(mktemp -d)/todos.db"
 log=$(mktemp)
-uv run --locked python -c "$probe" "$api"; a=$?
-uv run --locked python -c "$probe" "$vite"; v=$?
+uv --no-cache run --locked python -c "$probe" "$api"; a=$?
+uv --no-cache run --locked python -c "$probe" "$vite"; v=$?
 if [ "$a" = 1 ] && [ "$v" = 1 ] && [ "$api" != "$vite" ]; then
-  env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= INTENT_TO_ENGLISH_API_PORT="$api" VITE_PORT="$vite" just dev >"$log" 2>&1 &
+  env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= INTENT_TO_ENGLISH_API_PORT="$api" VITE_PORT="$vite" just dev >"$log" 2>&1 &
   pid=$!
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
-  if uv run --locked python -c "$ready" "$log" "$api" "$vite" "$pid"; then
+  if uv --no-cache run --locked python -c "$ready" "$log" "$api" "$vite" "$pid"; then
     curl -sS -i "http://localhost:$vite/healthz"; echo
     curl -sS -i -X POST "http://localhost:$vite/api/todos" -H 'content-type: application/json' -d '{"title": "buy milk"}'; echo
   else
@@ -74,7 +74,7 @@ if [ "$a" = 1 ] && [ "$v" = 1 ] && [ "$api" != "$vite" ]; then
   fi
   kill "$pid" 2>/dev/null; wait "$pid"; rc=$?; trap - EXIT; echo "just dev exited $rc"
   for port in "$api" "$vite"; do
-    uv run --locked python -c "$probe" "$port"; rc=$?
+    uv --no-cache run --locked python -c "$probe" "$port"; rc=$?
     case "$rc" in
       1) echo "nothing listening on $port" ;;
       0) echo "something still listens on $port: report it, do not kill it" ;;

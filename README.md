@@ -63,12 +63,28 @@ The interactive API docs are at <http://127.0.0.1:8000/docs>.
 | `GET /api/todos?cursor=<cursor>&limit=<n>` | 200 with one page, oldest first: `{"items": [<to-do>, ...], "next_cursor": "<cursor>" \| null}` |
 | `POST /api/todos/{id}/complete` | 200 with the completed to-do; 404 `todo_not_found` when unknown |
 | `DELETE /api/todos/{id}` | 204; 404 `todo_not_found` when unknown |
+| `POST /api/sessions` | 201 with the new session at `opening`, version 0; no model call |
+| `GET /api/sessions?cursor=<cursor>&limit=<n>` | 200 with one page, newest first; default 20, maximum 100 |
+| `GET /api/sessions/{id}` | 200 with the complete session view; 404 `session_not_found` when unknown |
+| `POST /api/sessions/{id}/actions` | 200 with the new view; a body discriminated by `action`, with `version` and that action's fields |
+| `POST /api/sessions/{id}/cancel` `{"version": 0}` | 204 whether or not that version has pending work; 404 for an unknown session; a missing version is 422 |
+| `GET /api/meta` | 200 with the container's selected `model_mode`; currently `{"model_mode": "fixed"}` |
 
 A to-do's `id` is a UUID (version 7) the application generates, so ids sort in
 creation order. `GET /api/todos` returns at most `limit` to-dos (default 50, at most
 100) and pages by cursor: pass a page's `next_cursor` back as `cursor` to fetch
 the next page; `next_cursor` is `null` on the last one. `GET /api/todos` with no
 parameters is the first page, `{"items": [], "next_cursor": null}` when empty.
+
+A session view includes its stage, version, allowed actions, ordered timeline,
+start/end times, recoverable input and wrap-up. Action bodies use flat input
+fields: `{"action": "intent", "version": 1, "text": "..."}`, or `gap` and
+`partial_english` for a hint, `reading` for a reading choice, and `mode` for a
+restatement. Actions such as `open`, `end` and `wrap_up` need only action/version.
+`end` returns immediately without calling a model. An ended session with feedback
+has `wrap_up: null` and allows `wrap_up`; that separate action creates the summary.
+An empty `{"items": []}` means no summary is needed. Cancellation affects only
+pending work at the supplied version and does not advance the session.
 
 Every error uses RFC 9457 `application/problem+json`: `type: "about:blank"`,
 `title` (the status phrase), numeric `status`, client-safe `detail`, and a stable
@@ -77,6 +93,10 @@ Every error uses RFC 9457 `application/problem+json`: `type: "about:blank"`,
 An unknown to-do is 404 `todo_not_found`. An invalid title, cursor, or page limit
 is 422 `invalid_todo`, `invalid_cursor`, or `invalid_page_limit`. An unmapped
 domain error falls back to 400 with its own code (`AppError` uses `app_error`).
+Session conflicts are 409 `stale_session`, `action_in_progress`, `action_not_allowed`,
+`session_ended` or `action_cancelled`. Core text limits return 422 `invalid_input`.
+Model failures return 504 `model_timeout`, 503 `model_rate_limited`, or 502
+`model_unavailable` / `model_output_invalid`; failed input stays recoverable in the view.
 A request that does not parse is 422 `request_invalid`, detail `Request validation
 failed`, and `errors: [{"loc": [...], "message": "...", "type": "..."}]`;
 raw input and server context are omitted. Domain errors have no `errors`.
@@ -93,7 +113,8 @@ error occurred`, while the traceback is logged on `intent_to_english.api.errors`
 
 ## Configuration
 
-Settings read environment variables prefixed with `INTENT_TO_ENGLISH_`, then optional UTF-8
+Settings read `INTENT_TO_ENGLISH_` variables and the unprefixed `OPENROUTER_API_KEY`
+alias, then optional UTF-8
 `backend/.env`. The file's path is resolved from the module, so changing the
 working directory does not change which file is read. A missing file is fine.
 
@@ -105,16 +126,26 @@ cp backend/.env.example backend/.env
 
 The sample lists every setting with an empty value and its default. Environment
 values take precedence over the file, including an explicit empty value: blanks
-mean unset/default. Quoted file values are supported. Unknown `INTENT_TO_ENGLISH_` keys in
+mean unset/default. Whitespace-only model ids fail at startup, naming the variable.
+Quoted file values are supported. Unknown `INTENT_TO_ENGLISH_` keys in
 the file fail at startup (Pydantic names the normalized field); unrelated,
-unprefixed keys are ignored.
+unprefixed keys other than the declared provider-key alias are ignored.
 
 | Variable | Default | Effect |
 |---|---|---|
 | `INTENT_TO_ENGLISH_LOG_LEVEL` | `INFO` | Case-insensitive `DEBUG`, `INFO`, `WARNING`, or `ERROR`; blank keeps the default. |
 | `INTENT_TO_ENGLISH_LOG_FORMAT` | `text` | `text` or one JSON object per line with timestamp, level, logger, message, request ID, access fields, and exception type/traceback when present; blank keeps text. |
 | `INTENT_TO_ENGLISH_CORS_ORIGINS` | empty (CORS disabled) | Comma-separated HTTP(S) origins, e.g. `http://localhost:5173,https://app.example.com`. Spaces and empty items are removed, hosts use lowercase/punycode, default ports are removed, and duplicates kept once. Paths, queries, fragments, user info, invalid ports, trailing slashes, wildcards, and origins without an HTTP(S) scheme are rejected at startup. JSON requests from listed origins are allowed without credentials. |
-| `INTENT_TO_ENGLISH_DATABASE_URL` | unset (`just dev`: `sqlite+aiosqlite:///./var/dev.db`) | Unset (or empty) keeps to-dos in memory, so they vanish when the process exits. `sqlite+aiosqlite:///<path>` stores them in a SQLite file at `<path>`, relative to the working directory (an absolute path adds a fourth slash: `sqlite+aiosqlite:////var/lib/todos.db`). `postgresql+asyncpg://<user>:<password>@<host>/<database>` names a PostgreSQL database; include the optional `postgres` extra in workspace commands (`uv run --locked --directory backend --extra postgres ...`) or install the built app with that extra. Anything else is rejected at startup, naming the fix: a URL without the async driver (`sqlite:` or `postgresql:` alone), an in-memory SQLite target (including `:memory:` with options and native URI memory mode), an empty target, and a directory target ending in `/`, even when query options follow. File options are preserved; migrations and the app use separate engine/process lifetimes, so in-memory SQL cannot retain the separately migrated schema. |
+| `INTENT_TO_ENGLISH_DATABASE_URL` | unset (`just dev`: `sqlite+aiosqlite:///./var/dev.db`) | Unset (or empty) keeps to-dos and sessions in memory, so they vanish when the process exits. `sqlite+aiosqlite:///<path>` stores them in a SQLite file at `<path>`, relative to the working directory (an absolute path adds a fourth slash: `sqlite+aiosqlite:////var/lib/todos.db`). `postgresql+asyncpg://<user>:<password>@<host>/<database>` names a PostgreSQL database; include the optional `postgres` extra in workspace commands (`uv run --locked --directory backend --extra postgres ...`) or install the built app with that extra. Anything else is rejected at startup, naming the fix: a URL without the async driver (`sqlite:` or `postgresql:` alone), an in-memory SQLite target (including `:memory:` with options and native URI memory mode), an empty target, and a directory target ending in `/`, even when query options follow. File options are preserved; migrations and the app use separate engine/process lifetimes, so in-memory SQL cannot retain the separately migrated schema. |
+| `OPENROUTER_API_KEY` | unset | Unprefixed secret; unset or whitespace-only means no key. It is omitted from settings repr and never returned by the API. |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. Composition currently uses fixed responses in both modes, including when a key is set. |
+| `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | The configured Coach model id; empty keeps the default, whitespace-only is rejected. |
+| `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | The configured Partner model id; empty keeps the default, whitespace-only is rejected. |
+
+Both roles currently use the offline adapters. The live composition branch is a
+separate implementation; `GET /api/meta` reports the selected mode. Every browser-test
+process explicitly selects fixed mode with an empty key and the default model ids,
+and removes inherited application settings and provider-key aliases first.
 
 The development servers read a second set of variables from the process
 environment. They are not `Settings` fields, so they never go in `backend/.env`,

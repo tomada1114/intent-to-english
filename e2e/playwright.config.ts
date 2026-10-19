@@ -7,7 +7,7 @@ import {
   variable,
 } from "./environment.ts";
 
-// `just e2e` sets up the run: it clears every inherited INTENT_TO_ENGLISH_* variable, makes
+// `just e2e` clears inherited application settings and OPENROUTER_API_KEY, then makes
 // a throwaway SQLite file, picks two free ports, and checks both are free again
 // once this exits. Without it, this throws rather than touch the developer's
 // database or servers.

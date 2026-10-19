@@ -25,6 +25,41 @@ engine, a client) between calls. `SKILL.md` holds the rules these steps apply.
 7. A new setting follows `SKILL.md`'s "Settings are read once, at the boundary"; a new
    driver follows its "The direction dependencies point".
 
+## Current composition wiring
+
+The builder returns both services, with the selected mode and resource ownership.
+This illustration follows `composition.py`; the module holds the imports and types:
+
+```python
+def build_container(
+    settings: Settings,
+    clock: Clock = utc_now,
+    new_id: IdFactory = uuid.uuid7,
+    *,
+    boot_id: UUID | None = None,
+) -> Container:
+    resources = ResourceClosers()
+    todo_repository, session_repository = _build_repositories(settings, resources)
+    todos = TodoService(todo_repository, clock, new_id)
+    conversations = ConversationService(
+        session_repository,
+        FixedPartnerModel(),
+        FixedCoachModel(),
+        clock,
+        new_id,
+        boot_id if boot_id is not None else uuid.uuid7(),
+    )
+    return Container(
+        todos=todos,
+        conversations=conversations,
+        model_mode="fixed",
+        _resources=resources,
+    )
+```
+
+`_build_repositories` registers one SQL engine's disposer and passes that engine to
+both repositories. A missing database URL selects independent memory repositories.
+
 ## An adapter that holds a resource
 
 `build_container` owns a `ResourceClosers` registry and passes it to adapter builders:

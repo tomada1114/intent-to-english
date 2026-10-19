@@ -108,6 +108,10 @@ E2E_SETTINGS = {
     "INTENT_TO_ENGLISH_CORS_ORIGINS": "",
     "INTENT_TO_ENGLISH_LOG_LEVEL": "INFO",
     "INTENT_TO_ENGLISH_LOG_FORMAT": "text",
+    "OPENROUTER_API_KEY": "",
+    "INTENT_TO_ENGLISH_MODEL_MODE": "fixed",
+    "INTENT_TO_ENGLISH_COACH_MODEL": "anthropic/claude-sonnet-5.5",
+    "INTENT_TO_ENGLISH_PARTNER_MODEL": "anthropic/claude-haiku-5.5",
 }
 HOSTILE = {
     "INTENT_TO_ENGLISH_DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
@@ -116,15 +120,22 @@ HOSTILE = {
     "INTENT_TO_ENGLISH_LOG_FORMAT": "json",
     "INTENT_TO_ENGLISH_API_PORT": "8000",
     "INTENT_TO_ENGLISH_FUTURE_SETTING": "hostile",
+    "OPENROUTER_API_KEY": "dummy-hostile-key",
+    "openrouter_api_key": "dummy-lowercase-key",
+    "intent_to_english_future_lowercase": "hostile",
+    "INTENT_TO_ENGLISH_MODEL_MODE": "auto",
+    "INTENT_TO_ENGLISH_COACH_MODEL": "hostile/coach",
+    "INTENT_TO_ENGLISH_PARTNER_MODEL": "hostile/partner",
 }
 _DATABASE = re.compile(r"database in (?P<tmp>\S+)")
 _PORTS = re.compile(r"API port (?P<api>\d+), screen port (?P<web>\d+)")
 
 SETTINGS_PROBE = """\
 import json, sys
-from intent_to_english.settings import Settings
+from intent_to_english.settings import ENV_PREFIX, Settings
 settings = Settings(_env_file=sys.argv[1])
-print(json.dumps({"fields": sorted(Settings.model_fields), "values": settings.model_dump(mode="json")}))
+names = {name: field.validation_alias if isinstance(field.validation_alias, str) else ENV_PREFIX + name.upper() for name, field in Settings.model_fields.items()}
+print(json.dumps({"fields": sorted(Settings.model_fields), "environment_names": names, "values": settings.model_dump(mode="json")}))
 """
 
 
@@ -316,7 +327,12 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
     env = recorded["env"]
     assert isinstance(env, dict)
     database_url = f"sqlite+aiosqlite:///{run.tmp}/e2e.db"
-    assert {k: v for k, v in env.items() if k.startswith("INTENT_TO_ENGLISH_")} == {
+    assert {
+        k: v
+        for k, v in env.items()
+        if k.upper().startswith("INTENT_TO_ENGLISH_")
+        or k.upper() == "OPENROUTER_API_KEY"
+    } == {
         "INTENT_TO_ENGLISH_DATABASE_URL": database_url,
         **E2E_SETTINGS,
     }
@@ -330,14 +346,21 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
         check=True,
     )
     settings = json.loads(probe.stdout)
-    assert {f"INTENT_TO_ENGLISH_{field.upper()}" for field in settings["fields"]} == {
-        name for name in env if name.startswith("INTENT_TO_ENGLISH_")
+    assert set(settings["environment_names"]) == set(settings["fields"])
+    assert set(settings["environment_names"].values()) == {
+        name
+        for name in env
+        if name.startswith("INTENT_TO_ENGLISH_") or name == "OPENROUTER_API_KEY"
     }
     assert settings["values"] == {
         "database_url": database_url,
         "cors_origins": [],
         "log_level": "INFO",
         "log_format": "text",
+        "openrouter_api_key": None,
+        "model_mode": "fixed",
+        "coach_model": "anthropic/claude-sonnet-5.5",
+        "partner_model": "anthropic/claude-haiku-5.5",
     }
 
 

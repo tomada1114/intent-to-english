@@ -65,16 +65,22 @@ export function settingsEnvironment(databaseUrl: string): Record<string, string>
     INTENT_TO_ENGLISH_CORS_ORIGINS: "",
     INTENT_TO_ENGLISH_LOG_LEVEL: "INFO",
     INTENT_TO_ENGLISH_LOG_FORMAT: "text",
+    OPENROUTER_API_KEY: "",
+    INTENT_TO_ENGLISH_MODEL_MODE: "fixed",
+    INTENT_TO_ENGLISH_COACH_MODEL: "anthropic/claude-sonnet-5.5",
+    INTENT_TO_ENGLISH_PARTNER_MODEL: "anthropic/claude-haiku-5.5",
   };
 }
 
-/** This process's environment without any inherited INTENT_TO_ENGLISH_* key, plus `settings`. */
+/** Remove inherited application settings and the provider-key alias before adding `settings`. */
 export function isolatedEnvironment(
   settings: Record<string, string>,
 ): Record<string, string> {
   const inherited = Object.entries(process.env).filter(
     (entry): entry is [string, string] =>
-      entry[1] !== undefined && !entry[0].startsWith("INTENT_TO_ENGLISH_"),
+      entry[1] !== undefined &&
+      !entry[0].toUpperCase().startsWith("INTENT_TO_ENGLISH_") &&
+      entry[0].toUpperCase() !== "OPENROUTER_API_KEY",
   );
   return { ...Object.fromEntries(inherited), ...settings };
 }

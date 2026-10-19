@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from sqlalchemy import make_url
 from sqlalchemy.dialects.sqlite.aiosqlite import SQLiteDialect_aiosqlite
 
@@ -12,6 +12,71 @@ from intent_to_english import composition
 from intent_to_english import settings as settings_module
 from intent_to_english.settings import Settings
 from tests.settings_env import settings_from_env_file
+
+
+def test_settings_model_defaults_and_provider_key_isolation():
+    settings = Settings()
+    assert settings.model_mode == "auto"
+    assert settings.coach_model == "anthropic/claude-sonnet-5.5"
+    assert settings.partner_model == "anthropic/claude-haiku-5.5"
+    assert settings.openrouter_api_key is None
+
+
+@pytest.mark.parametrize("value", ["", " ", "\t"])
+def test_settings_blank_provider_key_is_none(monkeypatch, value):
+    monkeypatch.setenv("OPENROUTER_API_KEY", value)
+    assert Settings().openrouter_api_key is None
+
+
+def test_settings_provider_key_uses_its_alias_and_stays_out_of_repr(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy-provider-key")
+    settings = Settings()
+    assert isinstance(settings.openrouter_api_key, SecretStr)
+    assert settings.openrouter_api_key.get_secret_value() == "dummy-provider-key"
+    assert "dummy-provider-key" not in repr(settings)
+    assert "dummy-provider-key" not in settings.model_dump_json()
+    assert Settings(OPENROUTER_API_KEY=None).openrouter_api_key is None
+    assert Settings(OPENROUTER_API_KEY=SecretStr(" ")).openrouter_api_key is None
+
+
+def test_settings_provider_key_is_read_from_a_controlled_dotenv(tmp_path):
+    file = tmp_path / "settings.env"
+    file.write_text("OPENROUTER_API_KEY=dummy-dotenv-key\n", encoding="utf-8")
+    key = settings_from_env_file(file).openrouter_api_key
+    assert isinstance(key, SecretStr)
+    assert key.get_secret_value() == "dummy-dotenv-key"
+
+
+@pytest.mark.parametrize("mode", ["", "auto", "fixed"])
+def test_settings_model_mode_defaults_or_preserves(monkeypatch, mode):
+    monkeypatch.setenv("INTENT_TO_ENGLISH_MODEL_MODE", mode)
+    assert Settings().model_mode == (mode or "auto")
+
+
+@pytest.mark.parametrize("value", ["live", 0, False, None])
+def test_settings_unknown_model_mode_is_rejected(value):
+    with pytest.raises(ValidationError, match="model_mode"):
+        Settings(model_mode=value)
+
+
+@pytest.mark.parametrize(
+    ("field", "default"),
+    [
+        ("coach_model", "anthropic/claude-sonnet-5.5"),
+        ("partner_model", "anthropic/claude-haiku-5.5"),
+    ],
+)
+def test_settings_model_ids_default_accept_a_value_and_reject_whitespace(
+    monkeypatch, field, default
+):
+    variable = f"INTENT_TO_ENGLISH_{field.upper()}"
+    monkeypatch.setenv(variable, "")
+    assert getattr(Settings(), field) == default
+    monkeypatch.setenv(variable, "provider/model")
+    assert getattr(Settings(), field) == "provider/model"
+    monkeypatch.setenv(variable, " \t")
+    with pytest.raises(ValidationError, match=variable):
+        Settings()
 
 
 @pytest.mark.parametrize("value", ["", "INFO", "info", "DEBUG", "warning", "ERROR"])
