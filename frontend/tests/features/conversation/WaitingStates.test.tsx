@@ -22,6 +22,8 @@ const COACH_WAITING = "コーチが確認しています…";
 const PARTNER_WAITING = "Partner が返事を考えています…";
 const LONG_WAIT = "時間がかかっています（最大2分）";
 const CANCELLED = "中止しました。";
+const UNREACHABLE =
+  "アプリのサーバーに接続できません。起動しているか確認してください。";
 
 const OPENER = entry("partner_line", {
   text: "Hey! How's it going?",
@@ -502,5 +504,55 @@ describe("ConversationScreen pending from elsewhere (REQ-009)", () => {
     expect(coach().getByText(CANCELLED)).toBeInTheDocument();
     await advance(6000);
     expect(field).toBeEnabled();
+  });
+
+  it("waits again for a new pending submission at the same version once the cancelled one is gone", async () => {
+    let reads = 0;
+    let afterCancel = false;
+    msw.use(
+      http.get(`/api/sessions/${SESSION_ID}`, () => {
+        reads += 1;
+        // Another tab sends the same action again at the same version.
+        return HttpResponse.json<SessionResponse>(pending);
+      }),
+      http.post(`/api/sessions/${SESSION_ID}/cancel`, () => {
+        afterCancel = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSession(pending);
+    await advance(10_000);
+
+    await user.click(coach().getByRole("button", { name: "中止" }));
+    await advance(0);
+    expect(afterCancel).toBe(true);
+    const readsAfterCancel = reads;
+
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
+    expect(field).toBeDisabled();
+    expect(field).toHaveValue("I watched a movie");
+    await advance(2010);
+    expect(reads).toBeGreaterThan(readsAfterCancel);
+    expect(coach().getByText(COACH_WAITING)).toBeInTheDocument();
+  });
+});
+
+describe("ConversationScreen cancel with no response (REQ-003, REQ-006)", () => {
+  it("clears the server-unreachable banner once the awaited action settles anyway", async () => {
+    const { user, release } = await open(english, retry, async () =>
+      HttpResponse.error(),
+    );
+    await sendEnglish(user);
+    await advance(10_000);
+    await user.click(coach().getByRole("button", { name: "中止" }));
+    await advance(0);
+    expect(screen.getByText(UNREACHABLE)).toBeInTheDocument();
+
+    release();
+    await advance(1000);
+
+    expect(resultShown()).toBe(true);
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
   });
 });

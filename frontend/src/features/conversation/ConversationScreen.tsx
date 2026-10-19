@@ -183,7 +183,11 @@ export function ConversationScreen({
   const [endError, setEndError] = useState<ApiError | null>(null);
   /** The stored submission this tab has since sent over or cancelled. */
   const [settledKey, setSettledKey] = useState<string | null>(null);
+  /** Counts cleared markers: a stored wait's clock restarts for each new one. */
+  const [storedRound, setStoredRound] = useState(0);
   const [cancellingStored, setCancellingStored] = useState<string | null>(null);
+  /** The last action got no response: the layout's [再試行] is its way on. */
+  const [unanswered, setUnanswered] = useState(false);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   /** Where focus goes once the next render is shown, as a control goes away. */
   const focusAfterPast = useRef<"back" | "composer" | "again" | null>(null);
@@ -222,6 +226,11 @@ export function ConversationScreen({
   const storedKey =
     stored === null ? null : `${view.version}:${stored.action}:${stored.state}`;
   const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
+  // The marker holds only while the view still shows that submission: a later
+  // one with the same version, action, and state is another submission.
+  useEffect(() => {
+    if (settledKey !== null && storedKey !== settledKey) setSettledKey(null);
+  }, [settledKey, storedKey]);
   // A submission the server still runs that this tab did not send (a reload,
   // another tab): wait for it, reading the session every 2 s.
   const storedPending =
@@ -269,6 +278,7 @@ export function ConversationScreen({
     setAttempt(sent);
     setOutcome(null);
     setSettledKey(storedKey);
+    setUnanswered(false);
     status.resolve(UNANSWERED.action);
     let next: SessionResponse;
     try {
@@ -306,6 +316,7 @@ export function ConversationScreen({
     }
     setAttempt(null);
     if (error.kind === "unknown") {
+      setUnanswered(true);
       status.report(UNANSWERED.action, () => void latest.current.send(sent.input));
       return;
     }
@@ -387,7 +398,15 @@ export function ConversationScreen({
       setHintOpen(true);
     }
     setOutcome({ kind: "cancelled", action: pending.action });
+    const asked = Date.now();
     await readAgain();
+    // The server cancelled before its 204, so a pending submission this read
+    // shows is a new one, even at the same version and action: wait for it.
+    const read = queryClient.getQueryState(sessionKey);
+    if (read?.status === "success" && read.dataUpdatedAt >= asked) {
+      setSettledKey(null);
+      setStoredRound((round) => round + 1);
+    }
   }
 
   /** [中止] goes away: focus the way on, never the document body. */
@@ -483,9 +502,13 @@ export function ConversationScreen({
     attempt !== null
       ? `sent:${attempt.id}`
       : storedPending !== null
-        ? `stored:${storedKey}`
+        ? `stored:${storedRound}:${storedKey}`
         : null;
   const lineShown = useDelayedLoading(busy) && busy;
+  // Nothing left to cancel: a cancel that got no response needs no 再試行.
+  useEffect(() => {
+    if (!busy) status.resolve(UNANSWERED.cancel);
+  }, [busy, status]);
   const longWait = useAfter(waitKey, LONG_WAIT_MS);
   const cancelling =
     attempt?.cancelling === true ||
@@ -607,6 +630,7 @@ export function ConversationScreen({
     !busy &&
     !ended &&
     failure === null &&
+    !unanswered &&
     (autoSent.current === view.version || view.last_submission !== null);
 
   const failureBanner = (pane: "partner" | "coach") =>

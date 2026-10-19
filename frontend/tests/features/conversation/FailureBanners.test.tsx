@@ -383,6 +383,35 @@ describe("ConversationScreen with no response (REQ-006)", () => {
   });
 });
 
+describe("ConversationScreen auto-sent action with no response (REQ-006)", () => {
+  it("offers only the layout's 再試行 for an auto-sent partner_reply, no 「もう一度」 in the pane", async () => {
+    const served = serveSession(
+      partnerTurn,
+      firstThen(
+        () => HttpResponse.error(),
+        () => turnTwo,
+      ),
+    );
+    const user = userEvent.setup();
+    renderSession(partnerTurn);
+
+    const banner = (await screen.findByText(UNREACHABLE)).closest(
+      '[role="alert"]',
+    ) as HTMLElement;
+    expect(
+      pane("会話").queryByRole("button", { name: "もう一度" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(banner).getByRole("button", { name: "再試行" }));
+
+    expect(await pane("会話").findByText(SHARE.payload.text)).toBeInTheDocument();
+    expect(served.bodies).toEqual([
+      { action: "partner_reply", version: 4 },
+      { action: "partner_reply", version: 4 },
+    ]);
+  });
+});
+
 describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
   function withLast(
     view: SessionResponse,
