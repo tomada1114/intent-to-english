@@ -102,7 +102,8 @@ The call-log command is a separate read-only entry point. Its SQL reader owns on
 `make_read_engine` and disposes it on the same loop in `finally`; it never builds a
 container, selects models, or migrates. SQLite uses a native `file:` URI with
 `mode=ro` and `query_only=ON`, including re-escaping the parsed filename, so a missing
-file is not created and writes fail. It does not install the app's `BEGIN IMMEDIATE`
+file is rejected before the aiosqlite worker starts, read-only mode still prevents
+creation across a file-removal race, and writes fail. It does not install the app's `BEGIN IMMEDIATE`
 hook, which would take a writer lock. PostgreSQL uses a serializable read-only
 transaction, matching asyncpg's isolation requirement
 (https://docs.sqlalchemy.org/en/21/dialects/postgresql.html#setting-read-only-deferrable,

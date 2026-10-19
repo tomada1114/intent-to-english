@@ -367,7 +367,8 @@ and adding the PostgreSQL extra for that driver. It never migrates, constructs
 models, or writes. Its SQL reader owns a separate read-only engine, rather than
 the application's SQLite writer-lock transaction hooks: SQLite uses `mode=ro`
 and `query_only`, PostgreSQL a serializable read-only transaction. A missing SQLite
-file is never created; missing or unmigrated databases return 1 with a
+file is rejected before driver startup, and read-only mode still prevents creation
+if it disappears after that check; missing or unmigrated databases return 1 with a
 `just backend db-upgrade` instruction. The reader restores core records on its own
 connection and always disposes its engine.
 

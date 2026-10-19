@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from datetime import datetime
     from uuid import UUID
 
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
     from intent_to_english.core.models import ModelCallRecord
 
 
@@ -38,15 +40,17 @@ async def read_calls(
     url: str, session_id: UUID | None = None, since: datetime | None = None
 ) -> tuple[ModelCallRecord, ...]:
     """Load optional inclusive filters over one owned read-only connection."""
-    engine = make_read_engine(url)
+    engine: AsyncEngine | None = None
     try:
+        engine = make_read_engine(url)
         async with engine.connect() as connection:
             result = await connection.execute(
                 _READ_CALLS, {"session_id": session_id, "since": since}
             )
             return tuple(call_from(row) for row in result.mappings())
-    except OperationalError, ProgrammingError:
+    except OperationalError, ProgrammingError, OSError:
         message = "Cannot read the model call log. Check the database URL and run `just backend db-upgrade`."
         raise CallLogReadError(message) from None
     finally:
-        await engine.dispose()
+        if engine is not None:
+            await engine.dispose()

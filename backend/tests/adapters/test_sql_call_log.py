@@ -4,6 +4,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import quote
 
+import aiosqlite
 import pytest
 from sqlalchemy import make_url, text
 from sqlalchemy.exc import DBAPIError
@@ -41,6 +42,18 @@ async def test_reader_missing_database_creates_no_file(tmp_path):
     with pytest.raises(CallLogReadError, match="just backend db-upgrade"):
         await read_calls(f"sqlite+aiosqlite:///{path}")
     assert not path.exists()
+
+
+async def test_missing_sqlite_file_is_rejected_before_starting_driver(
+    tmp_path, monkeypatch
+):
+    def connect(*args, **kwargs):
+        message = "A missing database must not start a driver worker"
+        raise AssertionError(message)
+
+    monkeypatch.setattr(aiosqlite, "connect", connect)
+    with pytest.raises(CallLogReadError, match="just backend db-upgrade"):
+        await read_calls(f"sqlite+aiosqlite:///{tmp_path / 'missing.db'}")
 
 
 async def test_reader_existing_unmigrated_database_is_unchanged(tmp_path):

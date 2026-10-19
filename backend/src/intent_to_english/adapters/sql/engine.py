@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
@@ -53,6 +54,12 @@ def make_read_engine(url: str) -> AsyncEngine:
         uri = parsed.query.get("uri")
         if isinstance(uri, str) and uri.lower() in {"true", "1", "yes", "on", "y", "t"}:
             database = database.removeprefix("file:")
+        # A failed aiosqlite connect can leave its stop future pending as a
+        # one-shot CLI loop closes. Reject absence before starting that worker;
+        # mode=ro below still prevents creation if the file disappears afterward.
+        if not Path(database).is_file():
+            message = "The SQLite database file does not exist"
+            raise FileNotFoundError(message)
         database = "file:" + quote(database, safe="/")
         parsed = parsed.set(database=database).update_query_dict(
             {"mode": "ro", "uri": "true"}
