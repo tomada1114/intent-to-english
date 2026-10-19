@@ -163,4 +163,69 @@ describe("/sessions/$sessionId", () => {
       screen.queryByRole("button", { name: "会話を終える" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    { name: "S2", ended: false },
+    { name: "S3", ended: true },
+  ])(
+    "lets $name fill the height the header and any banner leave, never a fixed viewport height",
+    async ({ ended }) => {
+      server.use(
+        http.get(`/api/sessions/${SESSION_ID}`, () =>
+          HttpResponse.json<SessionResponse>(
+            ended
+              ? {
+                  ...view,
+                  status: "ended",
+                  stage: "ended",
+                  allowed_actions: [],
+                  wrap_up: { items: [] },
+                }
+              : view,
+          ),
+        ),
+      );
+      renderAt(`/sessions/${SESSION_ID}`);
+      await screen.findByText("Hey! How's it going?");
+
+      // jsdom has no layout: the structure is what holds the composer in view.
+      const main = screen.getByRole("main");
+      expect(main).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
+      const fill = main.querySelector("[data-fill-viewport]");
+      expect(fill).not.toBeNull();
+      expect(fill).toHaveClass("min-h-0", "flex-1");
+      expect(main.parentElement?.className).toContain(
+        "has-[[data-fill-viewport]]:h-dvh",
+      );
+      expect(document.body.innerHTML).not.toContain("100dvh");
+    },
+  );
+
+  it("lets the skeleton fill the height left too", async () => {
+    const gate = deferred();
+    server.use(
+      http.get(`/api/sessions/${SESSION_ID}`, async () => {
+        await gate.promise;
+        return HttpResponse.json<SessionResponse>(view);
+      }),
+    );
+    renderAt(`/sessions/${SESSION_ID}`);
+
+    await screen.findByText("読み込んでいます…");
+
+    expect(
+      screen.getByRole("main").querySelector("[data-fill-viewport]"),
+    ).not.toBeNull();
+    expect(document.body.innerHTML).not.toContain("100dvh");
+    gate.release();
+    await screen.findByText("Hey! How's it going?");
+  });
+
+  it("keeps S1 to the page's own scroll, filling nothing", async () => {
+    renderAt("/");
+
+    await screen.findByText("まだ会話はありません。最初の会話を始めましょう。");
+
+    expect(document.querySelector("[data-fill-viewport]")).toBeNull();
+  });
 });

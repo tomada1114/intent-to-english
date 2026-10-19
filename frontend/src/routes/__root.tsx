@@ -23,8 +23,10 @@ function RootLayout() {
   return (
     <ServerStatusProvider>
       <HeaderSlotProvider>
-        <div className="min-h-dvh bg-canvas font-sans text-ink">
-          <header className="group/header sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-canvas px-4 lg:gap-4">
+        {/* A session screen fills the height the header and any banner leave,
+            its panes scrolling inside; any other screen scrolls the page. */}
+        <div className="flex min-h-dvh flex-col bg-canvas font-sans text-ink has-[[data-fill-viewport]]:h-dvh">
+          <header className="group/header sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-line bg-canvas px-4 lg:gap-4">
             {/* Below 1024 px a page's own items take the room; its back link leads home. */}
             <Link
               to="/"
@@ -37,7 +39,7 @@ function RootLayout() {
           </header>
           {/* A request with no response, on any screen: directly under the header. */}
           <ServerUnreachableBanner />
-          <main>
+          <main className="flex min-h-0 flex-1 flex-col">
             <Outlet />
           </main>
         </div>

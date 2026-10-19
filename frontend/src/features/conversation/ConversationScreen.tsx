@@ -915,7 +915,7 @@ export function ConversationScreen({
       <div role="status" aria-label="お知らせ" aria-atomic="true" className="sr-only">
         {arrival.message !== "" && <span key={arrival.key}>{arrival.message}</span>}
       </div>
-      <div className="flex h-[calc(100dvh-3rem)] flex-col">
+      <div data-fill-viewport="" className="flex min-h-0 flex-1 flex-col">
         {notice}
         {wide ? (
           <div className="grid min-h-0 flex-1 grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]">
@@ -995,7 +995,10 @@ export function ConversationScreen({
 /** Loading the session: three skeleton blocks in each pane's place. */
 export function ConversationSkeleton() {
   return (
-    <div className="grid h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]">
+    <div
+      data-fill-viewport=""
+      className="grid min-h-0 flex-1 lg:grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]"
+    >
       <p role="status" className="sr-only">
         読み込んでいます…
       </p>

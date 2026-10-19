@@ -42,7 +42,7 @@ function repliesLabel(count: number): string {
  */
 export function HomeScreen() {
   return (
-    <div className="mx-auto max-w-[880px] space-y-8 px-4 py-8">
+    <div className="mx-auto w-full max-w-[880px] space-y-8 px-4 py-8">
       <div className="space-y-6">
         <h1 className="text-2xl leading-[1.35] font-bold">{TAGLINE}</h1>
         <StartSession />
@@ -107,7 +107,11 @@ function SessionList() {
     // the default five minutes; coming back must find every page it loaded.
     gcTime: Number.POSITIVE_INFINITY,
   });
-  const skeleton = useDelayedLoading(query.isPending);
+  // While nothing is shown yet, a read (the first, or a retry) shows the
+  // skeleton after 300 ms, as the session route does.
+  const skeleton = useDelayedLoading(query.data === undefined && query.isFetching);
+  // No response at all is the layout's banner, with its 再試行: one alert.
+  const loadFailed = query.isError && toApiError(query.error).kind === "problem";
   const heading = (
     <h2 id={headingId} className="text-xl font-bold">
       これまでの会話
@@ -122,8 +126,8 @@ function SessionList() {
       </section>
     );
   }
-  if (query.isPending) return null;
-  if (query.isError && query.data === undefined) {
+  if (query.data === undefined) {
+    if (!loadFailed) return null;
     return (
       <section aria-labelledby={headingId} className="space-y-3">
         {heading}
@@ -166,7 +170,7 @@ function SessionList() {
             さらに表示
           </button>
         )}
-        {query.isError && (
+        {loadFailed && (
           <LoadFailed
             retrying={query.isFetching}
             onRetry={() =>

@@ -338,7 +338,10 @@ export function TranscriptScreen({
       </HeaderItems>
       <h1 className="sr-only">{`${startLabel} からの会話（終了）`}</h1>
       {wide ? (
-        <div className="grid h-[calc(100dvh-3rem)] grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]">
+        <div
+          data-fill-viewport=""
+          className="grid min-h-0 flex-1 grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]"
+        >
           <section
             aria-label="会話"
             className="flex min-h-0 flex-col border-r border-line bg-canvas"
@@ -350,7 +353,7 @@ export function TranscriptScreen({
           </section>
         </div>
       ) : (
-        <div className="flex h-[calc(100dvh-3rem)] flex-col">
+        <div data-fill-viewport="" className="flex min-h-0 flex-1 flex-col">
           <div
             role="tablist"
             aria-label="会話とコーチ"
