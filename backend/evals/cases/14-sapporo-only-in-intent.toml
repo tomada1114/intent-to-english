@@ -1,0 +1,13 @@
+task = "partner.reply"
+source = "docs/product/requirements.md §3.11: content only in Japanese"
+
+[context]
+intent = "家族で札幌に旅行してきたよ。"
+
+[request]
+conversation = [{ speaker = "partner", text = "How was your weekend?" }, { speaker = "learner", text = "I went on a trip with my family." }]
+share = false
+
+[[expect]]
+kind = "absent"
+text = "Sapporo"

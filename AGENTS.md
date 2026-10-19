@@ -138,6 +138,16 @@ or, for the screen, your own pair on two free ports with a scratch database,
 `INTENT_TO_ENGLISH_API_PORT=<port> VITE_PORT=<port> just dev`; stop either before your
 turn ends (`running-the-app`).
 
+### Billed — human-run
+
+```bash
+just backend eval    # Run the seeded evaluation cases and write new JSON/Markdown reports (bills); refuses in fixed mode
+```
+
+Only the owner runs a billed evaluation. An agent may verify refusal with both
+`INTENT_TO_ENGLISH_MODEL_MODE=fixed OPENROUTER_API_KEY= just backend eval` overrides;
+the empty key outranks the optional dotenv file.
+
 ### Writes to GitHub
 
 ```bash

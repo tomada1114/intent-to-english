@@ -1,0 +1,14 @@
+task = "coach.feedback"
+source = "docs/product/conversation-rules.md §7 ⑤ follow-on"
+
+[request]
+intent = "あー、なるほどね。思ったとおりにいかないことはよくあるよね。"
+english = "I see. Things often don't go the way you expect."
+reading = { none = true }
+earlier_english = ["I see. I tried it yesterday."]
+conversation = [{ speaker = "learner", text = "I see. I tried it yesterday." }, { speaker = "partner", text = "It gave some strange answers." }]
+
+[[expect]]
+kind = "tagged"
+original = "I see"
+tag = "improvement"

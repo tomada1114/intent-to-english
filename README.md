@@ -207,6 +207,34 @@ decisions behind them. `frontend/AGENTS.md` holds the frontend's toolchain. The 
 `backend/src/intent_to_english/adapters/sql/tables.py` and its history in Alembic revisions
 under `backend/migrations/` (the `persisting-data` skill).
 
+## Evaluation
+
+The owner runs `just backend eval` to evaluate the configured models; it bills.
+The command currently refuses in every mode until the live composition branch is
+implemented. It refuses before any call or write when the selected mode is fixed,
+when either target report already exists, or when the summary markers are invalid.
+To verify refusal without billing, explicitly override both variables:
+
+```bash
+INTENT_TO_ENGLISH_MODEL_MODE=fixed OPENROUTER_API_KEY= just backend eval
+```
+
+The 16 TOML cases in `backend/evals/cases/` contain `task`, `source`, `[request]`,
+optional `[context]` notes and `[[expect]]` values from a closed vocabulary. Required
+nullable fields use `{ none = true }`; unknown or missing request fields are errors.
+Context notes never enter a model request. Tests run the complete set on fixed ports,
+render reports and update a temporary README without requiring a quality pass rate.
+
+Reports are new `.md` and `.json` files under `backend/evals/reports/`, named
+`<UTC-date>_<coach-id>_<partner-id>` with `/` replaced by `-`. They record the source
+commit and dirty state, first/final check and expectation rates, outcomes, reported
+cost in credits and nearest-rank p50/p95 latency per task. Missing cost stays empty.
+Commit both reports after an owner-run evaluation; the summary below links the latest.
+
+<!-- eval-summary:start -->
+No evaluation run yet.
+<!-- eval-summary:end -->
+
 ## Development
 
 See [CONTRIBUTING.md](https://github.com/tomada1114/intent-to-english/blob/main/CONTRIBUTING.md)

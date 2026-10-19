@@ -1,0 +1,9 @@
+task = "partner.open"
+source = "docs/product/requirements.md §3.11; docs/product/conversation-rules.md §4.1"
+
+[request]
+previous_opener = "Hey! How's it going?"
+
+[[expect]]
+kind = "differs_from"
+text = "Hey! How's it going?"

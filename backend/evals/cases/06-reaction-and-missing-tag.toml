@@ -1,0 +1,22 @@
+task = "coach.feedback"
+source = "docs/product/conversation-rules.md §7 ⑤"
+
+[request]
+intent = "あー、なるほどね。気持ちはわかるよ。実際に使ってみると、思った通りにいかないとかよくあるよね。"
+english = "Oh, I got it. I can relate to that. It sometimes happens that AI agent doesn't work well when it is used, in fact."
+reading = { none = true }
+earlier_english = []
+conversation = []
+
+[[expect]]
+kind = "tagged"
+original = "I got it"
+tag = "miss"
+
+[[expect]]
+kind = "missing_point"
+any_of = ["right"]
+
+[[expect]]
+kind = "absent"
+text = "I can relate to that."

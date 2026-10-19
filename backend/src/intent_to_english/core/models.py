@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, localcontext
 from enum import StrEnum
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -10,9 +11,8 @@ from typing import TYPE_CHECKING
 from intent_to_english.core.errors import InvalidPageLimitError, InvalidTodoError
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
     from datetime import datetime
-    from decimal import Decimal
     from uuid import UUID
 
     from intent_to_english.core.coaching import (
@@ -27,6 +27,24 @@ MAX_TITLE_LENGTH = 200
 # Template defaults: an app changes the constants, and every entry point follows.
 DEFAULT_PAGE_LIMIT = 50
 MAX_PAGE_LIMIT = 100
+
+
+def sum_reported_costs(values: Iterable[Decimal | None]) -> Decimal | None:
+    """Sum reported credits exactly, keeping an entirely unknown cost absent."""
+    reported = [value for value in values if value is not None]
+    if not reported:
+        return None
+    if any(not value.is_finite() for value in reported):
+        message = "Reported costs must be finite"
+        raise ValueError(message)
+    # Preserve every decimal place and the possible carry across requests.
+    fraction_digits = max(0, -min(int(value.as_tuple().exponent) for value in reported))
+    integer_digits = max(1, *(value.adjusted() + 1 for value in reported))
+    with localcontext() as context:
+        context.prec = max(
+            context.prec, integer_digits + fraction_digits + len(str(len(reported))) + 1
+        )
+        return sum(reported, Decimal())
 
 
 def normalize_title(raw_title: str) -> str:

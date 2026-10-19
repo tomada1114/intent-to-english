@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from intent_to_english.adapters.memory import InMemorySessionRepository
 from intent_to_english.adapters.models.fixed import FixedCoachModel
 from intent_to_english.api.app import create_app
-from intent_to_english.composition import Container
+from intent_to_english.composition import Container, ModelPorts
 from intent_to_english.core.services import ConversationService
 
 
@@ -57,12 +57,14 @@ def conversation_container(make_container, fixed_clock, new_id, nth_id):
     """Inject a scripted Partner through the real memory conversation service."""
 
     def build(partner):
+        models = ModelPorts(partner, FixedCoachModel())
         return Container(
             make_container().todos,
+            models=models,
             conversations=ConversationService(
                 InMemorySessionRepository(),
-                partner,
-                FixedCoachModel(),
+                models.partner,
+                models.coach,
                 fixed_clock,
                 new_id,
                 nth_id(900),

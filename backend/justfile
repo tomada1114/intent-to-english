@@ -47,3 +47,12 @@ db-revision MESSAGE url=(shell(database_url_command)): (db-upgrade url)
 # Human-run: migrate the database, then serve the API on http://127.0.0.1:${INTENT_TO_ENGLISH_API_PORT:-8000}, reloading on source changes
 dev url=(shell(database_url_command)): (db-upgrade url)
     url={{ quote(url) }}; set --; case "$url" in postgresql+asyncpg:*) set -- --extra postgres ;; esac; INTENT_TO_ENGLISH_DATABASE_URL="$url" uv run --locked "$@" uvicorn intent_to_english.api.app:create_app --factory --reload --no-access-log --host 127.0.0.1 --port "${INTENT_TO_ENGLISH_API_PORT:-8000}"
+
+# Human-run: run billed model evaluation and write new reports; refuses in fixed mode
+eval *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    revision=$(git rev-parse HEAD)
+    dirty=false
+    if [ -n "$(git status --porcelain)" ]; then dirty=true; fi
+    uv run --locked python -m intent_to_english.evaluation --commit "$revision" --dirty "$dirty" "$@"
