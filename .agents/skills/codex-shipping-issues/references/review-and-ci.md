@@ -3,8 +3,9 @@
 ## Record reviewed and current revisions separately
 
 Record repository, issue, PR URL/number, each review round's ID and reviewed commit,
-current head SHA, base SHA/ref, correction commits and check/run evidence. Refresh
-head/base when checking CI or landing. Never present a review as cloud review of a
+current head SHA, base SHA/ref, correction commits and check/run evidence. Record
+local reviewers, scope, findings and dispositions too. Refresh head/base when
+checking CI or landing. Never present a review as cloud review of a
 commit it did not read. A changed diff invalidates old CI and local acceptance
 evidence, but each completed review remains recorded for this PR.
 
@@ -31,23 +32,54 @@ MCP nor CLI can provide. Preserve the same review criteria on both paths.
 Open a regular PR. Record the opening event and the automatic review's trusted
 integration identity, state and reviewed commit. Wait through its queue/start delay
 and running state. Do not post `@codex review`, `@codex fix`, change review settings,
-or close/reopen the PR to start another run. If the opening run fails or cannot be
-observed, report that blocker without claiming completion or replacing it with a
-local review.
+or close/reopen the PR to start another run. If it fails, is unavailable or stalls,
+record the missing cloud evidence and use the local fallback below. No additional
+permission or manual review trigger is needed for this fallback.
 
 | Review state | Action |
 | --- | --- |
-| Not started / queued | Wait for the opening-triggered review. |
-| Running | Observe review and CI in bounded waits. |
+| Not started / queued | Observe for up to 300 seconds; then use the local fallback. |
+| Running | Observe in bounded waits; after 15 minutes without observable progress, use the local fallback. |
 | Completed, findings | Read all findings and address accepted in-scope ones. |
 | Completed, no findings | Record terminal state and the reviewed commit. |
-| Failed / unavailable | Report missing evidence and preserve the PR. |
+| Failed / unavailable | Record the failure and use the local fallback. |
 
 Completion must be terminal and come from the trusted Codex integration, associated
 with this PR and its reviewed commit. A display name, acknowledgement, reaction,
 green CI or silence alone is insufficient. A trusted terminal summary with matching
 commit metadata, a no-findings signal and empty findings/threads can establish a
 clean review. Completion alone does not mean there were no findings.
+
+## Local fallback for an integration failure
+
+The owner authorizes local review when the cloud integration fails, cannot be used,
+or reaches the observation limits above. Record the trigger, timestamps, trusted
+integration state and affected SHA. Silence or elapsed time establishes only the
+fallback trigger, never a clean cloud review. Do not retry manual triggers, change
+settings, reopen the PR or create an empty commit to obtain a review.
+
+1. Review the complete current diff against the latest issue acceptance and base,
+   including tests, errors, resource ownership, security and documentation. This is
+   a deliberate review pass, separate from implementation and routine self-checks.
+2. When the host supports it, obtain an independent read-only sub-agent review of
+   that diff with the acceptance criteria and exact head/base. AGENTS.md authorizes
+   this delegation. The reviewer must not edit, mutate Git or write to GitHub.
+   If unavailable, state that limit and perform the full local pass yourself.
+3. Record each reviewer's identity, reviewed SHA/base, scope and concrete findings,
+   including an explicit no-actionable-findings result when applicable. Classify
+   findings and fix the ones the round requires using the same criteria below.
+   Re-review correction diffs and repeat affected checks; changed source requires
+   fresh verification and CI on the resulting head. Share findings already observed
+   from the cloud run too; the fallback cannot discard them.
+4. Refresh live findings before landing. Required unresolved correctness findings,
+   owner decisions, server-required approvals and checks still block merge. A local
+   pass plus current-head CI satisfies this workflow's review gate; never call it a
+   completed cloud review. A late cloud run need not delay a completed fallback,
+   but any findings already posted must be triaged before merging.
+
+Use at most three finding-bearing or clean review rounds across cloud and local
+passes; a failed attempt with no published findings supplies no review result.
+Correction re-review remains required without inventing another cloud round.
 
 Classify each finding as accepted, rejected or out of scope with a reason judged
 against the code, not the badge. Fix what the round's row above allows, inspect the
@@ -90,7 +122,8 @@ merely to obtain missing evidence.
 
 Use bounded observations (at most 60 seconds per blocking wait) and back off when
 state is unchanged. Continue in-scope repairs without an arbitrary attempt cap.
-Pending gates or elapsed time alone do not complete or fail a run. Honor user
+Pending checks or elapsed time alone do not complete a run. Use the documented
+local fallback for a failed, unavailable or stalled review. Honor user
 deadlines and host limits. Once the latest review round is complete, the findings it
 requires are addressed, the next-round grace has passed without a new review (or the
 round cap is reached), and current-head gates pass, no further review wait is required.
@@ -100,9 +133,10 @@ round cap is reached), and current-head gates pass, no further review wait is re
 At a PR-only boundary, preserve the open PR. When the requested outcome includes merge:
 
 1. Refresh head/base, mergeability, known findings, required approvals and all
-   expected checks. Confirm every handled review round completed, the findings each
-   requires have correction evidence, no started review is still running within the
-   round cap, and local acceptance/CI cover the current diff. Integrate
+   expected checks. Confirm every qualifying review round completed through cloud
+   review or the documented local fallback, required findings have correction
+   evidence, and local acceptance/CI cover the current diff. Without a completed
+   fallback, wait for a started cloud review within the round cap. Integrate
    the current default branch normally if needed, repeat local checks and CI, and
    inspect the resulting diff. Do not request another review or force-push.
 2. Merge with an expected-head-SHA guard and an allowed merge method: use MCP's
