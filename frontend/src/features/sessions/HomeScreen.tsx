@@ -6,11 +6,11 @@ import {
   listSessionsInfiniteOptions,
 } from "../../api/generated/@tanstack/react-query.gen";
 import type { SessionSummaryResponse } from "../../api/generated/types.gen";
+import { useDelayedLoading } from "../../lib/delayed-loading";
 import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatCount, formatStart } from "../../lib/format";
 import { toApiError } from "../../lib/problem-details";
 import { FOCUS_RING, PRIMARY_BUTTON, SECONDARY_BUTTON } from "../../lib/ui";
-import { useDelayedLoading } from "./hooks";
 
 /** One page of the list, as requirements §3.9 sets it. */
 export const SESSION_PAGE_SIZE = 20;

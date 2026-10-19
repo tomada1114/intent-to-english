@@ -13,6 +13,11 @@ import type { SessionResponse } from "../../api/generated/types.gen";
 import { formatStart, formatTime } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { toApiError } from "../../lib/problem-details";
+import {
+  modelFailureReason,
+  SUBMISSION_POLL_MS,
+  submissionPending,
+} from "../../lib/submission";
 import { COACH_ENGLISH, ENTER, FOCUS_RING, SECONDARY_BUTTON } from "../../lib/ui";
 import {
   ConversationTimeline,
@@ -23,19 +28,11 @@ import {
 } from "../conversation";
 
 /** How often a wrap-up another tab or an earlier load started is read again. */
-export const WRAP_UP_POLL_MS = 2000;
-
-const REASONS: Readonly<Record<string, string>> = {
-  model_timeout: "時間切れ",
-  model_rate_limited: "混み合っています",
-  model_unavailable: "接続できません",
-  model_error: "接続できません",
-  model_output_invalid: "返事の形式が正しくありませんでした",
-};
+export const WRAP_UP_POLL_MS = SUBMISSION_POLL_MS;
 
 /** 「振り返りを作れませんでした（<reason>）。」, without a reason it cannot name. */
 export function wrapUpFailureLine(code: string | null | undefined): string {
-  const reason = code === null || code === undefined ? undefined : REASONS[code];
+  const reason = modelFailureReason(code);
   return reason === undefined
     ? "振り返りを作れませんでした。"
     : `振り返りを作れませんでした（${reason}）。`;
@@ -44,11 +41,6 @@ export function wrapUpFailureLine(code: string | null | undefined): string {
 function codeOf(error: unknown): string | undefined {
   const apiError = toApiError(error);
   return apiError.kind === "problem" ? apiError.code : undefined;
-}
-
-/** Any submission still running on the server, which a wrap-up must wait for. */
-function submissionPending(view: SessionView | undefined): boolean {
-  return view?.last_submission?.state === "pending";
 }
 
 interface Turn {
