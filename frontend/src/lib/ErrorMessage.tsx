@@ -9,7 +9,8 @@ export function ErrorMessage({ error }: { error: ApiError }) {
         : (error.detail ?? error.title);
 
   return (
-    <div role="alert" className="space-y-1 text-red-700">
+    // The template's messages are English on a Japanese page.
+    <div role="alert" lang="en" className="space-y-1 text-danger">
       <p>{message}</p>
       {error.kind === "problem" &&
         error.status >= 500 &&

@@ -156,7 +156,9 @@ Take a hypothetical settings screen that reads `GET /api/settings` as the worked
    then `frontend/src/features/settings/SettingsScreen.tsx` and its `index.ts` until it
    passes.
 3. The route: `frontend/src/routes/settings.tsx` with `createFileRoute("/settings")`,
-   rendering `SettingsScreen`. The layout in `__root.tsx` has no navigation yet.
+   rendering `SettingsScreen`. The layout in `__root.tsx` renders the header on every
+   route; a screen adds its own header items by wrapping them in `HeaderItems` from
+   `src/lib/HeaderItems.tsx`, never by editing the layout.
 4. Check, from the repository root: `just frontend lint`, `just frontend test`, and
    `just frontend build` (`frontend/AGENTS.md` says what it regenerates). Run `just e2e`
    when a user flow changes, and `just contract-check` after an API change. Then
