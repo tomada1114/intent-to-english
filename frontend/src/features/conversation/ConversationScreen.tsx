@@ -133,12 +133,14 @@ function failureLine(pane: "partner" | "coach", code: string | null | undefined)
     : `${who}返事を受け取れませんでした（${reason}）。`;
 }
 
-/** The text a failed or interrupted submission puts back in the fields. */
+/**
+ * The text a stored submission puts back in the fields: a failed or
+ * interrupted one's to send again, a pending one's to keep in view while it
+ * runs (ux-guidelines § States: the composer keeps its text while waiting).
+ */
 function restoredFrom(view: SessionView): { text?: string; gap?: string } {
   const stored = view.last_submission;
-  return stored === null || stored.state === "pending"
-    ? {}
-    : restoredFields(stored.input);
+  return stored === null ? {} : restoredFields(stored.input);
 }
 
 /**
@@ -435,10 +437,29 @@ export function ConversationScreen({
     [status],
   );
 
-  // A stored submission that settles failed or interrupted later (a polled
-  // one) puts its text back too, unless the learner has typed since.
-  const restoredKey = useRef(storedKey);
-  const restoreStored = useEffectEvent(() => {
+  // A stored submission that appears later (a polled one settling failed or
+  // interrupted, another tab's) puts its text back too, unless the learner has
+  // typed since. A pending one this tab waited for that completes is a result
+  // like this tab's own: its text is cleared and the composer takes focus.
+  const watched = useRef({ key: storedKey, version: view.version, pending: stored });
+  const followStored = useEffectEvent(() => {
+    const before = watched.current;
+    watched.current = { key: storedKey, version: view.version, pending: stored };
+    if (before.key === storedKey) return;
+    const completed =
+      before.pending?.state === "pending" &&
+      view.last_submission === null &&
+      view.version > before.version;
+    if (completed && before.pending !== null) {
+      const done = before.pending.action;
+      if (COMPOSER_ACTIONS.has(done)) setText("");
+      if (done === "hint") {
+        setGap("");
+        setHintOpen(false);
+      }
+      focusOnResult.current = view.version;
+      return;
+    }
     const fields = restoredFrom(view);
     if (fields.text !== undefined) {
       const restored = fields.text;
@@ -450,10 +471,10 @@ export function ConversationScreen({
     }
   });
   useEffect(() => {
-    if (restoredKey.current === storedKey) return;
-    restoredKey.current = storedKey;
-    restoreStored();
-  }, [storedKey]);
+    const before = watched.current;
+    if (before.key === storedKey && before.version === view.version) return;
+    followStored();
+  }, [storedKey, view.version]);
 
   const waitingAction = attempt?.input.action ?? storedPending?.action;
   const busy = waitingAction !== undefined;

@@ -459,6 +459,25 @@ describe("ConversationScreen pending from elsewhere (REQ-009)", () => {
     expect(served.posts).toEqual([]);
   });
 
+  it("keeps a pending english's text in the disabled composer while it waits, and clears it once the result arrives", async () => {
+    serveReads([pending, pending, retry]);
+    renderSession(pending);
+    await advance(0);
+
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
+    expect(field).toBeDisabled();
+    expect(field).toHaveValue("I watched a movie");
+    await advance(2010);
+    expect(field).toHaveValue("I watched a movie");
+    await advance(2000);
+
+    expect(resultShown()).toBe(true);
+    const composer = screen.getByRole("textbox", { name: "あなたの英語" });
+    expect(composer).toBeEnabled();
+    expect(composer).toHaveValue("");
+    expect(composer).toHaveFocus();
+  });
+
   it("offers 中止 at 10 s, cancels the view's version, and returns the submitted text", async () => {
     const served = serveReads([pending]);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
