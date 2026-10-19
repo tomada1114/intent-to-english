@@ -5,7 +5,11 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-import type { MetaResponse, ProblemDetails } from "../../src/api/generated/types.gen";
+import type {
+  MetaResponse,
+  ProblemDetails,
+  SessionPageResponse,
+} from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
 import { server } from "../msw/server";
@@ -142,4 +146,61 @@ describe("the root layout", () => {
       );
     },
   );
+
+  it("shows the server-unreachable banner under the header on S1, and 再試行 reads the list again", async () => {
+    useMeta("openrouter");
+    let reachable = false;
+    let requests = 0;
+    server.use(
+      http.get("/api/sessions", () => {
+        requests += 1;
+        return reachable
+          ? HttpResponse.json<SessionPageResponse>({ items: [], next_cursor: null })
+          : HttpResponse.error();
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/");
+
+    // The query client retries a request with no response once, after a second.
+    const banner = await screen.findByText(
+      "アプリのサーバーに接続できません。起動しているか確認してください。",
+      {},
+      { timeout: 3000 },
+    );
+    const alert = banner.closest('[role="alert"]') as HTMLElement;
+    expect(
+      screen.getByRole("banner").compareDocumentPosition(alert) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(requests).toBe(2);
+    reachable = true;
+
+    await user.click(within(alert).getByRole("button", { name: "再試行" }));
+
+    expect(
+      await screen.findByText("まだ会話はありません。最初の会話を始めましょう。"),
+    ).toBeInTheDocument();
+    expect(requests).toBe(3);
+    expect(
+      screen.queryByText(
+        "アプリのサーバーに接続できません。起動しているか確認してください。",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the server-unreachable banner on S4 when the header's own request gets no response", async () => {
+    server.use(http.get("/api/meta", () => HttpResponse.error()));
+    renderAt("/settings");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "この会話は見つかりませんでした。",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "再試行" }, { timeout: 3000 }),
+    ).toBeInTheDocument();
+  });
 });

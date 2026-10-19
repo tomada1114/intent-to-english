@@ -3,6 +3,7 @@ import { createRootRouteWithContext, Link, Outlet } from "@tanstack/react-router
 import { useId, useState } from "react";
 import { getMetaOptions } from "../api/generated/@tanstack/react-query.gen";
 import { HeaderSlot, HeaderSlotProvider } from "../lib/HeaderItems";
+import { ServerStatusProvider, ServerUnreachableBanner } from "../lib/ServerStatus";
 import { NotFound } from "./-NotFound";
 
 /** What every route's loader and beforeLoad receive as `context`. */
@@ -20,24 +21,28 @@ const FOCUS_RING =
 
 function RootLayout() {
   return (
-    <HeaderSlotProvider>
-      <div className="min-h-dvh bg-canvas font-sans text-ink">
-        <header className="group/header sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-canvas px-4 lg:gap-4">
-          {/* Below 1024 px a page's own items take the room; its back link leads home. */}
-          <Link
-            to="/"
-            className={`shrink-0 rounded-sm font-bold max-lg:group-has-[[data-header-slot]:not(:empty)]/header:hidden ${FOCUS_RING}`}
-          >
-            Intent to English
-          </Link>
-          <HeaderSlot className="flex min-w-0 flex-1 items-center gap-2 lg:gap-4" />
-          <FixedModeBadge />
-        </header>
-        <main>
-          <Outlet />
-        </main>
-      </div>
-    </HeaderSlotProvider>
+    <ServerStatusProvider>
+      <HeaderSlotProvider>
+        <div className="min-h-dvh bg-canvas font-sans text-ink">
+          <header className="group/header sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-canvas px-4 lg:gap-4">
+            {/* Below 1024 px a page's own items take the room; its back link leads home. */}
+            <Link
+              to="/"
+              className={`shrink-0 rounded-sm font-bold max-lg:group-has-[[data-header-slot]:not(:empty)]/header:hidden ${FOCUS_RING}`}
+            >
+              Intent to English
+            </Link>
+            <HeaderSlot className="flex min-w-0 flex-1 items-center gap-2 lg:gap-4" />
+            <FixedModeBadge />
+          </header>
+          {/* A request with no response, on any screen: directly under the header. */}
+          <ServerUnreachableBanner />
+          <main>
+            <Outlet />
+          </main>
+        </div>
+      </HeaderSlotProvider>
+    </ServerStatusProvider>
   );
 }
 
