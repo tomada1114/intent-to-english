@@ -13,6 +13,7 @@ import {
   ConversationScreen,
   sessionQueryOptions,
 } from "../../src/features/conversation";
+import { TranscriptScreen } from "../../src/features/transcript";
 import { server } from "./server";
 
 const clients = new Set<QueryClient>();
@@ -138,16 +139,30 @@ export function serveSession(
       return HttpResponse.json<SessionResponse>(result);
     }),
   );
-  return { bodies, current: () => current };
+  return {
+    bodies,
+    current: () => current,
+    /** Change the server's view, as another tab's action would. */
+    set: (next: SessionResponse) => {
+      current = next;
+    },
+  };
 }
 
-function SessionHarness({ before }: { before?: ReactNode }) {
+function SessionHarness({
+  before,
+  screen = "conversation",
+}: {
+  before?: ReactNode;
+  screen?: "conversation" | "transcript";
+}) {
   // The route's own read: the screen renders whatever the session query holds.
   const query = useQuery(sessionQueryOptions(SESSION_ID));
+  const Screen = screen === "transcript" ? TranscriptScreen : ConversationScreen;
   return (
     <>
       {before}
-      {query.data && <ConversationScreen view={query.data} />}
+      {query.data && <Screen view={query.data} />}
     </>
   );
 }
@@ -163,6 +178,23 @@ export function renderSession(
   const queryClient = newQueryClient();
   queryClient.setQueryData(sessionQueryOptions(SESSION_ID).queryKey, view);
   const harness = <SessionHarness before={before} />;
+  return renderWithQuery(
+    strict ? <StrictMode>{harness}</StrictMode> : harness,
+    queryClient,
+  );
+}
+
+/**
+ * Render the ended transcript (S3) over `view`, read from the session query as
+ * the route reads it; `strict` renders it under StrictMode.
+ */
+export function renderTranscript(
+  view: SessionResponse,
+  { strict = false }: { strict?: boolean } = {},
+) {
+  const queryClient = newQueryClient();
+  queryClient.setQueryData(sessionQueryOptions(SESSION_ID).queryKey, view);
+  const harness = <SessionHarness screen="transcript" />;
   return renderWithQuery(
     strict ? <StrictMode>{harness}</StrictMode> : harness,
     queryClient,

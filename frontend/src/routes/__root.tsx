@@ -3,6 +3,7 @@ import { createRootRouteWithContext, Link, Outlet } from "@tanstack/react-router
 import { useId, useState } from "react";
 import { getMetaOptions } from "../api/generated/@tanstack/react-query.gen";
 import { HeaderSlot, HeaderSlotProvider } from "../lib/HeaderItems";
+import { NotFound } from "./-NotFound";
 
 /** What every route's loader and beforeLoad receive as `context`. */
 export interface RouterContext {
@@ -11,6 +12,7 @@ export interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
+  notFoundComponent: NotFound,
 });
 
 const FOCUS_RING =

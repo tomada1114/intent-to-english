@@ -27,6 +27,17 @@ const view = sessionView({
   ],
 });
 
+function problem(status: number, code: string): ProblemDetails {
+  return {
+    type: "about:blank",
+    title: "Error",
+    status,
+    detail: `${code} detail`,
+    code,
+    request_id: "req-1",
+  };
+}
+
 function renderAt(path: string) {
   const queryClient = createQueryClient();
   const history = createMemoryHistory({ initialEntries: [path] });
@@ -90,25 +101,66 @@ describe("/sessions/$sessionId", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("shows the error display when the session cannot be read", async () => {
+  it("shows S4 when the API answers 404 session_not_found", async () => {
     server.use(
       http.get(`/api/sessions/${SESSION_ID}`, () =>
-        HttpResponse.json<ProblemDetails>(
-          {
-            type: "about:blank",
-            title: "Not Found",
-            status: 404,
-            detail: "Session not found",
-            code: "session_not_found",
-            request_id: "req-1",
-          },
-          { status: 404 },
-        ),
+        HttpResponse.json<ProblemDetails>(problem(404, "session_not_found"), {
+          status: 404,
+        }),
       ),
     );
     renderAt(`/sessions/${SESSION_ID}`);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Session not found");
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "この会話は見つかりませんでした。",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "会話一覧へ" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [404, "not_found"],
+    [500, "internal_error"],
+  ])("shows the error display, not S4, for a %i %s", async (status, code) => {
+    server.use(
+      http.get(`/api/sessions/${SESSION_ID}`, () =>
+        HttpResponse.json<ProblemDetails>(problem(status, code), { status }),
+      ),
+    );
+    renderAt(`/sessions/${SESSION_ID}`);
+
+    expect(await screen.findByRole("alert", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(
+      screen.queryByText("この会話は見つかりませんでした。"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "コーチ" })).not.toBeInTheDocument();
+  });
+
+  it("shows S3 for an ended session", async () => {
+    server.use(
+      http.get(`/api/sessions/${SESSION_ID}`, () =>
+        HttpResponse.json<SessionResponse>({
+          ...view,
+          status: "ended",
+          stage: "ended",
+          allowed_actions: [],
+          wrap_up: { items: [] },
+        }),
+      ),
+    );
+    renderAt(`/sessions/${SESSION_ID}`);
+
+    expect(
+      await screen.findByRole("heading", { name: "会話（英文だけの通し）" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "会話を終える" }),
+    ).not.toBeInTheDocument();
   });
 });

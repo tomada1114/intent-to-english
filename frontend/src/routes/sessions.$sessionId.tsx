@@ -6,7 +6,9 @@ import {
   ConversationSkeleton,
   sessionQueryOptions,
 } from "../features/conversation";
+import { TranscriptScreen } from "../features/transcript";
 import { toApiError } from "../lib/problem-details";
+import { NotFound } from "./-NotFound";
 
 export const Route = createFileRoute("/sessions/$sessionId")({
   component: SessionRoute,
@@ -18,19 +20,25 @@ const BACK_LINK =
 function SessionRoute() {
   const { sessionId } = Route.useParams();
   const query = useQuery(sessionQueryOptions(sessionId));
+  const backLink = (
+    <Link to="/" className={BACK_LINK}>
+      ← <span className="max-lg:hidden">会話</span>一覧
+    </Link>
+  );
   if (query.data !== undefined) {
-    return (
-      <ConversationScreen
-        key={sessionId}
-        view={query.data}
-        backLink={
-          <Link to="/" className={BACK_LINK}>
-            ← <span className="max-lg:hidden">会話</span>一覧
-          </Link>
-        }
-      />
+    // An ended session is S3 on the same URL; ending on S2 switches in place.
+    return query.data.status === "ended" ? (
+      <TranscriptScreen key={sessionId} view={query.data} backLink={backLink} />
+    ) : (
+      <ConversationScreen key={sessionId} view={query.data} backLink={backLink} />
     );
   }
-  if (query.isError) return <ConversationLoadError error={toApiError(query.error)} />;
+  if (query.isError) {
+    const error = toApiError(query.error);
+    if (error.kind === "problem" && error.code === "session_not_found") {
+      return <NotFound />;
+    }
+    return <ConversationLoadError error={error} />;
+  }
   return <ConversationSkeleton />;
 }
