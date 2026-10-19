@@ -65,8 +65,8 @@ frontend/
 │   ├── router.ts         # createAppRouter(queryClient, options?) and the Register declaration
 │   ├── routeTree.gen.ts  # Generated from routes/ by the router plugin; committed, never hand-edited
 │   ├── routes/           # File-based routes: __root.tsx (the layout and header), index.tsx (/), sessions.$sessionId.tsx (S2)
-│   ├── features/         # Screens and components grouped by feature (todos/, conversation/)
-│   ├── lib/              # Cross-feature query policy, Problem Details helpers, and the header's HeaderItems slot
+│   ├── features/         # Screens and components grouped by feature (sessions/ for S1, conversation/ for S2)
+│   ├── lib/              # Cross-feature query policy, Problem Details helpers, shared class lists and formats, and the header's HeaderItems slot
 │   └── styles.css        # `@import "tailwindcss";`, imported by main.tsx only
 └── tests/            # Vitest tests (*.test.ts, *.test.tsx), mirroring src/, and setup.ts
 ```

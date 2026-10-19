@@ -4,8 +4,7 @@
 
 A FastAPI application in a [uv](https://docs.astral.sh/uv/) workspace, laid out
 by area. The app's design — its principles, layers, data, flows, and decisions — is
-`docs/architecture/overview.md`; the to-do domain still in the tree is the template's
-sample, which an implementing issue removes.
+`docs/architecture/overview.md`.
 
 | Area | Holds |
 |---|---|

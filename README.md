@@ -26,7 +26,8 @@ Then:
    just dev       # migrate backend/var/dev.db, then serve the screen and the API, reloading on source changes (Ctrl-C stops both)
    ```
 
-2. Open <http://localhost:5173>: the to-do screen. The API answers on
+2. Open <http://localhost:5173>: the home screen, where a conversation starts and
+   past ones are listed. The API answers on
    <http://127.0.0.1:8000>, with `/healthz` and the interactive docs at `/docs`.
 
 `just dev` is the developer's own server and runs until stopped; an agent runs
@@ -49,9 +50,8 @@ With the server running, from another terminal:
 
 ```bash
 curl http://127.0.0.1:8000/healthz   # {"status":"ok"}
-curl -X POST http://127.0.0.1:8000/api/todos \
-  -H 'Content-Type: application/json' -d '{"title": "buy milk"}'
-curl http://127.0.0.1:8000/api/todos
+curl -X POST http://127.0.0.1:8000/api/sessions   # a new session at opening
+curl http://127.0.0.1:8000/api/sessions           # the newest first
 ```
 
 The interactive API docs are at <http://127.0.0.1:8000/docs>.
@@ -59,22 +59,20 @@ The interactive API docs are at <http://127.0.0.1:8000/docs>.
 | HTTP | Result |
 |---|---|
 | `GET /healthz` | 200 `{"status": "ok"}` |
-| `POST /api/todos` `{"title": "..."}` | 201 with the new to-do, `{"id": "<uuid>", "title": "...", "completed": false, "created_at": "..."}` |
-| `GET /api/todos?cursor=<cursor>&limit=<n>` | 200 with one page, oldest first: `{"items": [<to-do>, ...], "next_cursor": "<cursor>" \| null}` |
-| `POST /api/todos/{id}/complete` | 200 with the completed to-do; 404 `todo_not_found` when unknown |
-| `DELETE /api/todos/{id}` | 204; 404 `todo_not_found` when unknown |
 | `POST /api/sessions` | 201 with the new session at `opening`, version 0; no model call |
-| `GET /api/sessions?cursor=<cursor>&limit=<n>` | 200 with one page, newest first; default 20, maximum 100 |
+| `GET /api/sessions?cursor=<cursor>&limit=<n>` | 200 with one page, newest first: `{"items": [<session row>, ...], "next_cursor": "<cursor>" \| null}`; default 20, maximum 100 |
 | `GET /api/sessions/{id}` | 200 with the complete session view; 404 `session_not_found` when unknown |
 | `POST /api/sessions/{id}/actions` | 200 with the new view; a body discriminated by `action`, with `version` and that action's fields |
 | `POST /api/sessions/{id}/cancel` `{"version": 0}` | 204 whether or not that version has pending work; 404 for an unknown session; a missing version is 422 |
 | `GET /api/meta` | 200 with the container's selected `model_mode`; currently `{"model_mode": "fixed"}` |
 
-A to-do's `id` is a UUID (version 7) the application generates, so ids sort in
-creation order. `GET /api/todos` returns at most `limit` to-dos (default 50, at most
-100) and pages by cursor: pass a page's `next_cursor` back as `cursor` to fetch
-the next page; `next_cursor` is `null` on the last one. `GET /api/todos` with no
-parameters is the first page, `{"items": [], "next_cursor": null}` when empty.
+A session's `id` is a UUID (version 7) the application generates, so ids sort in
+creation order. A session row holds its `id`, `started_at`, `status`,
+`finished_replies`, and the Partner's `opener` (`null` until it arrives).
+`GET /api/sessions` returns at most `limit` rows and pages by cursor: pass a page's
+`next_cursor` back as `cursor` to fetch the next page; `next_cursor` is `null` on
+the last one. `GET /api/sessions` with no parameters is the first page,
+`{"items": [], "next_cursor": null}` when empty.
 
 A session view includes its stage, version, allowed actions, ordered timeline,
 start/end times, recoverable input and wrap-up. Action bodies use flat input
@@ -90,8 +88,8 @@ Every error uses RFC 9457 `application/problem+json`: `type: "about:blank"`,
 `title` (the status phrase), numeric `status`, client-safe `detail`, and a stable
 `code`. Clients branch on `code` and ignore unknown extensions.
 
-An unknown to-do is 404 `todo_not_found`. An invalid title, cursor, or page limit
-is 422 `invalid_todo`, `invalid_cursor`, or `invalid_page_limit`. An unmapped
+An unknown session is 404 `session_not_found`. An invalid cursor or page limit is
+422 `invalid_cursor` or `invalid_page_limit`. An unmapped
 domain error falls back to 400 with its own code (`AppError` uses `app_error`).
 Session conflicts are 409 `stale_session`, `action_in_progress`, `action_not_allowed`,
 `session_ended` or `action_cancelled`. Core text limits return 422 `invalid_input`.
@@ -136,7 +134,7 @@ unprefixed keys other than the declared provider-key alias are ignored.
 | `INTENT_TO_ENGLISH_LOG_LEVEL` | `INFO` | Case-insensitive `DEBUG`, `INFO`, `WARNING`, or `ERROR`; blank keeps the default. |
 | `INTENT_TO_ENGLISH_LOG_FORMAT` | `text` | `text` or one JSON object per line with timestamp, level, logger, message, request ID, access fields, and exception type/traceback when present; blank keeps text. |
 | `INTENT_TO_ENGLISH_CORS_ORIGINS` | empty (CORS disabled) | Comma-separated HTTP(S) origins, e.g. `http://localhost:5173,https://app.example.com`. Spaces and empty items are removed, hosts use lowercase/punycode, default ports are removed, and duplicates kept once. Paths, queries, fragments, user info, invalid ports, trailing slashes, wildcards, and origins without an HTTP(S) scheme are rejected at startup. JSON requests from listed origins are allowed without credentials. |
-| `INTENT_TO_ENGLISH_DATABASE_URL` | unset (`just dev`: `sqlite+aiosqlite:///./var/dev.db`) | Unset (or empty) keeps to-dos and sessions in memory, so they vanish when the process exits. `sqlite+aiosqlite:///<path>` stores them in a SQLite file at `<path>`, relative to the working directory (an absolute path adds a fourth slash: `sqlite+aiosqlite:////var/lib/todos.db`). `postgresql+asyncpg://<user>:<password>@<host>/<database>` names a PostgreSQL database; include the optional `postgres` extra in workspace commands (`uv run --locked --directory backend --extra postgres ...`) or install the built app with that extra. Anything else is rejected at startup, naming the fix: a URL without the async driver (`sqlite:` or `postgresql:` alone), an in-memory SQLite target (including `:memory:` with options and native URI memory mode), an empty target, and a directory target ending in `/`, even when query options follow. File options are preserved; migrations and the app use separate engine/process lifetimes, so in-memory SQL cannot retain the separately migrated schema. |
+| `INTENT_TO_ENGLISH_DATABASE_URL` | unset (`just dev`: `sqlite+aiosqlite:///./var/dev.db`) | Unset (or empty) keeps sessions in memory, so they vanish when the process exits. `sqlite+aiosqlite:///<path>` stores them in a SQLite file at `<path>`, relative to the working directory (an absolute path adds a fourth slash: `sqlite+aiosqlite:////var/lib/intent-to-english.db`). `postgresql+asyncpg://<user>:<password>@<host>/<database>` names a PostgreSQL database; include the optional `postgres` extra in workspace commands (`uv run --locked --directory backend --extra postgres ...`) or install the built app with that extra. Anything else is rejected at startup, naming the fix: a URL without the async driver (`sqlite:` or `postgresql:` alone), an in-memory SQLite target (including `:memory:` with options and native URI memory mode), an empty target, and a directory target ending in `/`, even when query options follow. File options are preserved; migrations and the app use separate engine/process lifetimes, so in-memory SQL cannot retain the separately migrated schema. |
 | `OPENROUTER_API_KEY` | unset | Unprefixed secret; unset or whitespace-only means no key. It is omitted from settings repr and never returned by the API. |
 | `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. Composition currently uses fixed responses in both modes, including when a key is set. |
 | `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | The configured Coach model id; empty keeps the default, whitespace-only is rejected. |
@@ -181,16 +179,16 @@ A direct API factory or uvicorn run with no resolved URL uses the in-memory stor
 `just backend call-log [--session UUID] [--since YYYY-MM-DD|ISO-datetime]` reads that database without writing or billing: grouped request counts, outcomes, reported tokens, cost in credits and nearest-rank latency; an offsetless date or datetime uses local time.
 
 > [!NOTE]
-> `just dev` keeps to-dos in `backend/var/dev.db` (gitignored) unless
+> `just dev` keeps sessions in `backend/var/dev.db` (gitignored) unless
 > `INTENT_TO_ENGLISH_DATABASE_URL` in the environment or `backend/.env` selects another file,
 > so they survive the restart on every source change. A direct server run with
-> `INTENT_TO_ENGLISH_DATABASE_URL=` overrides the file and forgets its to-dos when it stops.
+> `INTENT_TO_ENGLISH_DATABASE_URL=` overrides the file and forgets its sessions when it stops.
 
 > [!WARNING]
 > A database file the app's earlier stdlib-`sqlite3` store wrote is not
 > migrated: its table predates the migrations, so `just backend db-upgrade`
 > fails on it. Delete the file, or point `INTENT_TO_ENGLISH_DATABASE_URL` at a new one.
-> A database nobody migrated answers every to-do request with a 500.
+> A database nobody migrated answers every session request with a 500.
 
 ## Architecture
 
