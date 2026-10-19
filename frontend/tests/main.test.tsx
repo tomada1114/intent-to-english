@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import "./msw/server";
 
 // On a line of its own: the bootstrap rewrites it to a display name of up to
 // 60 characters, which must not push any line past Biome's 88 columns.

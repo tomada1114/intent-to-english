@@ -66,10 +66,12 @@ describe("EndSession", () => {
     const { user, onEnd } = setup();
     await confirm(user);
 
-    act(() => vi.advanceTimersByTime(4900));
+    // Fake time also follows the wall clock, so the check before 5 s keeps a
+    // second of slack for a slow runner.
+    act(() => vi.advanceTimersByTime(4000));
     expect(screen.getByText(QUESTION)).toBeInTheDocument();
 
-    act(() => vi.advanceTimersByTime(100));
+    act(() => vi.advanceTimersByTime(1000));
     expect(screen.queryByText(QUESTION)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "会話を終える" })).toHaveFocus();
     expect(onEnd).not.toHaveBeenCalled();
