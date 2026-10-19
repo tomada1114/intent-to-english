@@ -9,8 +9,8 @@ screen's test renders it and which states it covers is `building-screens`'.
 ## Naming and shape
 
 - Name a test by the behavior sentence passed to `it`, under a `describe` naming the
-  unit: `describe("TodoItem")`, then
-  `it("completes through the API and renders the refetched completed row")`. Not the
+  unit: `describe("EndSession")`, then
+  `it("ends the session once with 終える")`. Not the
   pytest `test_<what>_<scenario>_<expected>` form: `-t` filters on
   `<describe> > <it>`, and a failure report prints the sentence.
 - Arrange, Act, Assert, in that order, one behavior per `it`.
@@ -27,7 +27,7 @@ Query by what a user perceives, in Testing Library's priority order: `getByRole`
 (https://testing-library.com/docs/queries/about/#priority, checked 2026-10-13).
 
 - A query by role and name is also a check of the accessible name:
-  `getByRole("button", { name: "Delete buy milk" })` fails when the button's
+  `getByRole("form", { name: "ヒントのお願い" })` fails when the form's
   `aria-label` is missing.
 - `getByRole("alert")` finds an error from `ErrorMessage` or a field message;
   `getByRole("status")` finds a live status region.
@@ -54,11 +54,11 @@ submit is blocked.
 - Every request the code under test makes is answered by an MSW handler, never by a
   mocked `fetch` or a mocked generated SDK function: the generated client then runs as
   in production. Import `server` from `frontend/tests/msw/server.ts` in every test that
-  renders something that fetches. Its default handlers answer `GET /api/todos` with an
+  renders something that fetches. Its default handlers answer `GET /api/sessions` with an
   empty page and `GET /api/meta` with `openrouter` (the header shows no badge); add
   per-test handlers with `server.use(...)`, which the module resets after each test.
 - Type each response with the generated types so a contract change fails `tsc`:
-  `HttpResponse.json<TodoPageResponse>({ items, next_cursor: null })`,
+  `HttpResponse.json<SessionPageResponse>({ items, next_cursor: null })`,
   `HttpResponse.json<ProblemDetails>(problem, { status: 500 })`.
 - The server listens with `onUnhandledFrame: "error"`. The default, `"warn"`, logs and
   lets the request through; `"error"` stops it, so a request no handler covers never
@@ -69,9 +69,9 @@ submit is blocked.
 - The module points the generated client's `baseUrl` at `window.location.origin`
   (`http://localhost:5173`, from `vitest.config.ts`'s `environmentOptions`): under
   Vitest's `jsdom` environment, `fetch` and `Request` are Node's and cannot resolve a
-  relative URL such as `/api/todos` (observed 2026-10-14 on Node v24.21.0:
-  `node -e "new Request('/api/todos')"` throws
-  `TypeError: Failed to parse URL from /api/todos`; `frontend/vitest.config.ts` says the
+  relative URL such as `/api/sessions` (observed 2026-10-19 on Node v24.21.0:
+  `node -e "new Request('/api/sessions')"` throws
+  `TypeError: Failed to parse URL from /api/sessions`; `frontend/vitest.config.ts` says the
   same beside `environmentOptions`). Production keeps the relative base. Never change
   the base URL in a test of its own.
 - To assert what the code sent, collect it inside the handler
@@ -81,8 +81,8 @@ submit is blocked.
 
 - Wait for what the user would see: `findBy...` or `waitFor`, never a timer,
   `setTimeout`, or fake timers to skip a wait. A `findBy...` that needs longer than the
-  default under load gets an explicit `timeout`, as
-  `frontend/tests/features/todos/TodoItem.test.tsx`'s `loadedRow` does, never a sleep.
+  default under load gets an explicit `timeout`, as a `waitFor` in
+  `frontend/tests/routes/__root.test.tsx` does, never a sleep.
 - To observe a pending state (a disabled button, a loading message), hold the handler on
   a `deferred()` barrier from `frontend/tests/msw/helpers.tsx`, assert, then
   `release()` it and wait for the settled state.

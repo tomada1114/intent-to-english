@@ -24,10 +24,10 @@ Everything `SKILL.md`'s "The developer's server is not yours" asks, the recipe d
   with fixed mode, an empty key and the default model ids, so shell/dotenv values cannot reach the API,
   the migration, or the persistence check (`e2e/environment.ts`,
   `e2e/verify_persistence.py`).
-- **Proof the data was stored.** Before deleting the to-do it created and completed, the
+- **Proof the data was stored.** Once the session it started has opened at intent, the
   spec runs `e2e/verify_persistence.py`, a process of its own that reads the same file
   through a fresh container: a reload alone cannot tell a database from an API that keeps
-  to-dos in memory.
+  sessions in memory.
 - **Its own stop.** Playwright stops both servers. `INT`, `TERM`, and `HUP` reach
   Playwright as `SIGINT`, the one signal on which it stops them, and the recipe exits
   128 + the signal. Then, on success, failure, and interruption alike, it checks both
@@ -51,7 +51,7 @@ Then, in the foreground; arguments go to `playwright test`:
 
 ```bash
 just e2e
-just e2e --grep "a to-do"
+just e2e --grep "a session starts"
 ```
 
 A failure leaves its trace under `e2e/test-results/` (`trace: 'retain-on-failure'`);
@@ -60,21 +60,21 @@ that directory and the HTML report as the `e2e-traces` artifact when the job fai
 
 ## What it prints
 
-The last lines, observed 2026-10-14 on macOS (the ports, the path, the id, and the
-timing vary):
+The last lines, observed 2026-10-19 on macOS (the ports, the path, the id, and the
+timing vary; the API's other log lines trimmed):
 
 ```console
-to-do 01a138a4-d42f-71c4-9e4d-393dd02223c8 is stored, completed, in /var/folders/…/T/tmp.eqQ5Aly1Bo/e2e.db
-  ✓  1 [chromium] › tests/todos.spec.ts:41:1 › a to-do goes from the screen to the database and away again (1.1s)
-[API] INFO:     Finished server process [93335]
+session 01a1557e-ccb7-743e-bdb5-d8c49859a6f0 is stored at intent in /var/folders/…/T/tmp.uTpNYziQP3/e2e.db
+  ✓  1 [chromium] › tests/conversation.spec.ts:61:1 › a session starts on the home screen, opens at intent, and is listed there (1.9s)
+[API] INFO:     Finished server process [10728]
 
-  1 passed (6.9s)
-nothing listening on 49279
-nothing listening on 49280
-removed /var/folders/…/T/tmp.eqQ5Aly1Bo
+  1 passed (9.4s)
+nothing listening on 62123
+nothing listening on 62124
+removed /var/folders/…/T/tmp.uTpNYziQP3
 ```
 
-A `SIGTERM` to `just` while the API was starting, observed the same day, ended with
+A `SIGTERM` to `just` while the API was starting, observed 2026-10-14, ended with
 exit 143, "nothing listening" on both ports, and the directory removed.
 
 In a pull request's Test Plan, these lines are the evidence: the passing test, both

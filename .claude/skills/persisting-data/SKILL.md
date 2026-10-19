@@ -41,13 +41,13 @@ ignore.
 
 A table is a `Table` on the one `metadata` in `tables.py` — never an ORM class and
 never SQLModel, so no mapped object can escape the adapter, and rows become core
-models (`Todo`) before a method returns. `metadata` carries a naming convention, so
-every constraint and index has a predictable name (`pk_todos`) that a later
+models (`Session`) before a method returns. `metadata` carries a naming convention, so
+every constraint and index has a predictable name (`pk_sessions`) that a later
 revision can drop or alter on every database, SQLite included
 (https://alembic.sqlalchemy.org/en/latest/naming.html, checked 2026-10-09).
 
-- A column's limits come from the core's constants (`String(MAX_TITLE_LENGTH)`), so
-  the database and the domain rule cannot disagree.
+- A column's limits come from the core's constants, so the database and the domain rule
+  cannot disagree.
 - Ids are `Uuid` primary keys the application generates; never an autoincrement.
 - A timestamp is `UtcDateTime`: it refuses a naive `datetime` on bind (a bug in a clock
   or a caller), stores an aware one as naive UTC, and attaches UTC on read — the
@@ -62,15 +62,15 @@ Each statement a repository runs is a module-level constant built once with
 each call passes only values. Nothing assembles SQL per call, so no request can change
 a statement's shape. Two traps met here:
 
-- A `bindparam` named after a column (`title`) is reserved for an UPDATE's SET values;
-  name the key `todo_id`, not `id`.
+- A `bindparam` named after a column (`id`) is reserved for an UPDATE's SET values;
+  name the key `session_id`, not `id`.
 - An `update()` without `.values()` takes its SET clause from the column-named values
   passed with it, so one constant writes every column.
 
 Each method takes its own pooled connection — `engine.begin()` for a write, which
 commits or rolls back, `engine.connect()` for a read — so concurrent calls never share
 a transaction. A driver error with a domain meaning is translated there (an
-`IntegrityError` on `add` becomes the port's `ValueError`; **BACKGROUND:**
+`IntegrityError` on `create` becomes the port's `ValueError`; **BACKGROUND:**
 `designing-errors`); any other propagates as a bug.
 
 ## The engine has one owner
@@ -180,8 +180,8 @@ checked 2026-10-09).
 `compose.yml` supplies an optional disposable database: run `docker compose up -d --wait`,
 then `just backend test-postgres`. The recipe includes the extra and defaults to
 that database; `INTENT_TO_ENGLISH_TEST_POSTGRES_URL` selects another disposable database.
-Never point it at application data: the shared contract empties the todos table
-before each test and the migration test drops and recreates it.
+Never point it at application data: the shared contract empties the session tables
+before each test and the migration tests downgrade them to base and recreate them.
 
 Database migration and development recipes select the `postgres` extra when
 the resolved URL uses PostgreSQL; SQLite keeps the default environment.

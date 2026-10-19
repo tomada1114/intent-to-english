@@ -58,12 +58,21 @@ Decide this before the test, because the layer decides which surface the test dr
   `pytestmark = pytest.mark.anyio` (`writing-tests`' "Async tests"):
 
   ```python
-  async def test_complete_open_todo_marks_it_completed(service):
-      todo = await service.create("buy milk")
+  async def test_conversation_list_page_following_cursors_returns_every_session_once(
+      make_conversation,
+  ):
+      h = make_conversation()
+      started = [await h.service.start() for _ in range(5)]
 
-      completed = await service.complete(todo.id)
+      first = await h.service.list_page(limit=2)
+      second = await h.service.list_page(first.next_cursor, 2)
+      third = await h.service.list_page(second.next_cursor, 2)
 
-      assert completed.is_completed is True
+      pages = first.items + second.items + third.items
+      assert tuple(item.id for item in pages) == tuple(
+          view.id for view in reversed(started)
+      )
+      assert third.next_cursor is None
   ```
 
 ## Prove it fails, for the right reason

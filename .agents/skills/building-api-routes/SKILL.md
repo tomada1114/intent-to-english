@@ -96,13 +96,15 @@ call — one per test — own an independent store. A new service on `Container`
 own function and alias in the same shape:
 
 ```python
-def get_todo_service(request: Request) -> TodoService:
+def get_conversation_service(request: Request) -> ConversationService:
     # ... docstring elided
     container: Container = request.app.state.container
-    return container.todos
+    return container.conversations
 
 
-TodoServiceDep = Annotated[TodoService, Depends(get_todo_service)]
+ConversationServiceDep = Annotated[
+    ConversationService, Depends(get_conversation_service)
+]
 ```
 
 FastAPI reads a dependency function's annotations at run time too, and no
@@ -119,8 +121,8 @@ above, may stay under `if TYPE_CHECKING:`.
 ## Routers
 
 One module per resource, each with a single module-level `router = APIRouter(...)` with
-`tags=`, plus a `prefix=` when every path in it shares one: `routers/todos.py` has
-`prefix="/todos"`, while `routers/health.py` serves `/healthz` with no prefix.
+`tags=`, plus a `prefix=` when every path in it shares one: `routers/sessions.py` has
+`prefix="/sessions"`, while `routers/health.py` serves `/healthz` with no prefix.
 
 - **A route is `async def`** and awaits the one service method it calls, so it runs on
   the event loop rather than in FastAPI's worker threads.
@@ -136,16 +138,15 @@ One module per resource, each with a single module-level `router = APIRouter(...
   `schemas.py`. Shared 400, 422, and 500 models come from the factory, whose OpenAPI
   override moves error schemas to `application/problem+json` while retaining success
   media types. Declare 422 explicitly to suppress FastAPI's legacy validation model.
-- **The docstring is one plain-text line** (`writing-python` owns the rule and its
-  reason).
+- **The docstring is one plain-text line** (`writing-python` owns the rule and its reason).
 - **`/healthz` touches no repository,** so a slow or missing database never gets a live
   process restarted. Keep a new probe the same way.
 
 ```python
-@router.post("/{todo_id}/complete", responses=problem_responses(404))
-async def complete_todo(todo_id: UUID, service: TodoServiceDep) -> TodoResponse:
-    """Mark a to-do as completed."""
-    return TodoResponse.from_domain(await service.complete(todo_id))
+@router.post("", status_code=HTTPStatus.CREATED, responses=problem_responses(422))
+async def create_session(service: ConversationServiceDep) -> SessionResponse:
+    """Create an opening session before any model request."""
+    return SessionResponse.from_domain(await service.start())
 ```
 
 FastAPI reads route annotations at run time, so their types stay real imports. The root `pyproject.toml`'s `runtime-evaluated-decorators` (which
@@ -160,13 +161,12 @@ apart from the domain models, so a domain field can be renamed without breaking 
 client.
 
 - A response model maps a domain value in one classmethod, `from_domain`, the only
-  place the two shapes meet — `TodoResponse.from_domain` renames `is_completed` to
-  `completed`.
-- A request model does not repeat a rule the core owns. `TodoCreateRequest.title` is a
-  plain `str`, so the core's `InvalidTodoError` produces the one message both entry
+  place the two shapes meet — `SessionResponse.from_domain` revalidates a `SessionView`.
+- A request model does not repeat a rule the core owns. A text action's `text` is a
+  plain `str`, so the core's `InvalidInputError` produces the one message both entry
   points share; a `Field(max_length=...)` there would answer the same mistake with
   a parsing 422 with code `request_invalid`. Types a parser enforces (`int`, `UUID`, `datetime`)
-  stay. A query parameter follows the same rule: `list_todos`' `limit: int` has no
+  stay. A query parameter follows the same rule: `list_sessions`' `limit: int` has no
   `Query(ge=, le=)`, because the core's `InvalidPageLimitError` owns the range.
 - Errors use `ProblemDetails`, with `ProblemFieldError` items only for parsing failures;
   Omit absent extensions; statuses and codes are `designing-errors`'.
@@ -175,9 +175,9 @@ client.
 
 Take reading one item by id, `GET /<resource>/{id}`, as the worked case:
 
-1. The service needs a method for it. `TodoService` has none for a single item yet,
-   though the `TodoRepository` port already has `get`; add the method and its tests
-   first. **REQUIRED:** `designing-core-logic`.
+1. The service needs a method for it, as `ConversationService.get` serves
+   `GET /sessions/{session_id}`; add the method and its tests first, even when the port
+   already has `get`. **REQUIRED:** `designing-core-logic`.
 2. Add the route to the resource's router module: a `UUID` path parameter, the service
    dependency, the response model as the return type, `responses=problem_responses(404)`, and a
    one-line docstring.
@@ -196,9 +196,9 @@ Take reading one item by id, `GET /<resource>/{id}`, as the worked case:
   `aclose()`, is `async def` (`writing-tests`' "Async tests").
 - Use the `client` fixture from `backend/tests/api/conftest.py`:
   `TestClient(create_app(container=make_container()))`, an empty in-memory store and
-  the fixed clock, so `created_at` is known exactly. Tests go in
+  the fixed clock, so `started_at` is known exactly. Tests go in
   `backend/tests/api/test_<router>.py`.
-- Create state through the API — `backend/tests/api/test_todos.py`'s `make_todo`
+- Create state through the API — `backend/tests/api/conftest.py`'s `start_session`
   factory fixture posts and returns the body — rather than reaching into the container.
 - Assert the status against an `HTTPStatus` member and the whole JSON body; an error
   asserts the media type and the whole Problem body, including `type`, `title`,

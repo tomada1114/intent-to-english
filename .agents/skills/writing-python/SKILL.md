@@ -45,23 +45,25 @@ that reads annotations is added to that list, never silenced with a `noqa`. A Fa
 dependency function has no decorator for that list to name — `building-api-routes`
 covers that case.
 
-`api/schemas.py` has both kinds in one file: `datetime` is a real import because a
-`BaseModel` field names it, while `Todo` appears only in a method signature.
+`api/dependencies.py` has both kinds in one file: `ConversationService` is a real import
+because FastAPI reads the `Annotated` alias naming it at run time, while `Container`
+appears only inside a function body.
 
 ```python
-from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
-from pydantic import BaseModel
+from fastapi import Depends, Request
+
+from intent_to_english.core.services import ConversationService
 
 if TYPE_CHECKING:
-    from intent_to_english.core.models import Todo
+    from intent_to_english.composition import Container
 ```
 
 ## Choosing a type for a value
 
 - **An internal value:** `@dataclass(frozen=True, slots=True)`. A change is a new value
-  built with `dataclasses.replace`, never an in-place edit (`Todo`, `Page`,
+  built with `dataclasses.replace`, never an in-place edit (`Session`, `Page`,
   `composition.Container`).
 - **Pydantic `BaseModel`:** only at a serialization boundary — the wire format in
   `api/schemas.py` and the environment in `settings.py`. Never in `core/`.
@@ -72,21 +74,21 @@ if TYPE_CHECKING:
 - **`enum.Enum`** for a closed set instead of loose string constants; `IntEnum` when the
   members are also numbers, as the standard library's `HTTPStatus` is. Inside a
   Pydantic model a `Literal` field does that job on the wire (`HealthResponse.status`).
-- **`Any`** only with a comment saying why nothing narrower fits, as in
-  `api/routers/todos.py`:
-  ``# Any: FastAPI's own type for `responses=` values is dict[str, Any].``
+- **`Any`** only with a comment saying why nothing narrower fits, as the docstring of
+  `problem_responses` in `api/schemas.py` says:
+  ``` ``Any`` matches FastAPI's ``responses=`` declaration type. ```
 
 ## Names and constants
 
 - A literal that carries meaning is an `UPPER_SNAKE_CASE` module constant in the module
-  that owns the meaning (`MAX_TITLE_LENGTH`, `SQLITE_URL_PREFIX`, `ENV_PREFIX`);
+  that owns the meaning (`MAX_PAGE_LIMIT`, `SQLITE_URL_PREFIX`, `ENV_PREFIX`);
   another module imports it rather than repeating the value.
-- A boolean is named `is_`, `has_`, `can_`, or `should_` (`Todo.is_completed`). A wire
+- A boolean is named `is_`, `has_`, `can_`, or `should_` (`PartnerLinePayload.has_question`). A wire
   format may spell it differently; the schema owns that mapping.
 - A private helper is `_name`, an internal module `_name.py`; `__name` only to avoid a
   clash in a subclass hierarchy.
 - **Never shadow a builtin.** A function whose natural name is a builtin gets a
-  descriptive name instead: the route that lists to-dos is `async def list_todos(...)`
+  descriptive name instead: the route that lists sessions is `async def list_sessions(...)`
   under `@router.get("")`, never `async def list(...)`.
 
 ## Functions, modules, and docstrings
@@ -109,14 +111,14 @@ if TYPE_CHECKING:
 
   ```python
   try:
-      return self._todos[todo_id]
+      return self._sessions[session_id]
   except KeyError:
-      raise TodoNotFoundError(todo_id) from None
+      raise SessionNotFoundError(session_id) from None
   ```
 
   `from None` drops a cause that adds nothing; `from error` keeps one that does.
 - **A context manager for every resource.** Acquire it with `with` or `async with`
-  so it is released on every path: `SqlTodoRepository` takes each connection with
+  so it is released on every path: `SqlSessionRepository` takes each connection with
   `async with self._engine.begin() as connection:`, which commits, or rolls back on an
   error, and returns the connection to the pool. When an object's own `with` does not
   release it, compose `contextlib.closing`; a reusable boundary is a

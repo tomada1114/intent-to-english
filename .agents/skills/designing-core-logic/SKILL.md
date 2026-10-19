@@ -56,29 +56,30 @@ change that adds it; the per-file-ignores already let the outer layers use it.
 A domain value is a frozen dataclass whose `__post_init__` refuses any state no rule
 allows. The check runs on every construction — an adapter rebuilding a row,
 `dataclasses.replace` producing a changed copy — so no code path can hold an invalid
-value. A `Todo` has its id from the start: the service takes it from `IdFactory` before
+value. A `Session` has its id from the start: the service takes it from `IdFactory` before
 any repository sees the value.
 
 A rule lives once, in the core, as a function every entry point reaches through a
-service. `normalize_title` strips and length-checks a title; the API's request model
-leaves the title as a plain `str`, so every entry point rejects the same input with
-the same message.
+service. `check_input` in `core/flow.py` strips and length-checks an action's text; the
+API's request model leaves `text` a plain `str`, so every entry point rejects the same
+input with the same message.
 
 ## Services are the use cases
 
 A service class groups the operations an entry point offers on one part of the domain.
 Its constructor takes the ports, the clock, and the id factory it needs; its methods
-take what a user supplies (`raw_title: str`, `todo_id: UUID`) and return domain models.
+take what a user supplies (`session_id: UUID`, an `ActionRequest`) and return domain models.
 Entry points call a service and nothing below it, so a rule added to a service holds for
 every entry point. A method's docstring records the behavior a caller may rely on —
-`complete` returns an already-completed to-do unchanged, so a retried request is safe.
+`act` raises `StaleSessionError` for an older version, so a retried request never applies twice.
 
 ```python
-async def create(self, raw_title: str) -> Todo:
+async def start(self) -> SessionView:
     # ... docstring elided
-    title = normalize_title(raw_title)
-    todo = Todo(id=self._new_id(), title=title, created_at=self._clock())
-    return await self._repository.add(todo)
+    stored = await self._repository.create(
+        models.Session(self._new_id(), self._clock())
+    )
+    return self._view(stored)
 ```
 
 The repository path is async end to end: port methods, service methods, and routes are
@@ -90,7 +91,7 @@ stay `def`.
 A port is a `typing.Protocol` in `core/ports.py`, typed with core models only, its I/O
 methods `async def`. An adapter satisfies it by shape and never imports or subclasses
 it. The port's docstrings are the contract — what is returned, in what order, and what
-is raised — and `TodoRepository` is `@runtime_checkable` so the contract suite can also
+is raised — and `SessionRepository` is `@runtime_checkable` so the contract suite can also
 assert that an adapter has every method.
 
 ## Ports any store can implement
@@ -98,21 +99,21 @@ assert that an adapter has every method.
 A repository port must suit a SQL database and a key-value store such as DynamoDB
 alike, so every one follows six rules:
 
-1. **The application generates ids.** `Todo.id` is a `UUID` from the injected
-   `IdFactory`; no store assigns one. `add` of an id already stored raises `ValueError`
+1. **The application generates ids.** `Session.id` is a `UUID` from the injected
+   `IdFactory`; no store assigns one. `create` of an id already stored raises `ValueError`
    (a factory bug) and overwrites nothing, as a primary key or a conditional put does.
-2. **A method is one access pattern** — `get(todo_id)`, `list_page(cursor, limit)` —
+2. **A method is one access pattern** — `get(session_id)`, `list_page(cursor, limit)` —
    never an arbitrary query, join, or filter builder.
 3. **A list pages by an opaque cursor, never by offset.** `list_page` returns a
-   `Page[Todo]` ascending by id, reading `limit + 1` items so `next_cursor` is `None`
-   exactly on the last page. `adapters/cursor.py` (`encode_after`, `decode_after`, which
+   `Page[SessionSummary]` newest id first, reading `limit + 1` items so `next_cursor` is
+   `None` exactly on the last page. `adapters/cursor.py` (`encode_before`, `decode_before`, which
    raises `InvalidCursorError`) is the shared cursor; a store with its own token keeps it
-   in its adapter. The service owns the limit (`MAX_PAGE_LIMIT`, `InvalidPageLimitError`).
+   in its adapter. The service owns the limit (`check_page_limit`, `MAX_PAGE_LIMIT`).
 4. **No store type crosses the adapter boundary** — no row, session, ORM object, or
    query; the core sees only its own values.
 5. **A write that must be atomic across items is one port method,** implementable as a
    SQL transaction or a DynamoDB `TransactWriteItems`.
-6. **Timestamps are timezone-aware UTC**; `Todo` rejects a naive `created_at`.
+6. **Timestamps are timezone-aware UTC**; `Session` rejects a naive `started_at`.
 
 ## Time and other outside inputs are injected
 
@@ -133,19 +134,19 @@ port of the same kind rather than a direct call.
 - An adapter in `adapters/` wraps one storage or I/O technology, holds no domain rule,
   and translates its driver's failures into the domain errors the port promises
   (`designing-errors`).
-- It never blocks the event loop. `InMemoryTodoRepository` never awaits inside a
-  read-modify-write, so it needs no lock; `SqlTodoRepository` awaits an async driver
+- It never blocks the event loop. `InMemorySessionRepository` never awaits inside a
+  read-modify-write, so it needs no lock; `SqlSessionRepository` awaits an async driver
   through SQLAlchemy's asyncio API, one pooled connection per call.
 - Its queries are module constants, never assembled at run time. The SQL side —
   tables, statements, the engine, migrations — is **REQUIRED:** `persisting-data`.
 - Every implementation of a port runs the one shared contract suite. A new repository
-  joins `backend/tests/adapters/test_repository_contract.py` by adding a `pytest.param`
-  to `REPOSITORY_FACTORIES`, an async context manager yielding it on a fresh store;
-  behavior only it has goes in `backend/tests/adapters/test_<adapter>.py`. Concurrent
-  adds must all be stored in every repository (200 `add` calls in one task group).
-- The in-memory adapter doubles as the core's fake: `backend/tests/core/test_services.py`
-  builds a service over `InMemoryTodoRepository()`, `fixed_clock`, and `new_id` instead
-  of mocking the port.
+  joins `backend/tests/adapters/test_session_repository_contract.py` by adding a
+  `pytest.param` to `REPOSITORY_FACTORIES`, an async context manager yielding it on a
+  fresh store; behavior only it has goes in `backend/tests/adapters/test_<adapter>.py`.
+  Of 50 concurrent `begin_submission` calls in one task group, exactly one must win.
+- The in-memory adapter doubles as the core's fake: `backend/tests/core/conftest.py`'s
+  `make_conversation` builds a service over `InMemorySessionRepository()`, a settable
+  clock, and `new_id` instead of mocking the port.
 
 ## Settings are read once, at the boundary
 
@@ -171,17 +172,16 @@ A new setting is a field on `Settings`:
 `composition.py` constructs application adapters and services. The call-log command
 uses a SQL reader with its own engine and a pure core summary (`persisting-data`).
 `build_container(settings, clock=utc_now, new_id=uuid.uuid7, *, boot_id=None)` picks
-repositories through `_build_repositories` and returns a frozen `Container` with
-`todos`, keyword-only `conversations` and `models`, and the selected `model_mode`; the API stores
+the repository through `_build_repository` and returns a frozen `Container` with
+keyword-only `conversations` and `models`, and the selected `model_mode`; the API stores
 it on `app.state`. A new service is a new `Container` field
 built in `build_container`; a new adapter choice is a branch in the function that picks
 it, driven by a setting.
 
-Both SQL repositories share one lazy engine and one disposal callback; without a
-database URL each uses its memory adapter. The conversation service receives both
-fixed model roles in every mode until #28. One default `uuid.uuid7()` boot id per
-build is independent of entity ids, or injectable for interruption tests. The current
-wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
+The SQL repository owns one lazy engine and one disposal callback; without a database
+URL the memory adapter is used. The conversation service receives both fixed model roles
+in every mode until #28. One default `uuid.uuid7()` boot id per build is independent of
+entity ids, or injectable for interruption tests. The current wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
 `ModelPorts` holds the exact Partner and Coach instances used by the conversation
 service; evaluation shares them through `Container.models`, with storage disabled.
 
@@ -192,7 +192,7 @@ Tests build containers through the same function: `backend/tests/conftest.py`'s
 ## Adding a use case
 
 1. A rule the operation needs goes in the model or a core function, with its
-   `InvalidTodoError`-style domain error. **REQUIRED:** `designing-errors`.
+   `InvalidInputError`-style domain error. **REQUIRED:** `designing-errors`.
 2. An `async def` method on the service, awaiting ports only, with `Args:`,
    `Returns:`, and `Raises:`.
 3. A port method if storage must do something new, implemented in every adapter, and a
