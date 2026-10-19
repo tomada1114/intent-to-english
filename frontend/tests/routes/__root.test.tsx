@@ -122,4 +122,24 @@ describe("the root layout", () => {
 
     expect(html).toMatch(/<html lang="ja" class="scroll-pt-14">/);
   });
+
+  it.each(["/settings", "/sessions/"])(
+    "renders S4 inside the header frame for %s",
+    async (path) => {
+      useMeta("openrouter");
+      renderAt(path);
+
+      expect(
+        await screen.findByRole("heading", {
+          level: 1,
+          name: "この会話は見つかりませんでした。",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("banner")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "会話一覧へ" })).toHaveAttribute(
+        "href",
+        "/",
+      );
+    },
+  );
 });

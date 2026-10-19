@@ -89,6 +89,11 @@ export function ConversationScreen({
   const [directTurn, setDirectTurn] = useState<number | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
   const [howToOpen, setHowToOpen] = useState(true);
+  /** A past turn the learner selected on the left, shown read-only on the right. */
+  const [pastTurn, setPastTurn] = useState<number | null>(null);
+  const backToTurnRef = useRef<HTMLButtonElement>(null);
+  const focusAfterPast = useRef<"back" | "composer" | null>(null);
+  const coachHeadingRef = useRef<HTMLHeadingElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const gapRef = useRef<HTMLInputElement>(null);
   const controlsRef = useRef<HTMLFieldSetElement>(null);
@@ -203,6 +208,33 @@ export function ConversationScreen({
     }
   }, [hintOpen]);
 
+  useEffect(() => {
+    const target = focusAfterPast.current;
+    focusAfterPast.current = null;
+    if (target === "back") backToTurnRef.current?.focus();
+    if (target !== "composer") return;
+    // The composer, else the stage's first control, else the pane's heading.
+    const composer = composerRef.current;
+    const control =
+      controlsRef.current?.querySelector<HTMLButtonElement>("button:enabled");
+    if (composer !== null && !composer.disabled) composer.focus();
+    else if (control) control.focus();
+    else coachHeadingRef.current?.focus();
+  });
+
+  function showPastTurn(turn: number) {
+    focusAfterPast.current = "back";
+    setPastTurn(turn);
+    setTab("coach");
+  }
+
+  function backToCurrentTurn() {
+    focusAfterPast.current = "composer";
+    setPastTurn(null);
+  }
+
+  const viewingPast = pastTurn !== null && !ended;
+
   const arrival = useArrivals(view.entries);
   const markUnread = useEffectEvent((next: Arrival) => {
     if (next.partner && !wide && tab === "coach") setUnread(true);
@@ -276,7 +308,10 @@ export function ConversationScreen({
       <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
         会話（Partner が聞いている英語）
       </h2>
-      <ConversationTimeline entries={view.entries} />
+      <ConversationTimeline
+        entries={view.entries}
+        {...(ended ? {} : { onSelectTurn: showPastTurn })}
+      />
       <div role="status" className="text-ink-muted">
         {waitingPane === "partner" && (
           <p className={ENTER}>Partner が返事を考えています…</p>
@@ -286,55 +321,83 @@ export function ConversationScreen({
     </>
   );
 
-  const coachPane = (
+  // Shown under whichever turn the Coach pane holds, the current or a past one.
+  const coachErrors = (
     <>
-      <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
-        コーチ · ターン {view.turn_index}
-      </h2>
-      {!wide && !ended && answering !== null && (
-        <div className="space-y-1 border-b border-line pb-3">
-          <p className="text-xs font-bold text-partner-ink">🗣 返事をする発言</p>
-          <p lang="en" className={COACH_ENGLISH}>
-            {answering.payload.text}
-          </p>
-        </div>
-      )}
-      {view.turn_index === 1 && !ended && (
-        <div className="space-y-2">
-          <button
-            type="button"
-            aria-expanded={howToOpen}
-            aria-controls={`${ids}-howto`}
-            onClick={() => setHowToOpen((open) => !open)}
-            className={`${QUIET_BUTTON} font-bold text-ink`}
-          >
-            <span aria-hidden="true">{howToOpen ? "▾ " : "▸ "}</span>
-            進め方
-          </button>
-          {howToOpen && (
-            <div
-              id={`${ids}-howto`}
-              className="space-y-1 text-sm transition-opacity duration-200 starting:opacity-0 motion-reduce:transition-none"
-            >
-              {HOW_TO.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {previous !== null && <p className="text-sm text-ink-muted">{previous}</p>}
-      <TurnTimeline
-        timeline={view.entries}
-        turn={view.turn_index}
-        fresh={arrival.ids}
-      />
       {bannerFor("coach")}
       {end.isError && <ErrorMessage error={toApiError(end.error)} />}
     </>
   );
 
-  const footer = ui !== null && (
+  const coachPane =
+    pastTurn !== null && !ended ? (
+      <>
+        <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
+          コーチ · ターン {pastTurn}
+        </h2>
+        <button
+          ref={backToTurnRef}
+          type="button"
+          onClick={backToCurrentTurn}
+          className={SECONDARY_BUTTON}
+        >
+          今のターンに戻る
+        </button>
+        <TurnTimeline timeline={view.entries} turn={pastTurn} />
+        {coachErrors}
+      </>
+    ) : (
+      <>
+        <h2
+          ref={coachHeadingRef}
+          tabIndex={-1}
+          className={`text-[13px] font-bold tracking-[0.04em] text-ink-muted ${FOCUS_RING}`}
+        >
+          コーチ · ターン {view.turn_index}
+        </h2>
+        {!wide && !ended && answering !== null && (
+          <div className="space-y-1 border-b border-line pb-3">
+            <p className="text-xs font-bold text-partner-ink">🗣 返事をする発言</p>
+            <p lang="en" className={COACH_ENGLISH}>
+              {answering.payload.text}
+            </p>
+          </div>
+        )}
+        {view.turn_index === 1 && !ended && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              aria-expanded={howToOpen}
+              aria-controls={`${ids}-howto`}
+              onClick={() => setHowToOpen((open) => !open)}
+              className={`${QUIET_BUTTON} font-bold text-ink`}
+            >
+              <span aria-hidden="true">{howToOpen ? "▾ " : "▸ "}</span>
+              進め方
+            </button>
+            {howToOpen && (
+              <div
+                id={`${ids}-howto`}
+                className="space-y-1 text-sm transition-opacity duration-200 starting:opacity-0 motion-reduce:transition-none"
+              >
+                {HOW_TO.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {previous !== null && <p className="text-sm text-ink-muted">{previous}</p>}
+        <TurnTimeline
+          timeline={view.entries}
+          turn={view.turn_index}
+          fresh={arrival.ids}
+        />
+        {coachErrors}
+      </>
+    );
+
+  const footer = ui !== null && !viewingPast && (
     <div className="space-y-3 bg-surface px-4 pt-3 pb-4 shadow-[0_-1px_0_var(--color-line)] lg:px-5">
       <div role="status">
         {waitingPane === "coach" ? (

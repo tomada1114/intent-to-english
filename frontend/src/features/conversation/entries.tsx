@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { COACH_ENGLISH, ENTER, LABEL } from "../../lib/ui";
+import { COACH_ENGLISH, ENTER, FOCUS_RING, LABEL } from "../../lib/ui";
 import { FeedbackCard } from "./FeedbackCard";
 import {
   checkInCount,
@@ -15,20 +15,40 @@ import {
 
 /**
  * The left pane's timeline: only what the Partner hears — its lines, each
- * restatement labelled under its line, and each turn's final English.
+ * restatement labelled under its line, and each turn's final English. With
+ * `onSelectTurn`, each learner line is a button that selects its turn.
  */
-export function ConversationTimeline({ entries }: { entries: readonly Entry[] }) {
+export function ConversationTimeline({
+  entries,
+  onSelectTurn,
+}: {
+  entries: readonly Entry[];
+  onSelectTurn?: (turn: number) => void;
+}) {
   return (
     <ol aria-label="会話の流れ" className="space-y-4">
       {entries.map((item) => (
-        <ConversationEntry key={item.id} entry={item} />
+        <ConversationEntry
+          key={item.id}
+          entry={item}
+          {...(onSelectTurn === undefined ? {} : { onSelectTurn })}
+        />
       ))}
     </ol>
   );
 }
 
+const LEARNER_BUBBLE =
+  "max-w-[36em] rounded-panel rounded-tr-[4px] border border-line bg-canvas px-4 py-3 font-en text-[17px] leading-[1.55] whitespace-pre-wrap";
+
 /** One left-pane line, or nothing for an entry the Partner does not hear. */
-export function ConversationEntry({ entry }: { entry: Entry }) {
+export function ConversationEntry({
+  entry,
+  onSelectTurn,
+}: {
+  entry: Entry;
+  onSelectTurn?: (turn: number) => void;
+}) {
   if (entry.kind === "partner_line") {
     const restated = entry.payload.line_kind === "restatement";
     return (
@@ -56,12 +76,20 @@ export function ConversationEntry({ entry }: { entry: Entry }) {
     return (
       <li className={`flex flex-col items-end gap-1 ${ENTER}`}>
         <p className="text-xs font-bold text-ink-muted">You</p>
-        <p
-          lang="en"
-          className="max-w-[36em] rounded-panel rounded-tr-[4px] border border-line bg-canvas px-4 py-3 font-en text-[17px] leading-[1.55] whitespace-pre-wrap"
-        >
-          {entry.payload.english}
-        </p>
+        {onSelectTurn === undefined ? (
+          <p lang="en" className={LEARNER_BUBBLE}>
+            {entry.payload.english}
+          </p>
+        ) : (
+          <button
+            type="button"
+            lang="en"
+            onClick={() => onSelectTurn(entry.turn_index)}
+            className={`${LEARNER_BUBBLE} text-left hover:border-line-strong ${FOCUS_RING}`}
+          >
+            {entry.payload.english}
+          </button>
+        )}
       </li>
     );
   }

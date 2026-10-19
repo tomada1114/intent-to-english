@@ -12,4 +12,5 @@ export {
   TurnTimeline,
 } from "./entries";
 export { FeedbackCard } from "./FeedbackCard";
+export { useWideLayout } from "./hooks";
 export { type SessionView, sessionQueryOptions } from "./session";

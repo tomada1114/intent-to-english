@@ -18,3 +18,14 @@ export function formatCount(value: number): string {
 export function formatStart(iso: string): string {
   return startFormat.format(new Date(iso));
 }
+
+const timeFormat = new Intl.DateTimeFormat("ja-JP", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** The local time of day as 「HH:mm」. */
+export function formatTime(iso: string): string {
+  return timeFormat.format(new Date(iso));
+}

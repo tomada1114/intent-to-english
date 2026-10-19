@@ -228,8 +228,16 @@ dialogs in the MVP; everything happens in the page.
   expanding shows that turn's complete timeline as in S2, without composer or controls.
   Clicking a learner line on the left expands its turn on the right.
 - No conversation composer, in-session controls, or next-action line. No "続ける" — an
-  ended session cannot be reopened. While its wrap-up is due, the right pane shows the
-  waiting state or an error banner with [もう一度]; that retry makes only the wrap-up.
+  ended session cannot be reopened.
+- **Wrap-up due** (ended with feedback, no wrap-up yet): S3 sends the wrap-up once for the
+  shown version and shows 「コーチが振り返りを作っています…」 under 「この会話で出てきた表現」;
+  there is no [中止]. The returned items replace the line. A wrap-up already running from
+  another tab or before a reload shows the same line, and S3 reads the session again every
+  2 s until it settles.
+- **Wrap-up failed or interrupted**: under the heading, 「振り返りを作れませんでした（<reason>）。」
+  — reasons 時間切れ / 混み合っています / 接続できません / 返事の形式が正しくありませんでした;
+  no reason for an interrupted call — with [もう一度], which sends the wrap-up at the current
+  version. S3 never resends it by itself, and the transcript below stays readable.
 - A session ended before any feedback has no wrap-up: the right pane starts with the turn
   list.
 
@@ -292,11 +300,13 @@ Any Coach or Partner call: [error banner + もう一度] — the stage stays, th
 
 1. After the 3rd, 6th, 9th… finished reply: 💡 「ここで3往復です。続けますか？」 → [続ける]
    (the Partner continues) or [終わる].
-2. 「会話を終える」 (header) or [終わる] at any stage → the session ends immediately → S3.
-   Any running action is superseded and its late output is discarded. When a feedback block
-   exists (including one with no fix), the wrap-up is generated separately in S3. A failure
-   leaves the session ended and [もう一度] retries only the wrap-up. Without any feedback,
-   there is nothing to generate and the right pane starts with the turn list.
+2. 「会話を終える」 (header) or [終わる] at any stage → the session ends immediately, and the
+   same URL shows S3 without a reload. Any running action is superseded and its late output
+   is discarded. When a feedback block exists (including one with no fix), S3 asks for the
+   wrap-up itself, once, and shows 「コーチが振り返りを作っています…」 until it arrives. A
+   failure shows 「振り返りを作れませんでした（<reason>）。」 with [もう一度], which retries only
+   the wrap-up; the session stays ended. Without any feedback, there is nothing to generate
+   and the right pane starts with the turn list.
 
 ```
 [reply 3k done] -> [Check-in] -> 続ける -> [Partner reply] -> [Intent]
