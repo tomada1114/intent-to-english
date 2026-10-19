@@ -1,12 +1,19 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
-import type { ReactElement } from "react";
+import { HttpResponse, http } from "msw";
+import { type ReactElement, type ReactNode, StrictMode } from "react";
 import { afterEach, vi } from "vitest";
 import type {
+  PerformSessionActionData,
   SessionResponse,
   TimelineEntryResponse,
   TodoResponse,
 } from "../../src/api/generated/types.gen";
+import {
+  ConversationScreen,
+  sessionQueryOptions,
+} from "../../src/features/conversation";
+import { server } from "./server";
 
 const clients = new Set<QueryClient>();
 afterEach(() => {
@@ -14,15 +21,19 @@ afterEach(() => {
   clients.clear();
 });
 
-export function renderWithQuery(ui: ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  clients.add(queryClient);
+export function renderWithQuery(ui: ReactElement, queryClient = newQueryClient()) {
   return {
     ...render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>),
     queryClient,
   };
+}
+
+function newQueryClient() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  clients.add(queryClient);
+  return queryClient;
 }
 
 export function todo(
@@ -85,6 +96,67 @@ export function sessionView(overrides: Partial<SessionResponse> = {}): SessionRe
       id: `0199c1f0-0000-7000-8000-${String(index + 1).padStart(12, "0")}`,
     })),
   };
+}
+
+export type ActionBody = PerformSessionActionData["body"];
+
+/**
+ * Serve one session: GET answers the server's current view, and each posted
+ * action is recorded and answered by `respond` — a new view (which becomes the
+ * current one) or any other response, such as a Problem Details error.
+ */
+export function serveSession(
+  initial: SessionResponse,
+  respond: (
+    body: ActionBody,
+    current: SessionResponse,
+  ) => SessionResponse | Response | Promise<SessionResponse | Response> = () =>
+    HttpResponse.error(),
+) {
+  let current = initial;
+  const bodies: ActionBody[] = [];
+  server.use(
+    http.get(`/api/sessions/${SESSION_ID}`, () =>
+      HttpResponse.json<SessionResponse>(current),
+    ),
+    http.post(`/api/sessions/${SESSION_ID}/actions`, async ({ request }) => {
+      const body = (await request.json()) as ActionBody;
+      bodies.push(body);
+      const result = await respond(body, current);
+      if (result instanceof Response) return result;
+      current = result;
+      return HttpResponse.json<SessionResponse>(result);
+    }),
+  );
+  return { bodies, current: () => current };
+}
+
+function SessionHarness({ before }: { before?: ReactNode }) {
+  // The route's own read: the screen renders whatever the session query holds.
+  const query = useQuery(sessionQueryOptions(SESSION_ID));
+  return (
+    <>
+      {before}
+      {query.data && <ConversationScreen view={query.data} />}
+    </>
+  );
+}
+
+/**
+ * Render the conversation screen over `view`, read from the session query as
+ * the route reads it; `strict` renders it under StrictMode.
+ */
+export function renderSession(
+  view: SessionResponse,
+  { strict = false, before }: { strict?: boolean; before?: ReactNode } = {},
+) {
+  const queryClient = newQueryClient();
+  queryClient.setQueryData(sessionQueryOptions(SESSION_ID).queryKey, view);
+  const harness = <SessionHarness before={before} />;
+  return renderWithQuery(
+    strict ? <StrictMode>{harness}</StrictMode> : harness,
+    queryClient,
+  );
 }
 
 /** Stub `window.matchMedia` so every query reports `matches`. */
