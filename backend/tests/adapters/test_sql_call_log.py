@@ -96,6 +96,31 @@ async def test_sqlite_literal_file_prefix_is_not_treated_as_a_uri(
     assert not (tmp_path / "literal.db").exists()
 
 
+@pytest.mark.parametrize(
+    "options",
+    ["uri=false&uri=false", "uri=true&uri=true", "uri=%20true%20"],
+    ids=["repeated-false", "repeated-true", "whitespace-true"],
+)
+async def test_native_uri_flags_match_application_driver_coercion(
+    migrated_sqlite_url, seed_call_log, options
+):
+    records = await seed_call_log(migrated_sqlite_url)
+    path = Path(make_url(migrated_sqlite_url).database or "")
+    native_url = f"sqlite+aiosqlite:///file:{quote(str(path), safe='/')}?{options}"
+    writer = make_engine(native_url)
+    try:
+        async with writer.connect() as connection:
+            assert (
+                await connection.scalar(text("SELECT count(*) FROM model_calls")) == 4
+            )
+    finally:
+        await writer.dispose()
+
+    assert await read_calls(native_url) == tuple(
+        sorted(records, key=lambda record: (record.created_at, record.id))
+    )
+
+
 @pytest.mark.postgres
 async def test_postgres_reader_uses_typed_filters_and_read_only_transaction(
     migrated_postgres_url, seed_call_log, fixed_now, nth_id

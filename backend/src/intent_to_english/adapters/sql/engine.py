@@ -52,7 +52,12 @@ def make_read_engine(url: str) -> AsyncEngine:
         # URL parsing decodes the path, including a native file: URI. Escape it
         # for SQLite again so '?' and '#' cannot turn into URI parameters.
         uri = parsed.query.get("uri")
-        if isinstance(uri, str) and uri.lower() in {"true", "1", "yes", "on", "y", "t"}:
+        # SQLAlchemy treats repeated options as a truthy tuple, even repeated
+        # false strings; a single string uses its whitespace-tolerant bool parser.
+        if (isinstance(uri, tuple) and bool(uri)) or (
+            isinstance(uri, str)
+            and uri.strip().lower() in {"true", "1", "yes", "on", "y", "t"}
+        ):
             database = database.removeprefix("file:")
         # A failed aiosqlite connect can leave its stop future pending as a
         # one-shot CLI loop closes. Reject absence before starting that worker;
