@@ -56,12 +56,14 @@ function StartSession() {
   const start = useMutation({
     ...createSessionMutation(),
     onSuccess: async (view) => {
-      await queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
+      void queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
       await navigate({ to: "/sessions/$sessionId", params: { sessionId: view.id } });
     },
   });
   useEffect(() => {
-    button.current?.focus();
+    // No scroll: coming back from a session, the router has already restored
+    // where the learner was in the list.
+    button.current?.focus({ preventScroll: true });
   }, []);
   return (
     <div className="space-y-3">
