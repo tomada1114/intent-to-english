@@ -9,9 +9,12 @@ import argparse
 import asyncio
 import os
 import sys
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from stat import S_IMODE
+from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
@@ -99,14 +102,36 @@ async def _execute(options: Options, settings: Settings) -> int:
         updated = replace_summary(current_readme, block)
         markdown_text, json_text = report.render_markdown(), report.render_json()
         options.reports.mkdir(parents=True, exist_ok=True)
-        # Exclusive creation also prevents overwriting a concurrent run's result.
-        with markdown.open("x", encoding="utf-8") as handle:
-            handle.write(markdown_text)
-        with machine.open("x", encoding="utf-8") as handle:
-            handle.write(json_text)
-        options.readme.write_text(updated, encoding="utf-8")
+        _publish(
+            ((markdown, markdown_text), (machine, json_text)), options.readme, updated
+        )
         sys.stdout.write(f"Wrote {markdown} and {machine}\n")
         return 0
+
+
+def _publish(reports: Sequence[tuple[Path, str]], readme: Path, updated: str) -> None:
+    """Roll back our new files on failure; publish the staged summary last."""
+    with ExitStack() as rollback:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=readme.parent,
+            prefix=".eval-summary-",
+            delete=False,
+        ) as handle:
+            staged = Path(handle.name)
+            rollback.callback(staged.unlink, missing_ok=True)
+            handle.write(updated)
+        staged.chmod(S_IMODE(readme.stat().st_mode))
+        for path, text in reports:
+            # Register ownership only after exclusive creation succeeds: a
+            # concurrent writer's existing artifact must never be removed.
+            with path.open("x", encoding="utf-8") as handle:
+                rollback.callback(path.unlink, missing_ok=True)
+                handle.write(text)
+        staged.replace(readme)
+        # All handles are closed. Commit by discarding rollback-only callbacks.
+        rollback.pop_all()
 
 
 def today_utc() -> str:
