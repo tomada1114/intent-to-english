@@ -79,7 +79,7 @@ port's docstring is the contract and
 `backend/tests/adapters/test_session_repository_contract.py` holds every adapter to it.
 `InMemorySessionRepository` turns a `KeyError` into
 `SessionNotFoundError`, and both repositories raise `InvalidCursorError` for a page cursor
-they did not issue (`adapters/cursor.py`). A port may also promise a builtin exception
+that is malformed or not in the canonical `session:` encoding (`adapters/cursor.py`). A port may also promise a builtin exception
 for a bug: `create` of an id already stored raises `ValueError`, so `SqlSessionRepository`
 translates only SQLAlchemy's `IntegrityError` into it. A driver failure with no meaning
 in the port — a locked database, a full disk, a missing table — stays a bug and
