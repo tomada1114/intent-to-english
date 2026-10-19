@@ -87,6 +87,9 @@ function SessionList() {
     ...listSessionsInfiniteOptions({ query: { limit: SESSION_PAGE_SIZE } }),
     initialPageParam: {},
     getNextPageParam: (page) => page.next_cursor ?? undefined,
+    // The list sits unread for the whole of a session on S2, which outlasts
+    // the default five minutes; coming back must find every page it loaded.
+    gcTime: Number.POSITIVE_INFINITY,
   });
   const skeleton = useDelayedLoading(query.isPending);
   const heading = (

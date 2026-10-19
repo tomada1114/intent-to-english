@@ -1,9 +1,9 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionPageResponse } from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
@@ -33,7 +33,15 @@ function renderAt(path: string) {
   return router;
 }
 
+// Longer than TanStack Query's default five-minute lifetime for a query no
+// screen is reading, which is how long S1's list sits unread during a session.
+const LONG_SESSION_MS = 6 * 60 * 1000;
+
 describe("/", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the home screen inside the root layout", async () => {
     renderAt("/");
 
@@ -46,58 +54,71 @@ describe("/", () => {
     expect(within(header).getByRole("link", { name: APP_NAME })).toBeInTheDocument();
   });
 
-  it("keeps the pages already loaded when the learner comes back from a session", async () => {
-    const user = userEvent.setup();
-    const older = Array.from({ length: 20 }, (_, index) =>
-      sessionRow({
-        id: `0199c1f0-0000-7000-8000-${String(100 - index).padStart(12, "0")}`,
-        status: "ended",
-        opener: `Opener ${index}`,
-      }),
-    );
-    const last = sessionRow({ status: "ended", opener: "The last one" });
-    const requests: (string | null)[] = [];
-    server.use(
-      http.get("/api/sessions", ({ request }) => {
-        const cursor = new URL(request.url).searchParams.get("cursor");
-        requests.push(cursor);
-        return HttpResponse.json<SessionPageResponse>(
-          cursor === null
-            ? { items: older, next_cursor: "page-2" }
-            : { items: [last], next_cursor: null },
-        );
-      }),
-    );
-    serveSession(
-      sessionView({
-        status: "ended",
-        stage: "ended",
-        ended_at: new Date(2026, 9, 17, 19, 0).toISOString(),
-        entries: [
-          entry("partner_line", {
-            text: "The last one",
-            has_question: true,
-            line_kind: "opener",
-            restate_mode: null,
-          }),
-        ],
-      }),
-    );
-    const router = renderAt("/");
-    await user.click(await screen.findByRole("button", { name: "さらに表示" }));
-    await user.click(await screen.findByRole("link", { name: /The last one/ }));
-    expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}`);
+  it.each([
+    { name: "at once", awayMs: 0 },
+    {
+      name: "after a session longer than the cache's default",
+      awayMs: LONG_SESSION_MS,
+    },
+  ])(
+    "keeps the pages already loaded when the learner comes back from a session $name",
+    async ({ awayMs }) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const older = Array.from({ length: 20 }, (_, index) =>
+        sessionRow({
+          id: `0199c1f0-0000-7000-8000-${String(100 - index).padStart(12, "0")}`,
+          status: "ended",
+          opener: `Opener ${index}`,
+        }),
+      );
+      const last = sessionRow({ status: "ended", opener: "The last one" });
+      const requests: (string | null)[] = [];
+      server.use(
+        http.get("/api/sessions", ({ request }) => {
+          const cursor = new URL(request.url).searchParams.get("cursor");
+          requests.push(cursor);
+          return HttpResponse.json<SessionPageResponse>(
+            cursor === null
+              ? { items: older, next_cursor: "page-2" }
+              : { items: [last], next_cursor: null },
+          );
+        }),
+      );
+      serveSession(
+        sessionView({
+          status: "ended",
+          stage: "ended",
+          ended_at: new Date(2026, 9, 17, 19, 0).toISOString(),
+          entries: [
+            entry("partner_line", {
+              text: "The last one",
+              has_question: true,
+              line_kind: "opener",
+              restate_mode: null,
+            }),
+          ],
+        }),
+      );
+      const router = renderAt("/");
+      await user.click(await screen.findByRole("button", { name: "さらに表示" }));
+      await user.click(await screen.findByRole("link", { name: /The last one/ }));
+      expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}`);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(awayMs);
+      });
 
-    router.history.back();
+      router.history.back();
 
-    expect(
-      await screen.findByRole("link", { name: /The last one/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "さらに表示" }),
-    ).not.toBeInTheDocument();
-    expect(router.options.scrollRestoration).toBe(true);
-  });
+      expect(
+        await screen.findByRole("link", { name: /The last one/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "さらに表示" }),
+      ).not.toBeInTheDocument();
+      expect(router.options.scrollRestoration).toBe(true);
+    },
+  );
 
   it("gives the router the query client in its context", () => {
     const queryClient = createQueryClient();
