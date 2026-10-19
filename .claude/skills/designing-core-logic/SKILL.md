@@ -7,7 +7,7 @@ description: >
   adapters/ and the shared repository contract suite, Settings in settings.py, and the
   composition root's build_container and Container. Use when adding a use case, a
   domain rule or model, a port, a repository or other adapter, or an
-  INTENT_TO_ENGLISH_ setting, or when ruff TID251 or backend/tests/core/test_imports.py
+  application setting, or when ruff TID251 or backend/tests/core/test_imports.py
   rejects core code.
 ---
 
@@ -150,8 +150,9 @@ port of the same kind rather than a direct call.
 ## Settings are read once, at the boundary
 
 `settings.py`'s `Settings` is the only place configuration enters, from
-`INTENT_TO_ENGLISH_`-prefixed environment variables (`ENV_PREFIX`). A new setting is a field on
-`Settings`:
+`INTENT_TO_ENGLISH_`-prefixed environment variables (`ENV_PREFIX`) and declared aliases.
+`OPENROUTER_API_KEY` is the unprefixed secret alias, never part of settings repr.
+A new setting is a field on `Settings`:
 
 - validated in a `field_validator`, so a bad value fails at startup with a message that
   says what to set, rather than on the first request;
@@ -168,22 +169,18 @@ port of the same kind rather than a direct call.
 ## The composition root wires everything once
 
 `composition.py` is the only module that constructs adapters and services.
-`build_container(settings, clock=utc_now, new_id=uuid.uuid7)` picks adapters from the
-settings (`_build_repository`) and returns a frozen `Container` with one field per
-service; the API stores it on `app.state`. A new service is a new `Container` field
+`build_container(settings, clock=utc_now, new_id=uuid.uuid7, *, boot_id=None)` picks
+repositories through `_build_repositories` and returns a frozen `Container` with
+`todos`, keyword-only `conversations`, and the selected `model_mode`; the API stores
+it on `app.state`. A new service is a new `Container` field
 built in `build_container`; a new adapter choice is a branch in the function that picks
 it, driven by a setting.
 
-```python
-def build_container(
-    settings: Settings, clock: Clock = utc_now, new_id: IdFactory = uuid.uuid7
-) -> Container:
-    # ... docstring elided
-    resources = ResourceClosers()
-    repository = _build_repository(settings, resources)
-    todos = TodoService(repository, clock, new_id)
-    return Container(todos=todos, _resources=resources)
-```
+Both SQL repositories share one lazy engine and one disposal callback; without a
+database URL each uses its memory adapter. The conversation service receives both
+fixed model roles in every mode until #28. One default `uuid.uuid7()` boot id per
+build is independent of entity ids, or injectable for interruption tests. The current
+wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
 
 Tests build containers through the same function: `backend/tests/conftest.py`'s
 `make_container` passes the fixed clock, `new_id`, and in-memory storage by default, and
@@ -209,4 +206,4 @@ under "Ports any store can implement", one adapter per technology, its contract 
 and in-memory fake, the wiring in `build_container`, and the cleanup of an adapter that
 holds a resource (`ResourceClosers`, `Container.aclose()`).
 
-Run from the root: `uv run --locked --directory backend pytest tests/core/ tests/adapters/ tests/test_composition.py tests/test_settings.py`.
+Run from the root: `uv --no-cache run --locked --directory backend pytest tests/core/ tests/adapters/ tests/test_composition.py tests/test_settings.py`.
