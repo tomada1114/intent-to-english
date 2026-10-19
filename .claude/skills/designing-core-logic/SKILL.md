@@ -168,7 +168,8 @@ A new setting is a field on `Settings`:
 
 ## The composition root wires everything once
 
-`composition.py` is the only module that constructs adapters and services.
+`composition.py` constructs application adapters and services. The call-log command
+uses a SQL reader with its own engine and a pure core summary (`persisting-data`).
 `build_container(settings, clock=utc_now, new_id=uuid.uuid7, *, boot_id=None)` picks
 repositories through `_build_repositories` and returns a frozen `Container` with
 `todos`, keyword-only `conversations` and `models`, and the selected `model_mode`; the API stores

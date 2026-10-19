@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import quote
 
 from sqlalchemy import event, make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
 if TYPE_CHECKING:
-    from sqlalchemy import Connection
+    from sqlalchemy import URL, Connection
     from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlalchemy.pool import ConnectionPoolEntry
 
@@ -35,20 +37,63 @@ def make_engine(url: str) -> AsyncEngine:
     Returns:
         The engine, pooling connections for the event loop that uses it.
     """
-    connect_args: dict[str, Any] = {}
-    if make_url(url).get_backend_name() == "sqlite":
-        connect_args["timeout"] = SQLITE_BUSY_TIMEOUT_SECONDS
-    try:
-        engine = create_async_engine(url, connect_args=connect_args)
-    except ModuleNotFoundError as exc:
-        if make_url(url).drivername != "postgresql+asyncpg" or exc.name != "asyncpg":
-            raise
-        msg = "Install the 'postgres' extra to use a PostgreSQL database"
-        raise RuntimeError(msg) from exc
+    engine = _create_engine(make_url(url))
     if engine.dialect.name == "sqlite":
         event.listen(engine.sync_engine, "connect", _sqlite_connect)
         event.listen(engine.sync_engine, "begin", _sqlite_begin)
     return engine
+
+
+def make_read_engine(url: str) -> AsyncEngine:
+    """Own a read-only connection; a missing SQLite file must never be created."""
+    parsed = make_url(url)
+    if parsed.get_backend_name() == "sqlite":
+        database = parsed.database or ""
+        # URL parsing decodes the path, including a native file: URI. Escape it
+        # for SQLite again so '?' and '#' cannot turn into URI parameters.
+        uri = parsed.query.get("uri")
+        if isinstance(uri, str) and uri.lower() in {"true", "1", "yes", "on", "y", "t"}:
+            database = database.removeprefix("file:")
+        # A failed aiosqlite connect can leave its stop future pending as a
+        # one-shot CLI loop closes. Reject absence before starting that worker;
+        # mode=ro below still prevents creation if the file disappears afterward.
+        if not Path(database).is_file():
+            message = "The SQLite database file does not exist"
+            raise FileNotFoundError(message)
+        database = "file:" + quote(database, safe="/")
+        parsed = parsed.set(database=database).update_query_dict(
+            {"mode": "ro", "uri": "true"}
+        )
+    engine = _create_engine(parsed)
+    if engine.dialect.name == "sqlite":
+        event.listen(engine.sync_engine, "connect", _sqlite_read_connect)
+    elif engine.dialect.name == "postgresql":
+        engine.update_execution_options(
+            isolation_level="SERIALIZABLE", postgresql_readonly=True
+        )
+    return engine
+
+
+def _create_engine(url: URL) -> AsyncEngine:
+    # Drivers expose arbitrary connection keyword arguments at this boundary.
+    connect_args: dict[str, Any] = {}
+    if url.get_backend_name() == "sqlite":
+        connect_args["timeout"] = SQLITE_BUSY_TIMEOUT_SECONDS
+    try:
+        engine = create_async_engine(url, connect_args=connect_args)
+    except ModuleNotFoundError as exc:
+        if url.drivername != "postgresql+asyncpg" or exc.name != "asyncpg":
+            raise
+        msg = "Install the 'postgres' extra to use a PostgreSQL database"
+        raise RuntimeError(msg) from exc
+    return engine
+
+
+def _sqlite_read_connect(dbapi_connection: Any, _record: ConnectionPoolEntry) -> None:
+    # The driver's dynamic DBAPI facade is confined to this event boundary.
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA query_only=ON")
+    cursor.close()
 
 
 def _sqlite_connect(dbapi_connection: Any, _record: ConnectionPoolEntry) -> None:

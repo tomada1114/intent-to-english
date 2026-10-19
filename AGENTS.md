@@ -93,6 +93,7 @@ just backend fmt     # Format the backend
 just backend test    # Run the backend tests in parallel with branch coverage (80% floor)
 just backend test-postgres # Run the shared contract and migrations on a disposable PostgreSQL database
 just backend db-upgrade # Migrate INTENT_TO_ENGLISH_DATABASE_URL's database (default: backend/var/dev.db) to the newest revision
+just backend call-log # Read model-call totals; optional --session UUID and --since YYYY-MM-DD or ISO datetime
 just backend db-revision MESSAGE # db-upgrade, then autogenerate a revision from a change to adapters/sql/tables.py
 just frontend install # Install the locked JavaScript dependencies (pnpm install --frozen-lockfile)
 just frontend lint   # Lint the frontend (biome ci) and type-check it (tsc --noEmit, strict flags)

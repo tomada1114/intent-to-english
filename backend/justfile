@@ -37,6 +37,19 @@ db-upgrade url=(shell(database_url_command)):
     url={{ quote(url) }}; case "$url" in sqlite+aiosqlite:///*) path="${url#sqlite+aiosqlite:///}"; mkdir -p "$(dirname "${path%%\?*}")" ;; esac
     url={{ quote(url) }}; set --; case "$url" in postgresql+asyncpg:*) set -- --extra postgres ;; esac; INTENT_TO_ENGLISH_DATABASE_URL="$url" uv run --locked "$@" alembic upgrade head
 
+# Summarize recorded model calls without writing or billing; optionally --session UUID or --since WHEN
+[positional-arguments]
+call-log *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! url=$({{ trim(database_url_command) }} 2>/dev/null); then
+        printf '%s\n' 'Cannot read the model call log. Check the database URL and run `just backend db-upgrade`.' >&2
+        exit 1
+    fi
+    extra=()
+    case "$url" in postgresql+asyncpg:*) extra=(--extra postgres) ;; esac
+    INTENT_TO_ENGLISH_DATABASE_URL="$url" uv run --locked "${extra[@]}" python -m intent_to_english.call_log "$@"
+
 # Autogenerate a revision from the change to adapters/sql/tables.py, against the migrated database
 db-revision MESSAGE url=(shell(database_url_command)): (db-upgrade url)
     url={{ quote(url) }}; set --; case "$url" in postgresql+asyncpg:*) set -- --extra postgres ;; esac; INTENT_TO_ENGLISH_DATABASE_URL="$url" uv run --locked "$@" alembic revision --autogenerate -m {{ quote(MESSAGE) }}

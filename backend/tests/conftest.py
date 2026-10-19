@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import itertools
 import os
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -15,7 +16,10 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.composition import Container, build_container
+from intent_to_english.core import models as m
 from intent_to_english.settings import Settings
 from tests.settings_env import without_settings_env
 
@@ -62,6 +66,66 @@ def _isolate_settings_env(monkeypatch):
 def fixed_now() -> datetime:
     """The instant ``fixed_clock`` always reads."""
     return FIXED_NOW
+
+
+@pytest.fixture
+def make_model_call(new_id, nth_id, fixed_now):
+    """Build independent log records with one shared session/submission by default."""
+
+    def make(call=None, **changes):
+        if call is None:
+            call = m.CallAttempt(
+                m.ModelRole.PARTNER,
+                m.ModelTask.REPLY,
+                1,
+                m.Usage("test", "test/model", None, None, None, 0),
+                m.CallOutcome.OK,
+            )
+        record = m.ModelCallRecord(
+            new_id(), nth_id(100), nth_id(101), 1, call, fixed_now
+        )
+        return replace(record, **changes)
+
+    return make
+
+
+@pytest.fixture
+def seed_call_log(make_model_call, nth_id, fixed_now):
+    """Persist a small log through the same public repository as the service."""
+
+    async def seed(url):
+        engine = make_engine(url)
+        records = []
+        try:
+            repository = SqlSessionRepository(engine)
+            for index in (100, 200):
+                session = m.Session(nth_id(index), fixed_now)
+                submission = m.Submission(
+                    nth_id(index + 1),
+                    session.id,
+                    0,
+                    m.Action.OPEN,
+                    m.NoInput(),
+                    nth_id(999),
+                    fixed_now,
+                )
+                await repository.create(session)
+                await repository.begin_submission(
+                    submission, frozenset({m.Stage.OPENING}), fixed_now
+                )
+                for seconds in (0, 1):
+                    record = make_model_call(
+                        session_id=session.id,
+                        submission_id=submission.id,
+                        created_at=fixed_now + timedelta(seconds=seconds),
+                    )
+                    await repository.record_model_call(record)
+                    records.append(record)
+        finally:
+            await engine.dispose()
+        return tuple(records)
+
+    return seed
 
 
 @pytest.fixture
