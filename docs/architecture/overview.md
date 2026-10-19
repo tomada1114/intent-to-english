@@ -47,6 +47,9 @@ like this:
 | Ports | core | `core/ports.py` | `SessionRepository`, `PartnerModel`, `CoachModel`, `Clock`, `IdFactory` |
 | Use cases | core | `core/services.py` | `ConversationService`: start, list, get, act, cancel |
 | Domain errors | core | `core/errors.py` | the `AppError` subclasses in § Decisions › The API |
+| Call-log summary | core | `core/call_log.py` | pure grouped counts, reported tokens/credits and nearest-rank latency |
+| Call-log read | adapters | `adapters/sql/call_log.py` | one constant query with typed optional filters and an owned read-only connection |
+| Call-log command | root | `call_log.py` | `python -m intent_to_english.call_log`, exposed as `just backend call-log` |
 | Storage | adapters | `adapters/sql/`, `adapters/memory.py` | the four tables below; the in-memory repository for tests and a run without a database URL |
 | Model roles | adapters | `adapters/models/` | `fixed.py` (the fixed-response mode), `openrouter.py` (PydanticAI agents on OpenRouter), `prompts.py` (the messages each task sends), `schemas.py` (the Pydantic models each task's JSON schema comes from) |
 | HTTP | api | `api/routers/sessions.py`, `api/routers/meta.py`, `api/schemas.py` | the routes in § Decisions › The API |
@@ -355,6 +358,31 @@ wrap-up JSON column stores Python `None` as SQL NULL, separately from `{"items":
 Provider cost is decimal text on both databases so SQLite never rounds it through a
 binary float; the log reader restores `Decimal` before summing. JSON readers restore core
 constructors and optional defaults, keeping older payloads readable.
+
+### The call log has a read-only command
+
+`just backend call-log [--session UUID] [--since YYYY-MM-DD|ISO-datetime]` resolves
+the database URL as the migration recipe does, defaulting to `backend/var/dev.db`
+and adding the PostgreSQL extra for that driver. It never migrates, constructs
+models, or writes. Its SQL reader owns a separate read-only engine, rather than
+the application's SQLite writer-lock transaction hooks: SQLite uses `mode=ro`
+and `query_only`, PostgreSQL a serializable read-only transaction. A missing SQLite
+file is rejected before driver startup, and read-only mode still prevents creation
+if it disappears after that check; missing or unmigrated databases return 1 with a
+`just backend db-upgrade` instruction. The reader restores core records on its own
+connection and always disposes its engine.
+
+The CLI converts offsetless dates/datetimes from historical local time to UTC;
+an explicit offset is honored. The constant query combines optional session and
+inclusive `created_at >= since` filters. Pure summaries sort by role, model and
+task, count each request including repairs and all six outcomes, sum reported
+tokens and credits (unknown throughout a group is `—`, reported zero is zero),
+and use the ceiling-ranked 50th/95th percentiles. The shared core credit helper
+preserves provider decimals; mixed known/unknown costs sum only the reported
+values, as this command's contract requires. This differs from evaluation's
+complete-task-cost display. Only accounting appears on stdout; no prompt, learner
+text or key. An empty filtered log prints `No model calls recorded.` and returns
+0, a successful table returns 0, and invalid UUID/date arguments return 2.
 
 ### Stale, repeated, cancelled, and interrupted actions
 
