@@ -93,6 +93,7 @@ export function ConversationScreen({
   const [pastTurn, setPastTurn] = useState<number | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   const focusAfterPast = useRef<"back" | "composer" | null>(null);
+  const coachHeadingRef = useRef<HTMLHeadingElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const gapRef = useRef<HTMLInputElement>(null);
   const controlsRef = useRef<HTMLFieldSetElement>(null);
@@ -211,7 +212,14 @@ export function ConversationScreen({
     const target = focusAfterPast.current;
     focusAfterPast.current = null;
     if (target === "back") backToTurnRef.current?.focus();
-    if (target === "composer") composerRef.current?.focus();
+    if (target !== "composer") return;
+    // The composer, else the stage's first control, else the pane's heading.
+    const composer = composerRef.current;
+    const control =
+      controlsRef.current?.querySelector<HTMLButtonElement>("button:enabled");
+    if (composer !== null && !composer.disabled) composer.focus();
+    else if (control) control.focus();
+    else coachHeadingRef.current?.focus();
   });
 
   function showPastTurn(turn: number) {
@@ -331,7 +339,11 @@ export function ConversationScreen({
       </>
     ) : (
       <>
-        <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
+        <h2
+          ref={coachHeadingRef}
+          tabIndex={-1}
+          className={`text-[13px] font-bold tracking-[0.04em] text-ink-muted ${FOCUS_RING}`}
+        >
           コーチ · ターン {view.turn_index}
         </h2>
         {!wide && !ended && answering !== null && (

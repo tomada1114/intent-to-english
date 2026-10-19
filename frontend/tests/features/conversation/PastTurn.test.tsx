@@ -1,7 +1,13 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { entry, renderSession, sessionView, stubMatchMedia } from "../../msw/helpers";
+import {
+  entry,
+  renderSession,
+  serveSession,
+  sessionView,
+  stubMatchMedia,
+} from "../../msw/helpers";
 
 // Turn 1 is done; turn 2 waits for the learner's English.
 const view = sessionView({
@@ -83,4 +89,39 @@ describe("ConversationScreen past turn (REQ-009)", () => {
     );
     expect(screen.getByRole("button", { name: "今のターンに戻る" })).toHaveFocus();
   });
+
+  it.each([
+    {
+      stage: "check_in",
+      allowed: ["partner_reply", "end"],
+      role: "button",
+      name: "続ける",
+    },
+    {
+      stage: "partner_turn",
+      allowed: ["partner_reply", "end"],
+      role: "heading",
+      name: "コーチ · ターン 2",
+    },
+  ] as const)(
+    "returns focus at $stage to the $role $name, never the page",
+    async ({ stage, allowed, role, name }) => {
+      const user = userEvent.setup();
+      const at = sessionView({
+        ...view,
+        stage,
+        allowed_actions: [...allowed],
+        entries: view.entries,
+      });
+      // partner_turn sends its reply by itself; keep it pending.
+      serveSession(at, () => new Promise<never>(() => {}));
+      renderSession(at);
+
+      await user.click(screen.getByRole("button", { name: "I watched a movie" }));
+      await user.click(screen.getByRole("button", { name: "今のターンに戻る" }));
+
+      expect(screen.getByRole(role, { name })).toHaveFocus();
+      expect(document.activeElement).not.toBe(document.body);
+    },
+  );
 });

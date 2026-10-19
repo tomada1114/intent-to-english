@@ -159,15 +159,18 @@ export function TranscriptScreen({
   });
 
   const stored = view.last_submission;
-  const failure: string | null = !due
-    ? null
-    : wrapUp.isPending
+  // A wrap-up the refreshed view shows running (another tab's) outranks this
+  // tab's own refused request: wait for it instead of offering [もう一度].
+  const failure: string | null =
+    !due || stored?.state === "pending"
       ? null
-      : wrapUp.isError
-        ? wrapUpFailureLine(codeOf(wrapUp.error))
-        : stored !== null && stored.action === "wrap_up" && stored.state !== "pending"
-          ? wrapUpFailureLine(stored.failure_code)
-          : null;
+      : wrapUp.isPending
+        ? null
+        : wrapUp.isError
+          ? wrapUpFailureLine(codeOf(wrapUp.error))
+          : stored !== null && stored.action === "wrap_up"
+            ? wrapUpFailureLine(stored.failure_code)
+            : null;
   const waiting = due && failure === null;
 
   function toggle(turn: number) {

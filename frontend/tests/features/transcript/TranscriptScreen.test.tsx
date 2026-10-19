@@ -422,6 +422,45 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
   });
 
+  it("waits for another tab's wrap-up when its own request gets 409 action_in_progress", async () => {
+    const pending = ended({
+      ...DUE,
+      last_submission: {
+        action: "wrap_up",
+        state: "pending",
+        failure_code: null,
+        input: {},
+      },
+    });
+    const server = serveSession(ended(DUE), () => {
+      server.set(pending);
+      return HttpResponse.json<ProblemDetails>(problem(409, "action_in_progress"), {
+        status: 409,
+      });
+    });
+    renderTranscript(ended(DUE));
+
+    await waitFor(() => expect(server.bodies).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByText("コーチが振り返りを作っています…")).toBeInTheDocument(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("button", { name: "もう一度" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    server.set({
+      ...pending,
+      version: 10,
+      wrap_up: WRAP_UP,
+      last_submission: null,
+      allowed_actions: [],
+    });
+
+    expect(
+      await screen.findByText("these days", {}, { timeout: 3500 }),
+    ).toBeInTheDocument();
+    expect(server.bodies).toHaveLength(1);
+  });
+
   it("waits for a wrap-up pending elsewhere, reading the session every 2 s until it settles", async () => {
     const view = ended({
       ...DUE,
