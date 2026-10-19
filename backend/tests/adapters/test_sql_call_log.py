@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+from datetime import timedelta
+from pathlib import Path
+from urllib.parse import quote
+
+import pytest
+from sqlalchemy import make_url, text
+from sqlalchemy.exc import DBAPIError
+
+from intent_to_english.adapters.sql.call_log import CallLogReadError, read_calls
+from intent_to_english.adapters.sql.engine import make_engine, make_read_engine
+from intent_to_english.adapters.sql.tables import metadata
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_sql_reader_restores_records_and_applies_both_inclusive_filters(
+    migrated_sqlite_url, seed_call_log, nth_id, fixed_now
+):
+    records = await seed_call_log(migrated_sqlite_url)
+    path = Path(make_url(migrated_sqlite_url).database or "")
+    before = path.read_bytes()
+
+    assert await read_calls(migrated_sqlite_url) == tuple(
+        sorted(records, key=lambda record: (record.created_at, record.id))
+    )
+    assert await read_calls(migrated_sqlite_url, nth_id(100)) == records[:2]
+    assert await read_calls(
+        migrated_sqlite_url, since=fixed_now + timedelta(seconds=1)
+    ) == (records[1], records[3])
+    assert await read_calls(
+        migrated_sqlite_url, nth_id(200), fixed_now + timedelta(seconds=1)
+    ) == (records[3],)
+    assert await read_calls(migrated_sqlite_url, nth_id(777)) == ()
+    assert path.read_bytes() == before
+
+
+async def test_reader_missing_database_creates_no_file(tmp_path):
+    path = tmp_path / "missing.db"
+    with pytest.raises(CallLogReadError, match="just backend db-upgrade"):
+        await read_calls(f"sqlite+aiosqlite:///{path}")
+    assert not path.exists()
+
+
+async def test_reader_existing_unmigrated_database_is_unchanged(tmp_path):
+    path = tmp_path / "unmigrated.db"
+    path.touch()
+    with pytest.raises(CallLogReadError, match="just backend db-upgrade"):
+        await read_calls(f"sqlite+aiosqlite:///{path}")
+    assert path.read_bytes() == b""
+
+
+async def test_sqlite_read_engine_refuses_writes_and_escapes_native_uri(
+    migrated_sqlite_url, tmp_path
+):
+    original = Path(make_url(migrated_sqlite_url).database or "")
+    copied = tmp_path / "call log #1.db"
+    copied.write_bytes(original.read_bytes())
+    for url in (
+        f"sqlite+aiosqlite:///{copied}",
+        f"sqlite+aiosqlite:///file:{quote(str(copied), safe='/')}?uri=true&mode=rw",
+    ):
+        engine = make_read_engine(url)
+        try:
+            async with engine.connect() as connection:
+                assert await connection.scalar(text("PRAGMA query_only")) == 1
+                with pytest.raises(DBAPIError, match="readonly"):
+                    await connection.execute(text("DELETE FROM model_calls"))
+        finally:
+            await engine.dispose()
+    assert copied.read_bytes() == original.read_bytes()
+
+
+async def test_sqlite_literal_file_prefix_is_not_treated_as_a_uri(
+    migrated_sqlite_url, tmp_path, monkeypatch
+):
+    original = Path(make_url(migrated_sqlite_url).database or "")
+    copied = tmp_path / "file:literal.db"
+    copied.write_bytes(original.read_bytes())
+    monkeypatch.chdir(tmp_path)
+    assert await read_calls("sqlite+aiosqlite:///file:literal.db") == ()
+    assert not (tmp_path / "literal.db").exists()
+
+
+@pytest.mark.postgres
+async def test_postgres_reader_uses_typed_filters_and_read_only_transaction(
+    migrated_postgres_url, seed_call_log, fixed_now, nth_id
+):
+    writer = make_engine(migrated_postgres_url)
+    try:
+        async with writer.begin() as connection:
+            for table in ("model_calls", "submissions", "timeline_entries", "sessions"):
+                await connection.execute(metadata.tables[table].delete())
+        records = await seed_call_log(migrated_postgres_url)
+        assert (
+            await read_calls(migrated_postgres_url, nth_id(100), fixed_now)
+            == records[:2]
+        )
+        assert len(await read_calls(migrated_postgres_url)) == 4
+        reader = make_read_engine(migrated_postgres_url)
+        try:
+            async with reader.connect() as connection:
+                assert (
+                    await connection.scalar(text("SHOW transaction_read_only")) == "on"
+                )
+                with pytest.raises(DBAPIError, match="read-only"):
+                    await connection.execute(text("DELETE FROM model_calls"))
+        finally:
+            await reader.dispose()
+    finally:
+        await writer.dispose()

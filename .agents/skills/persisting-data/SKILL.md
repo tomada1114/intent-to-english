@@ -26,7 +26,8 @@ such as a driver (`managing-dependencies`).
 | Piece | Home |
 |---|---|
 | Tables, the naming convention, `UtcDateTime` | `backend/src/intent_to_english/adapters/sql/tables.py` |
-| The engine (`make_engine`) | `backend/src/intent_to_english/adapters/sql/engine.py` |
+| The app engine (`make_engine`) and read-only command engine (`make_read_engine`) | `backend/src/intent_to_english/adapters/sql/engine.py` |
+| The read-only model-call query and row restoration | `backend/src/intent_to_english/adapters/sql/call_log.py`, `session_values.py` |
 | One repository per port, its statements beside it | `backend/src/intent_to_english/adapters/sql/repository.py` |
 | Alembic's settings, without a URL | `backend/alembic.ini` |
 | How Alembic reaches the database; the revision template | `backend/migrations/env.py`, `backend/migrations/script.py.mako` |
@@ -96,6 +97,19 @@ disposer in `ResourceClosers` with
   from `make_container`.
 - In tests, `make_container` closes every container it built; a test that builds an
   engine itself disposes it in a `finally` or a yielding fixture.
+
+The call-log command is a separate read-only entry point. Its SQL reader owns one
+`make_read_engine` and disposes it on the same loop in `finally`; it never builds a
+container, selects models, or migrates. SQLite uses a native `file:` URI with
+`mode=ro` and `query_only=ON`, including re-escaping the parsed filename, so a missing
+file is not created and writes fail. It does not install the app's `BEGIN IMMEDIATE`
+hook, which would take a writer lock. PostgreSQL uses a serializable read-only
+transaction, matching asyncpg's isolation requirement
+(https://docs.sqlalchemy.org/en/21/dialects/postgresql.html#setting-read-only-deferrable,
+checked 2026-10-19 UTC). The constant query binds typed optional session/UTC-since filters and
+restores core records through `session_values.call_from`; no SQL types cross that
+boundary. Missing/unmigrated databases produce a safe `just backend db-upgrade`
+instruction, without the URL or driver text.
 
 ## The app never migrates
 

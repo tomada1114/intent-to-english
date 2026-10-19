@@ -178,6 +178,8 @@ URL to both migration and server. If the result is unset or empty, they use
 `sqlite+aiosqlite:///./var/dev.db`, including when `.env` is a copy of the sample.
 A direct API factory or uvicorn run with no resolved URL uses the in-memory store.
 
+`just backend call-log [--session UUID] [--since YYYY-MM-DD|ISO-datetime]` reads that database without writing or billing: grouped request counts, outcomes, reported tokens, cost in credits and nearest-rank latency; an offsetless date or datetime uses local time.
+
 > [!NOTE]
 > `just dev` keeps to-dos in `backend/var/dev.db` (gitignored) unless
 > `INTENT_TO_ENGLISH_DATABASE_URL` in the environment or `backend/.env` selects another file,
