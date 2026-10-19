@@ -399,6 +399,29 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(server.bodies).toHaveLength(1);
   });
 
+  it("sends the wrap-up over another action's failure from before the end", async () => {
+    const view = ended({
+      ...DUE,
+      last_submission: {
+        action: "english",
+        state: "failed",
+        failure_code: "model_timeout",
+        input: { text: "I watched" },
+      },
+    });
+    const server = serveSession(view, (_body, current) => ({
+      ...current,
+      version: 10,
+      wrap_up: WRAP_UP,
+      allowed_actions: [],
+      last_submission: null,
+    }));
+    renderTranscript(view, { strict: true });
+
+    expect(await screen.findByText("these days")).toBeInTheDocument();
+    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+  });
+
   it("waits for a wrap-up pending elsewhere, reading the session every 2 s until it settles", async () => {
     const view = ended({
       ...DUE,

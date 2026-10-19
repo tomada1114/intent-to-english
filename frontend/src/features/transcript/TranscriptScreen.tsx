@@ -46,11 +46,9 @@ function codeOf(error: unknown): string | undefined {
   return apiError.kind === "problem" ? apiError.code : undefined;
 }
 
-function wrapUpPending(view: SessionView | undefined): boolean {
-  return (
-    view?.last_submission?.state === "pending" &&
-    view.last_submission.action === "wrap_up"
-  );
+/** Any submission still running on the server, which a wrap-up must wait for. */
+function submissionPending(view: SessionView | undefined): boolean {
+  return view?.last_submission?.state === "pending";
 }
 
 interface Turn {
@@ -110,7 +108,7 @@ export function TranscriptScreen({
   useQuery({
     ...sessionQueryOptions(view.id),
     refetchInterval: (query) =>
-      wrapUpPending(query.state.data) ? WRAP_UP_POLL_MS : false,
+      submissionPending(query.state.data) ? WRAP_UP_POLL_MS : false,
   });
 
   const wrapUp = useMutation({
@@ -142,8 +140,12 @@ export function TranscriptScreen({
   const autoSend = useEffectEvent(() => sendWrapUp());
   useEffect(() => {
     if (!due || !view.allowed_actions.includes("wrap_up")) return;
-    // Never for a submission the server still holds, and once per version.
-    if (view.last_submission !== null) return;
+    // Never while a submission runs, never over a wrap-up that failed (the
+    // learner retries that), and once per version. Another action's settled
+    // failure from before the end does not hold the wrap-up back.
+    const last = view.last_submission;
+    if (last !== null && (last.state === "pending" || last.action === "wrap_up"))
+      return;
     if (autoSent.current === view.version) return;
     autoSent.current = view.version;
     autoSend();
