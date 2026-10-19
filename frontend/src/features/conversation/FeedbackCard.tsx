@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode, useId } from "react";
 import type { FeedbackResponse, FixResponse } from "../../api/generated/types.gen";
+import { COACH_ENGLISH, ENTER, LABEL } from "../../lib/ui";
 import { circled } from "./session";
-import { COACH_ENGLISH, ENTER, LABEL } from "./ui";
 
 const BLANK = /\(([①-⑳])\) ____/g;
 

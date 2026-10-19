@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CancelSessionActionData, CancelSessionActionErrors, CancelSessionActionResponses, CompleteTodoData, CompleteTodoErrors, CompleteTodoResponses, CreateSessionData, CreateSessionErrors, CreateSessionResponses, CreateTodoData, CreateTodoErrors, CreateTodoResponses, DeleteTodoData, DeleteTodoErrors, DeleteTodoResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetSessionData, GetSessionErrors, GetSessionResponses, HealthzData, HealthzErrors, HealthzResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListTodosData, ListTodosErrors, ListTodosResponses, PerformSessionActionData, PerformSessionActionErrors, PerformSessionActionResponses } from './types.gen';
+import type { CancelSessionActionData, CancelSessionActionErrors, CancelSessionActionResponses, CreateSessionData, CreateSessionErrors, CreateSessionResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetSessionData, GetSessionErrors, GetSessionResponses, HealthzData, HealthzErrors, HealthzResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, PerformSessionActionData, PerformSessionActionErrors, PerformSessionActionResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -73,41 +73,6 @@ export const cancelSessionAction = <ThrowOnError extends boolean = false>(option
         ...options.headers
     }
 });
-
-/**
- * List Todos
- *
- * List one page of to-dos, oldest first; `next_cursor` fetches the next one.
- */
-export const listTodos = <ThrowOnError extends boolean = false>(options?: Options<ListTodosData, ThrowOnError>): RequestResult<ListTodosResponses, ListTodosErrors, ThrowOnError> => (options?.client ?? client).get<ListTodosResponses, ListTodosErrors, ThrowOnError>({ url: '/api/todos', ...options });
-
-/**
- * Create Todo
- *
- * Create a to-do from a title.
- */
-export const createTodo = <ThrowOnError extends boolean = false>(options: Options<CreateTodoData, ThrowOnError>): RequestResult<CreateTodoResponses, CreateTodoErrors, ThrowOnError> => (options.client ?? client).post<CreateTodoResponses, CreateTodoErrors, ThrowOnError>({
-    url: '/api/todos',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Delete Todo
- *
- * Delete a to-do.
- */
-export const deleteTodo = <ThrowOnError extends boolean = false>(options: Options<DeleteTodoData, ThrowOnError>): RequestResult<DeleteTodoResponses, DeleteTodoErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTodoResponses, DeleteTodoErrors, ThrowOnError>({ url: '/api/todos/{todo_id}', ...options });
-
-/**
- * Complete Todo
- *
- * Mark a to-do as completed.
- */
-export const completeTodo = <ThrowOnError extends boolean = false>(options: Options<CompleteTodoData, ThrowOnError>): RequestResult<CompleteTodoResponses, CompleteTodoErrors, ThrowOnError> => (options.client ?? client).post<CompleteTodoResponses, CompleteTodoErrors, ThrowOnError>({ url: '/api/todos/{todo_id}/complete', ...options });
 
 /**
  * Healthz

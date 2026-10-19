@@ -10,10 +10,16 @@ export interface AppRouterOptions {
 /**
  * The app's router over the generated route tree. The caller owns the query
  * client, so the one QueryClientProvider serves and the router's context hold
- * the same instance.
+ * the same instance. Scroll restoration returns S1 to where the learner left
+ * it when they come back from a session (ux-guidelines § Navigation).
  */
 export function createAppRouter(queryClient: QueryClient, options?: AppRouterOptions) {
-  return createRouter({ routeTree, context: { queryClient }, ...options });
+  return createRouter({
+    routeTree,
+    context: { queryClient },
+    scrollRestoration: true,
+    ...options,
+  });
 }
 
 declare module "@tanstack/react-router" {

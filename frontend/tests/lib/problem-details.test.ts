@@ -20,8 +20,8 @@ describe("toApiError", () => {
     const error = {
       status: 422,
       title: "Unprocessable Content",
-      detail: "Invalid title",
-      code: "invalid_todo",
+      detail: "Invalid text: limit 1000, length 1001",
+      code: "invalid_input",
       request_id: "request-123",
     };
 
@@ -29,8 +29,8 @@ describe("toApiError", () => {
       kind: "problem",
       status: 422,
       title: "Unprocessable Content",
-      detail: "Invalid title",
-      code: "invalid_todo",
+      detail: "Invalid text: limit 1000, length 1001",
+      code: "invalid_input",
       requestId: "request-123",
       fieldErrors: {},
     });

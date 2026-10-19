@@ -9,6 +9,7 @@ import type {
   SessionResponse,
   TimelineEntryResponse,
 } from "../../api/generated/types.gen";
+import { formatCount } from "../../lib/format";
 
 export type SessionView = SessionResponse;
 export type Entry = TimelineEntryResponse;
@@ -29,24 +30,6 @@ export function sessionQueryOptions(sessionId: string) {
 
 export const COMPOSER_LIMIT = 1000;
 export const GAP_LIMIT = 200;
-
-const numberFormat = new Intl.NumberFormat("ja-JP");
-const startFormat = new Intl.DateTimeFormat("ja-JP", {
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-export function formatCount(value: number): string {
-  return numberFormat.format(value);
-}
-
-/** The local start time as 「M/D HH:mm」. */
-export function formatStart(iso: string): string {
-  return startFormat.format(new Date(iso));
-}
 
 /** ① for 1 through ⑳ for 20, the numbers the feedback uses. */
 export function circled(number: number): string {

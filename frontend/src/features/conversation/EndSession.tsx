@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { HEADER_BUTTON } from "./ui";
+import { HEADER_BUTTON } from "../../lib/ui";
 
 /** How long the confirmation waits untouched before it reverts (ux-guidelines). */
 export const CONFIRM_TIMEOUT_MS = 5000;

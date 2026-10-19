@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { COACH_ENGLISH, ENTER, LABEL } from "../../lib/ui";
 import { FeedbackCard } from "./FeedbackCard";
 import {
   checkInCount,
@@ -11,7 +12,6 @@ import {
   readingQuestionLine,
   retryResultLine,
 } from "./session";
-import { COACH_ENGLISH, ENTER, LABEL } from "./ui";
 
 /**
  * The left pane's timeline: only what the Partner hears — its lines, each
