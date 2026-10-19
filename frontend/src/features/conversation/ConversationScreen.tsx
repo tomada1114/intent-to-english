@@ -321,6 +321,14 @@ export function ConversationScreen({
     </>
   );
 
+  // Shown under whichever turn the Coach pane holds, the current or a past one.
+  const coachErrors = (
+    <>
+      {bannerFor("coach")}
+      {end.isError && <ErrorMessage error={toApiError(end.error)} />}
+    </>
+  );
+
   const coachPane =
     pastTurn !== null && !ended ? (
       <>
@@ -336,6 +344,7 @@ export function ConversationScreen({
           今のターンに戻る
         </button>
         <TurnTimeline timeline={view.entries} turn={pastTurn} />
+        {coachErrors}
       </>
     ) : (
       <>
@@ -384,8 +393,7 @@ export function ConversationScreen({
           turn={view.turn_index}
           fresh={arrival.ids}
         />
-        {bannerFor("coach")}
-        {end.isError && <ErrorMessage error={toApiError(end.error)} />}
+        {coachErrors}
       </>
     );
 

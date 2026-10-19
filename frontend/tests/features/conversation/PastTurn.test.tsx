@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import {
   entry,
@@ -124,4 +125,24 @@ describe("ConversationScreen past turn (REQ-009)", () => {
       expect(document.activeElement).not.toBe(document.body);
     },
   );
+
+  it("shows a failed end while a past turn is shown", async () => {
+    const user = userEvent.setup();
+    serveSession(view, () =>
+      HttpResponse.json(
+        { type: "about:blank", title: "Error", status: 500, code: "internal_error" },
+        { status: 500 },
+      ),
+    );
+    renderSession(view);
+
+    await user.click(screen.getByRole("button", { name: "I watched a movie" }));
+    await user.click(screen.getByRole("button", { name: "会話を終える" }));
+    await user.click(screen.getByRole("button", { name: "終える" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
+    expect(
+      screen.getByRole("button", { name: "今のターンに戻る" }),
+    ).toBeInTheDocument();
+  });
 });
