@@ -237,7 +237,7 @@ Skills are authored under `.agents/skills/` (Codex CLI) and mirrored into
 | `calling-models` | adding or changing a model task, a prompt, an output check, the OpenRouter adapter, the fixed-response mode, a model setting, a test that touches a model, the evaluation harness, or a new provider |
 | `changing-gates` | editing a hook, a CI workflow, the ruleset, or a ruff, mypy, pytest, coverage, Vitest, Biome, `tsconfig.json`, or `pnpm-workspace.yaml` setting, or asking whether a change weakens a gate |
 | `cloud-claude-shipping-issues` | Claude Code cloud sessions only (`CLAUDE_CODE_REMOTE=true`): shipping the next issue or the backlog over REST `gh api` calls, serially — rank, implement, PR, the PR's review, CI, merge, follow-ups |
-| `codex-shipping-issues` | shipping one GitHub issue from a Codex-managed checkout through a regular PR, up to three Codex review rounds with their findings addressed, current-head CI, and the requested PR-only or merge stopping point |
+| `codex-shipping-issues` | shipping one GitHub issue through a regular PR, up to three review rounds with a local fallback for failed or stalled GitHub Codex review, findings addressed, current-head CI and the requested stop point |
 | `create-pr` | opening or updating a pull request by hand |
 | `designing-core-logic` | adding a use case, domain rule, port, adapter, or `INTENT_TO_ENGLISH_*` setting, or wiring the composition root |
 | `designing-errors` | adding a failure mode, or choosing the HTTP status a domain error becomes |
@@ -292,6 +292,12 @@ hand. `tests/test_agent_tiers.py` holds their structure and instructions equal.
 - In Codex, always load the repository-local `codex-shipping-issues` for issue
   shipping; it takes precedence over a global skill of the same name. The existing
   `shipping-issues` workflow is Claude Code only and is never executed by Codex.
+- If GitHub's automatic Codex review fails, is unavailable or stalls, use that
+  skill's local review fallback. Review the full current diff yourself and, when
+  available, obtain an independent read-only sub-agent review. Record reviewed
+  SHAs and findings, fix required findings and require current-head CI before an
+  authorized guarded merge. This authorizes that review delegation; server-required
+  approvals and checks still apply.
 - In a Claude Code cloud session (`CLAUDE_CODE_REMOTE=true`), ship issues with
   `cloud-claude-shipping-issues`, never `shipping-issues`, whose scripts' GraphQL
   calls the session's GitHub proxy refuses.

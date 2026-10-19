@@ -2,8 +2,9 @@
 name: codex-shipping-issues
 description: >
   Use when shipping a GitHub issue from a Codex Cloud or Codex-managed checkout through
-  a regular pull request, up to three Codex review rounds with their findings
-  addressed, current-head CI and the requested PR-only or merge stopping point;
+  a regular pull request, up to three review rounds with a local fallback for failed,
+  unavailable or stalled GitHub Codex review, findings addressed, current-head CI
+  and the requested PR-only or merge stopping point;
   preparing or cleaning a linked worktree; or checking the evidence for a PR-only run.
   Uses repository-local skills and helpers without requiring personal global skills.
 ---
@@ -11,7 +12,7 @@ description: >
 # Ship One Issue from Codex
 
 **Owns:** one issue's acceptance, implementation, local verification, regular PR,
-Codex review, CI evidence, and landing at the user's requested stop point.
+Codex review or its local fallback, CI evidence, and the requested stop point.
 **Does not own:** Claude Code's shipping workflow (`shipping-issues`), authoring a PR
 on an existing branch (`create-pr`), or the repository's confirmation policy.
 
@@ -98,7 +99,8 @@ Read the subject-specific local skills named by `AGENTS.md`. Keep the change wit
 this issue. Run the narrowest relevant checks, additional prose/workflow checks and
 `just verify`. Diagnose failures without weakening gates or hiding unrelated failures.
 Inspect the entire diff against the acceptance map. Record base/head/diff identity,
-commands, results and limitations. Self-review is separate from Codex review.
+commands, results and limitations. Routine self-review is separate from the review
+gate below.
 
 ## 4. Publish and observe review with CI
 
@@ -114,13 +116,19 @@ every accepted one and inspect the correction diff locally. Observe CI while a r
 runs and diagnose failures within scope. Record each round's reviewed commit and
 findings separately from the current head.
 
+If the integration fails, is unavailable or stalls, follow the reference's local
+fallback: review the full current diff yourself and, when available, obtain an
+independent read-only sub-agent review. AGENTS.md authorizes that delegation.
+Record local findings and dispositions separately from cloud evidence; a failed
+cloud run is never a clean review. Preserve required approvals and checks.
+
 After each correction push, wait briefly for a review of the new head. A review that
 starts is the next round: fix its accepted `P0`–`P2` findings and report accepted
 `P3` ones as follow-up candidates. Handle at most three rounds, never request a
 review, repeat affected checks and `just verify`, push normally and wait for
 current-head CI. This is the owner's review-round policy; it does not claim the final
-head received cloud review. Repository-required approvals remain separate and cannot
-be bypassed.
+head received cloud review. The local fallback uses the same finding criteria and
+round cap. Repository-required approvals remain separate and cannot be bypassed.
 
 ## 5. Finish at the requested boundary
 
@@ -134,8 +142,9 @@ and report which issues were cleared. Use MCP or the CLI for this tracker update
 Do not switch, pull or clean the user's busy primary checkout.
 
 Pending gates alone do not finish the run. Wait in bounded observations, work on
-in-scope failures between them and keep the user informed. A required inaccessible
-check/review, pending required approval or unresolved owner decision is a reported blocker;
+in-scope failures between them and keep the user informed. Use the local review
+fallback for integration failure; a required inaccessible check, missing approval,
+unavailable qualifying local review or unresolved owner decision is a blocker;
 preserve source, PR and worktree. Continue in-scope corrections without an arbitrary
 attempt cap; honor explicit user deadlines and host limits.
 
