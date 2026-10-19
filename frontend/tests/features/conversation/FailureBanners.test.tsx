@@ -227,6 +227,42 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
     ]);
   });
 
+  it("shows a failed restate on the left, leaves the composer's draft alone, and もう一度 resends it", async () => {
+    // No control sends restate before #23; the view a reload reads carries it.
+    const view: SessionResponse = {
+      ...intent,
+      last_submission: {
+        action: "restate",
+        input: { mode: "shorter" },
+        state: "failed",
+        failure_code: "model_timeout",
+      },
+    };
+    const served = serveSession(view, () => ({ ...intent, version: 2 }));
+    const user = userEvent.setup();
+    renderSession(view);
+    const field = screen.getByRole("textbox", { name: "あなたの日本語" });
+    expect(field).toHaveValue("");
+    await user.type(field, "久しぶり");
+
+    const banner = pane("会話").getByRole("alert");
+    expect(banner).toHaveTextContent(
+      "Partner の返事を受け取れませんでした（時間切れ）。",
+    );
+    expect(pane("コーチ").queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(within(banner).getByRole("button", { name: "もう一度" }));
+
+    await waitFor(() =>
+      expect(served.bodies).toEqual([
+        { action: "restate", mode: "shorter", version: 1 },
+      ]),
+    );
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByRole("textbox", { name: "あなたの日本語" })).toHaveValue(
+      "久しぶり",
+    );
+  });
+
   it("shows a failure that names no model reason without one", async () => {
     serveSession(english, () => answer(500, "internal_error"));
     const user = userEvent.setup();

@@ -3,7 +3,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type {
   ProblemDetails,
   SessionResponse,
@@ -134,46 +134,62 @@ describe("loading a session (REQ-008)", () => {
   });
 
   describe("the skeleton's timing", () => {
-    it.each([
-      { respondsAt: 299, skeletonUntil: null, shownAt: 299 },
-      { respondsAt: 301, skeletonUntil: 800, shownAt: 800 },
-      { respondsAt: 900, skeletonUntil: 900, shownAt: 900 },
-    ])(
-      "for a response at $respondsAt ms shows the skeleton until $skeletonUntil and the session at $shownAt ms",
-      async ({ respondsAt, skeletonUntil, shownAt }) => {
-        installFakeClock();
-        try {
-          const gate = deferred();
-          server.use(
-            http.get(`/api/sessions/${SESSION_ID}`, async () => {
-              await gate.promise;
-              return HttpResponse.json<SessionResponse>(view);
-            }),
-          );
-          renderAt(`/sessions/${SESSION_ID}`);
-          await advance(0);
+    /** Serve the session once `release` is called, and open its URL at 0 ms. */
+    async function openHeld() {
+      installFakeClock();
+      const gate = deferred();
+      server.use(
+        http.get(`/api/sessions/${SESSION_ID}`, async () => {
+          await gate.promise;
+          return HttpResponse.json<SessionResponse>(view);
+        }),
+      );
+      renderAt(`/sessions/${SESSION_ID}`);
+      await advance(0);
+      return gate.release;
+    }
 
-          await advance(299);
-          expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
-          await advance(respondsAt - 299);
-          if (skeletonUntil !== null) {
-            expect(screen.getByText(LOADING)).toBeInTheDocument();
-          }
-          gate.release();
-          await advance(0);
-          if (shownAt > respondsAt) {
-            await advance(shownAt - respondsAt - 1);
-            expect(screen.getByText(LOADING)).toBeInTheDocument();
-            expect(screen.queryByText(OPENER_TEXT)).not.toBeInTheDocument();
-            await advance(1);
-          }
+    it("shows no skeleton for a response at 299 ms", async () => {
+      const release = await openHeld();
 
-          expect(screen.getByText(OPENER_TEXT)).toBeInTheDocument();
-          expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
-        } finally {
-          vi.useRealTimers();
-        }
-      },
-    );
+      await advance(299);
+      expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
+      release();
+      await advance(0);
+
+      expect(screen.getByText(OPENER_TEXT)).toBeInTheDocument();
+      expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
+    });
+
+    it("shows the skeleton from 300 ms and the session at 800 ms for a response at 301 ms", async () => {
+      const release = await openHeld();
+
+      await advance(299);
+      expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
+      await advance(2);
+      expect(screen.getByText(LOADING)).toBeInTheDocument();
+      release();
+      await advance(0);
+      await advance(498);
+      expect(screen.getByText(LOADING)).toBeInTheDocument();
+      expect(screen.queryByText(OPENER_TEXT)).not.toBeInTheDocument();
+      await advance(1);
+
+      expect(screen.getByText(OPENER_TEXT)).toBeInTheDocument();
+      expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
+    });
+
+    it("shows the skeleton from 300 ms and the session at once for a response at 900 ms", async () => {
+      const release = await openHeld();
+
+      await advance(300);
+      expect(screen.getByText(LOADING)).toBeInTheDocument();
+      await advance(600);
+      release();
+      await advance(0);
+
+      expect(screen.getByText(OPENER_TEXT)).toBeInTheDocument();
+      expect(screen.queryByText(LOADING)).not.toBeInTheDocument();
+    });
   });
 });

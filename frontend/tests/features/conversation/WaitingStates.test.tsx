@@ -360,8 +360,9 @@ describe("ConversationScreen cancel (REQ-003)", () => {
     await user.click(coach().getByRole("button", { name: "中止" }));
     await advance(0);
     expect(coach().getByText(CANCELLED)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveFocus();
 
-    await user.click(screen.getByRole("button", { name: /送信/ }));
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
     await advance(0);
 
     expect(screen.queryByText(CANCELLED)).not.toBeInTheDocument();
@@ -384,6 +385,7 @@ describe("ConversationScreen cancel (REQ-003)", () => {
 
     expect(served.cancels).toEqual([{ version: 4 }]);
     expect(partner().getByText(CANCELLED)).toBeInTheDocument();
+    expect(partner().getByRole("button", { name: "もう一度" })).toHaveFocus();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(served.bodies).toHaveLength(1);
     await user.click(partner().getByRole("button", { name: "もう一度" }));
@@ -476,6 +478,7 @@ describe("ConversationScreen pending from elsewhere (REQ-009)", () => {
     expect(served.posts).toEqual([{ version: 2 }]);
     const field = screen.getByRole("textbox", { name: "あなたの英語" });
     expect(field).toBeEnabled();
+    expect(field).toHaveFocus();
     expect(field).toHaveValue("I watched a movie");
     expect(coach().getByText(CANCELLED)).toBeInTheDocument();
     await advance(6000);

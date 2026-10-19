@@ -183,7 +183,9 @@ export function ConversationScreen({
   const [settledKey, setSettledKey] = useState<string | null>(null);
   const [cancellingStored, setCancellingStored] = useState<string | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
-  const focusAfterPast = useRef<"back" | "composer" | null>(null);
+  /** Where focus goes once the next render is shown, as a control goes away. */
+  const focusAfterPast = useRef<"back" | "composer" | "again" | null>(null);
+  const againRef = useRef<HTMLButtonElement>(null);
   const coachHeadingRef = useRef<HTMLHeadingElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const gapRef = useRef<HTMLInputElement>(null);
@@ -350,6 +352,7 @@ export function ConversationScreen({
       }
       // The result came first and is shown: nothing was cancelled.
       if (!waitingFor(current.id)) return;
+      focusAfterCancel();
       setAttempt(null);
       setOutcome({ kind: "cancelled", action: current.input.action });
       return;
@@ -373,6 +376,7 @@ export function ConversationScreen({
     setCancellingStored(null);
     // The stored result arrived first and is shown: nothing was cancelled.
     if (latestVersion.current !== version) return;
+    focusAfterCancel();
     setSettledKey(storedKey);
     const fields = restoredFields(pending.input);
     if (fields.text !== undefined) setText(fields.text);
@@ -382,6 +386,11 @@ export function ConversationScreen({
     }
     setOutcome({ kind: "cancelled", action: pending.action });
     await readAgain();
+  }
+
+  /** [中止] goes away: focus the way on, never the document body. */
+  function focusAfterCancel() {
+    focusAfterPast.current = autoAction !== null ? "again" : "composer";
   }
 
   async function endSession() {
@@ -514,6 +523,7 @@ export function ConversationScreen({
     const target = focusAfterPast.current;
     focusAfterPast.current = null;
     if (target === "back") backToTurnRef.current?.focus();
+    if (target === "again") againRef.current?.focus();
     if (target !== "composer") return;
     // The composer, else the stage's first control, else the pane's heading.
     const composer = composerRef.current;
@@ -649,6 +659,7 @@ export function ConversationScreen({
       {failureBanner("partner")}
       {stuck && autoAction !== null && (
         <button
+          ref={againRef}
           type="button"
           onClick={() => void send({ action: autoAction })}
           className={SECONDARY_BUTTON}
