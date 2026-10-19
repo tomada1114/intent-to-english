@@ -57,7 +57,7 @@ like this:
 | Wiring | root | `settings.py`, `composition.py` | the settings in § Decisions › Keys, models, and the mode; the adapter choice |
 
 The screen lives under `frontend/src/`: `routes/index.tsx` (S1), `routes/sessions.$sessionId.tsx`
-(S2 and S3), a not-found route (S4), `features/sessions/` (the list), `features/conversation/`
+(S2 and S3), a not-found route (S4), `features/sessions/` (S1: start, resume, and the list), `features/conversation/`
 (both panes, the composer, the controls, the feedback card), and the tokens in `styles.css`.
 
 What crosses each boundary: the API hands the core an action and the version the screen
@@ -519,11 +519,14 @@ commits, pull requests, and document prose stay English.
 
 ### What the app keeps from the template
 
-SQLite stays the default store with the PostgreSQL contract suite and its CI job, so a hosted
-deployment later starts from portable SQL; the in-memory repository stays as the core tests'
-fake and the store of a run without a database URL; the composition root, the `AppError`
-mapping, the health route, and the middleware stay. The to-do sample goes in an implementing
-issue (`starting-an-app`'s "Remove the sample to-do domain").
+SQLite is the default store, with the PostgreSQL contract suite and its CI job, so a hosted
+deployment later starts from portable SQL; the in-memory repository is the core tests' fake
+and the store of a run without a database URL; the composition root, the `AppError` mapping,
+the health route, the middleware, and the opaque page cursor come from the template. The
+template's sample domain is not part of the app at any layer. Its table stays in the schema's
+history only: the first revision creates it and a later one drops it, because a revision on
+`main` is never edited and a database migrated before the drop reaches the same head. Rejected:
+replacing the first revision, which would leave such a database unable to upgrade.
 
 ## Design lock
 
@@ -594,7 +597,6 @@ source of every value named here.
 
 Code work these decisions imply; each becomes an issue (`planning-tickets`).
 
-- Remove the to-do sample, keeping what `starting-an-app` keeps.
 - The design tokens in `styles.css`, and the Tailwind opacity check.
 - The core: models, the stage machine, the output checks, the ports, the errors, and the
   service with its repair and submission rules, over the in-memory repository.

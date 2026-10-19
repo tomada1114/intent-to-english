@@ -112,11 +112,11 @@ def test_settings_database_url_unset_selects_in_memory_store():
 @pytest.mark.parametrize(
     "url",
     [
-        pytest.param("sqlite+aiosqlite:///todos.db", id="sqlite-relative"),
+        pytest.param("sqlite+aiosqlite:///app.db", id="sqlite-relative"),
         pytest.param("sqlite+aiosqlite:///./var/dev.db", id="sqlite-dot-relative"),
-        pytest.param("sqlite+aiosqlite:////var/lib/todos.db", id="sqlite-absolute"),
+        pytest.param("sqlite+aiosqlite:////var/lib/app.db", id="sqlite-absolute"),
         pytest.param(
-            "postgresql+asyncpg://app:secret@localhost:5432/todos", id="postgresql"
+            "postgresql+asyncpg://app:secret@localhost:5432/app", id="postgresql"
         ),
     ],
 )
@@ -200,7 +200,7 @@ def test_settings_effective_nonfile_sqlite_target_fails_before_engine_build(
     ],
 )
 def test_settings_file_options_preserve_actual_driver_target(tmp_path, kind):
-    absolute = str(tmp_path / "todos.db")
+    absolute = str(tmp_path / "app.db")
     cases = {
         "relative": (
             "relative.db?timeout=5",
@@ -238,7 +238,7 @@ def test_settings_file_options_preserve_actual_driver_target(tmp_path, kind):
     assert settings.database_url == url
     assert args == [expected]
     assert options.get("uri", False) is uri
-    assert not (tmp_path / "todos.db").exists()
+    assert not (tmp_path / "app.db").exists()
 
 
 def test_settings_unprefixed_env_var_is_ignored(monkeypatch):
@@ -257,22 +257,22 @@ def test_settings_database_url_empty_counts_as_unset(monkeypatch):
     ("url", "pattern"),
     [
         pytest.param(
-            "sqlite:///todos.db",
+            "sqlite:///app.db",
             r"blocking sqlite driver; use 'sqlite\+aiosqlite:///<path>' instead",
             id="sync-sqlite",
         ),
         pytest.param(
-            "postgresql://localhost/todos",
+            "postgresql://localhost/app",
             r"must start with 'sqlite\+aiosqlite:///' or 'postgresql\+asyncpg://'",
             id="sync-postgresql",
         ),
         pytest.param(
-            "mysql+aiomysql://localhost/todos",
+            "mysql+aiomysql://localhost/app",
             r"must start with 'sqlite\+aiosqlite:///' or 'postgresql\+asyncpg://'",
             id="other-scheme",
         ),
         pytest.param(
-            "todos.db",
+            "app.db",
             r"must start with 'sqlite\+aiosqlite:///' or 'postgresql\+asyncpg://'",
             id="bare-path",
         ),

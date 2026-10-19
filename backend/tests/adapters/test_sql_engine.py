@@ -17,7 +17,7 @@ async def test_make_engine_sqlite_waits_out_a_locked_file_instead_of_failing(tmp
     # 200 concurrent adds on one file (the contract suite) queue for SQLite's
     # write lock; a connection that gives up early fails with "database is
     # locked", so every connection waits out the busy timeout first.
-    engine = make_engine(f"sqlite+aiosqlite:///{tmp_path / 'todos.db'}")
+    engine = make_engine(f"sqlite+aiosqlite:///{tmp_path / 'app.db'}")
     try:
         async with engine.connect() as connection:
             busy_timeout_ms = await connection.scalar(text("PRAGMA busy_timeout"))

@@ -16,7 +16,7 @@ can fail while iterating, then `just verify` before a completion claim.
 |---|---|
 | A module under `backend/src/intent_to_english/<layer>/` | `uv run --locked --directory backend pytest tests/<layer>/` |
 | `settings.py` or `composition.py` | `uv run --locked --directory backend pytest tests/test_settings.py tests/test_composition.py` |
-| A repository adapter | `uv run --locked --directory backend pytest tests/adapters/test_repository_contract.py` |
+| A repository adapter | `uv run --locked --directory backend pytest tests/adapters/test_session_repository_contract.py` |
 | A table in `adapters/sql/tables.py`, or a revision under `migrations/` | `uv run --locked --directory backend pytest tests/adapters/`, then `just backend lint` (`persisting-data`) |
 | One backend test | `uv run --locked --directory backend pytest tests/<path>.py::test_<name>` |
 | A backend Python file's types | `uv run --locked --directory backend mypy` |
@@ -56,9 +56,9 @@ backend/
   They run on the resource's event loop in a separate Task/Context and never suppress
   body errors. Scope-bound managers stay with their acquiring caller
   (`designing-core-logic`).
-- The container supplies both TodoService and ConversationService. Their SQL
-  repositories share one lazy engine and disposal callback; without a database URL
-  both stores are in memory. Both model roles currently use the fixed adapters in
+- The container supplies the ConversationService. Its SQL session repository owns
+  one lazy engine and disposal callback; without a database URL the store is in
+  memory. Both model roles currently use the fixed adapters in
   every configured mode, and meta reads that selected mode from the container.
 - `Container.models` holds the same two model ports the conversation service uses.
   Evaluation calls those ports through the shared task runner, with memory storage

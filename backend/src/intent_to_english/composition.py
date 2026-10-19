@@ -16,15 +16,11 @@ from typing import TYPE_CHECKING, Literal, Self
 from anyio import CancelScope
 from anyio.lowlevel import checkpoint_if_cancelled
 
-from intent_to_english.adapters.memory import (
-    InMemorySessionRepository,
-    InMemoryTodoRepository,
-)
+from intent_to_english.adapters.memory import InMemorySessionRepository
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
-from intent_to_english.adapters.sql.repository import SqlTodoRepository
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
-from intent_to_english.core.services import ConversationService, TodoService
+from intent_to_english.core.services import ConversationService
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -37,7 +33,6 @@ if TYPE_CHECKING:
         IdFactory,
         PartnerModel,
         SessionRepository,
-        TodoRepository,
     )
     from intent_to_english.settings import Settings
 
@@ -103,7 +98,6 @@ class ModelPorts:
 class Container:
     """The services an entry point may call, built once per process."""
 
-    todos: TodoService
     conversations: ConversationService = field(kw_only=True)
     models: ModelPorts = field(kw_only=True)
     model_mode: Literal["fixed", "openrouter"] = field(default="fixed", kw_only=True)
@@ -200,9 +194,10 @@ def build_container(
 
     Args:
         settings: Selects the repository through ``database_url``.
-        clock: Stamps new to-dos; tests pass a fixed one.
-        new_id: Gives new to-dos their ids; ``uuid.uuid7``, whose ids ascend
-            in creation order, unless a test passes a predictable factory.
+        clock: Stamps new sessions and records; tests pass a fixed one.
+        new_id: Gives new sessions and records their ids; ``uuid.uuid7``, whose
+            ids ascend in creation order, unless a test passes a predictable
+            factory.
         boot_id: One process identity; tests may inject it to check interruption.
 
     Returns:
@@ -210,8 +205,7 @@ def build_container(
         call. Await ``aclose()``, or use it with ``async with``, when done.
     """
     resources = ResourceClosers()
-    todo_repository, session_repository = _build_repositories(settings, resources)
-    todos = TodoService(todo_repository, clock, new_id)
+    session_repository = _build_repository(settings, resources)
     models = ModelPorts(FixedPartnerModel(), FixedCoachModel())
     conversations = ConversationService(
         session_repository,
@@ -223,7 +217,6 @@ def build_container(
     )
     # The live composition branch belongs to #28; a key never activates billing here.
     return Container(
-        todos=todos,
         conversations=conversations,
         models=models,
         model_mode="fixed",
@@ -231,10 +224,10 @@ def build_container(
     )
 
 
-def _build_repositories(
+def _build_repository(
     settings: Settings, resources: ResourceClosers
-) -> tuple[TodoRepository, SessionRepository]:
-    """Return both SQL repositories on one engine, or independent memory stores.
+) -> SessionRepository:
+    """Return the SQL session repository on its own engine, or a memory store.
 
     The SQL repository's engine is the one resource the container owns: it
     connects on first use, so registering ``engine.dispose`` here leaves
@@ -243,7 +236,7 @@ def _build_repositories(
     table.
     """
     if settings.database_url is None:
-        return InMemoryTodoRepository(), InMemorySessionRepository()
+        return InMemorySessionRepository()
     engine = make_engine(settings.database_url)
     resources.push_async_callback(engine.dispose)
-    return SqlTodoRepository(engine), SqlSessionRepository(engine)
+    return SqlSessionRepository(engine)

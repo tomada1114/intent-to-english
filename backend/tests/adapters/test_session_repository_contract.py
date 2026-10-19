@@ -317,8 +317,11 @@ async def test_begin_ended_session_and_duplicate_submission_preserve_snapshot(
     "cursor",
     [
         pytest.param("invalid", id="malformed"),
-        pytest.param("A" * 22, id="todo-family"),
+        pytest.param("A" * 22, id="bare-id-family"),
         pytest.param("session:!", id="bad-session"),
+        pytest.param("session:\u00e9", id="non-ascii"),
+        pytest.param("session:AAAA", id="short-id"),
+        pytest.param("session:" + "A" * 21 + "B", id="non-canonical"),
     ],
 )
 async def test_list_rejects_invalid_cursor_without_echo(repository, cursor):

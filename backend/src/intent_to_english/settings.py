@@ -47,8 +47,8 @@ class Settings(BaseSettings):
         database_url: A SQLAlchemy URL for an async driver —
             ``sqlite+aiosqlite:///<path>`` for a SQLite file or
             ``postgresql+asyncpg://...`` for a PostgreSQL server — selects the
-            SQL repositories; unset (or set to an empty string) keeps to-dos and sessions in
-            memory for the life of the process. Read from
+            SQL session repository; unset (or set to an empty string) keeps
+            sessions in memory for the life of the process. Read from
             ``INTENT_TO_ENGLISH_DATABASE_URL``. The database must already be migrated
             (``just backend db-upgrade``): the app never creates its schema.
         cors_origins: Exact HTTP(S) origins allowed to call the API, from

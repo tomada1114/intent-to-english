@@ -179,7 +179,7 @@ async def make_container(new_id, anyio_backend):
 @pytest.fixture
 def sqlite_url(tmp_path):
     """The URL of a SQLite file in ``tmp_path`` that nothing has created yet."""
-    return f"sqlite+aiosqlite:///{tmp_path / 'todos.db'}"
+    return f"sqlite+aiosqlite:///{tmp_path / 'app.db'}"
 
 
 @pytest.fixture

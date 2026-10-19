@@ -1,4 +1,4 @@
-/** Class lists the conversation's controls share (design-direction § Components). */
+/** Class lists every screen's controls share (design-direction § Components). */
 
 export const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";

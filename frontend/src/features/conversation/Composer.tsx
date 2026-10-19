@@ -1,6 +1,6 @@
 import { type KeyboardEvent, type Ref, useId } from "react";
+import { FOCUS_RING, PRIMARY_BUTTON } from "../../lib/ui";
 import { COMPOSER_LIMIT, measure } from "./session";
-import { FOCUS_RING, PRIMARY_BUTTON } from "./ui";
 
 /** Whether a keydown is part of IME composition (Safari's committing Enter is 229). */
 export function isComposing(event: KeyboardEvent): boolean {

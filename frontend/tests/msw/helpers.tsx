@@ -6,8 +6,8 @@ import { afterEach, vi } from "vitest";
 import type {
   PerformSessionActionData,
   SessionResponse,
+  SessionSummaryResponse,
   TimelineEntryResponse,
-  TodoResponse,
 } from "../../src/api/generated/types.gen";
 import {
   ConversationScreen,
@@ -36,14 +36,24 @@ function newQueryClient() {
   return queryClient;
 }
 
-export function todo(
-  title: string,
-  id = "0199c1f0-0000-7000-8000-000000000001",
-): TodoResponse {
-  return { id, title, completed: false, created_at: "2026-10-08T09:00:00Z" };
-}
-
 export const SESSION_ID = "0199c1f0-0000-7000-8000-0000000000aa";
+
+/**
+ * A typed row of the session list: an in-progress session started 10/17 18:40
+ * local time with the first fixed opener, unless overridden.
+ */
+export function sessionRow(
+  overrides: Partial<SessionSummaryResponse> = {},
+): SessionSummaryResponse {
+  return {
+    id: SESSION_ID,
+    started_at: new Date(2026, 9, 17, 18, 40).toISOString(),
+    status: "in_progress",
+    finished_replies: 0,
+    opener: "Hey! How's it going?",
+    ...overrides,
+  };
+}
 
 type EntryKind = TimelineEntryResponse["kind"];
 type EntryOf<K extends EntryKind> = Extract<TimelineEntryResponse, { kind: K }>;

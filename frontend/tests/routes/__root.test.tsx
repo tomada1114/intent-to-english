@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -59,6 +59,9 @@ describe("the root layout", () => {
     const badge = await screen.findByRole("button", { name: BADGE });
     expect(badge).toHaveAccessibleDescription(TOOLTIP);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    // S1 focuses its start button on load; walk the header from the page's top.
+    expect(screen.getByRole("button", { name: "新しい会話を始める" })).toHaveFocus();
+    act(() => (document.activeElement as HTMLElement).blur());
 
     await user.tab();
     expect(screen.getByRole("link", { name: "Intent to English" })).toHaveFocus();

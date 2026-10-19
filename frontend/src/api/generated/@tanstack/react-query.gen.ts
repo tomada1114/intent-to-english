@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { cancelSessionAction, completeTodo, createSession, createTodo, deleteTodo, getMeta, getSession, healthz, listSessions, listTodos, type Options, performSessionAction } from '../sdk.gen';
-import type { CancelSessionActionData, CancelSessionActionError, CancelSessionActionResponse, CompleteTodoData, CompleteTodoError, CompleteTodoResponse, CreateSessionData, CreateSessionError, CreateSessionResponse, CreateTodoData, CreateTodoError, CreateTodoResponse, DeleteTodoData, DeleteTodoError, DeleteTodoResponse, GetMetaData, GetMetaError, GetMetaResponse, GetSessionData, GetSessionError, GetSessionResponse, HealthzData, HealthzError, HealthzResponse, ListSessionsData, ListSessionsError, ListSessionsResponse, ListTodosData, ListTodosError, ListTodosResponse, PerformSessionActionData, PerformSessionActionError, PerformSessionActionResponse } from '../types.gen';
+import { cancelSessionAction, createSession, getMeta, getSession, healthz, listSessions, type Options, performSessionAction } from '../sdk.gen';
+import type { CancelSessionActionData, CancelSessionActionError, CancelSessionActionResponse, CreateSessionData, CreateSessionError, CreateSessionResponse, GetMetaData, GetMetaError, GetMetaResponse, GetSessionData, GetSessionError, GetSessionResponse, HealthzData, HealthzError, HealthzResponse, ListSessionsData, ListSessionsError, ListSessionsResponse, PerformSessionActionData, PerformSessionActionError, PerformSessionActionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -207,115 +207,6 @@ export const cancelSessionActionMutation = (options?: Partial<Options<CancelSess
     const mutationOptions: UseMutationOptions<CancelSessionActionResponse, CancelSessionActionError, Options<CancelSessionActionData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await cancelSessionAction({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const listTodosQueryKey = (options?: Options<ListTodosData>) => createQueryKey('listTodos', options);
-
-/**
- * List Todos
- *
- * List one page of to-dos, oldest first; `next_cursor` fetches the next one.
- */
-export const listTodosOptions = (options?: Options<ListTodosData>) => queryOptions<ListTodosResponse, ListTodosError, ListTodosResponse, ReturnType<typeof listTodosQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listTodos({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listTodosQueryKey(options)
-});
-
-export const listTodosInfiniteQueryKey = (options?: Options<ListTodosData>): QueryKey<Options<ListTodosData>> => createQueryKey('listTodos', options, true);
-
-/**
- * List Todos
- *
- * List one page of to-dos, oldest first; `next_cursor` fetches the next one.
- */
-export const listTodosInfiniteOptions = (options?: Options<ListTodosData>) => {
-    const opts = infiniteQueryOptions<ListTodosResponse, ListTodosError, InfiniteData<ListTodosResponse>, QueryKey<Options<ListTodosData>>, string | null | Pick<QueryKey<Options<ListTodosData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
-    {
-        initialPageParam: {},
-        getNextPageParam: () => undefined,
-        queryFn: async ({ pageParam, queryKey, signal }) => {
-            const page: Pick<QueryKey<Options<ListTodosData>>[0], 'body' | 'headers' | 'path' | 'query'> = pageParam !== null && typeof pageParam === 'object' ? pageParam : {
-                query: {
-                    cursor: pageParam
-                }
-            };
-            const params = createInfiniteParams(queryKey, page);
-            const { data } = await listTodos({
-                ...options,
-                ...params,
-                signal,
-                throwOnError: true
-            });
-            return data;
-        },
-        queryKey: listTodosInfiniteQueryKey(options)
-    });
-    return opts as Omit<typeof opts, 'initialData'>;
-};
-
-/**
- * Create Todo
- *
- * Create a to-do from a title.
- */
-export const createTodoMutation = (options?: Partial<Options<CreateTodoData>>): UseMutationOptions<CreateTodoResponse, CreateTodoError, Options<CreateTodoData>> => {
-    const mutationOptions: UseMutationOptions<CreateTodoResponse, CreateTodoError, Options<CreateTodoData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createTodo({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Delete Todo
- *
- * Delete a to-do.
- */
-export const deleteTodoMutation = (options?: Partial<Options<DeleteTodoData>>): UseMutationOptions<DeleteTodoResponse, DeleteTodoError, Options<DeleteTodoData>> => {
-    const mutationOptions: UseMutationOptions<DeleteTodoResponse, DeleteTodoError, Options<DeleteTodoData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await deleteTodo({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Complete Todo
- *
- * Mark a to-do as completed.
- */
-export const completeTodoMutation = (options?: Partial<Options<CompleteTodoData>>): UseMutationOptions<CompleteTodoResponse, CompleteTodoError, Options<CompleteTodoData>> => {
-    const mutationOptions: UseMutationOptions<CompleteTodoResponse, CompleteTodoError, Options<CompleteTodoData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await completeTodo({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

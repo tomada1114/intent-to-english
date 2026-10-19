@@ -11,8 +11,16 @@ import {
 import { performSessionActionMutation } from "../../api/generated/@tanstack/react-query.gen";
 import type { Action, SessionResponse } from "../../api/generated/types.gen";
 import { ErrorMessage } from "../../lib/ErrorMessage";
+import { formatStart } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { type ApiError, toApiError } from "../../lib/problem-details";
+import {
+  COACH_ENGLISH,
+  ENTER,
+  FOCUS_RING,
+  QUIET_BUTTON,
+  SECONDARY_BUTTON,
+} from "../../lib/ui";
 import { Composer } from "./Composer";
 import { EndSession } from "./EndSession";
 import { ConversationTimeline, TurnTimeline } from "./entries";
@@ -21,7 +29,6 @@ import { type Arrival, useArrivals, useFollowBottom, useWideLayout } from "./hoo
 import {
   type ActionInput,
   type Control,
-  formatStart,
   lineBeingAnswered,
   paneFor,
   previousTurnLine,
@@ -29,7 +36,6 @@ import {
   sessionQueryOptions,
   stageUi,
 } from "./session";
-import { COACH_ENGLISH, ENTER, FOCUS_RING, QUIET_BUTTON, SECONDARY_BUTTON } from "./ui";
 
 /** Actions whose text is the composer's: a success clears it, nothing else does. */
 const COMPOSER_ACTIONS: ReadonlySet<Action> = new Set([

@@ -1,7 +1,7 @@
 import { type Ref, useId } from "react";
+import { FOCUS_RING, SECONDARY_BUTTON } from "../../lib/ui";
 import { isComposing } from "./Composer";
 import { GAP_LIMIT, measure } from "./session";
-import { FOCUS_RING, SECONDARY_BUTTON } from "./ui";
 
 /**
  * The inline hint request under the composer: what the learner cannot say

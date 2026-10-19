@@ -16,10 +16,7 @@ from pydantic import SecretStr
 from sqlalchemy import event
 
 from intent_to_english import composition
-from intent_to_english.adapters.memory import (
-    InMemorySessionRepository,
-    InMemoryTodoRepository,
-)
+from intent_to_english.adapters.memory import InMemorySessionRepository
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
@@ -106,9 +103,9 @@ async def test_build_container_default_settings_uses_an_independent_memory_store
     first = make_container()
     second = make_container()
 
-    await first.todos.create("only in first")
+    await first.conversations.start()
 
-    assert await second.todos.list_page() == Page(items=(), next_cursor=None)
+    assert await second.conversations.list_page() == Page(items=(), next_cursor=None)
 
 
 @pytest.mark.parametrize("mode", ["auto", "fixed"])
@@ -125,16 +122,14 @@ async def test_build_container_wires_independent_fixed_conversations(
     assert await second.conversations.list_page() == Page((), None)
 
 
-async def test_build_container_shares_one_sql_engine_for_both_services(
+async def test_build_container_owns_one_sql_engine_per_container(
     migrated_sqlite_url, engine_disposals
 ):
     settings = Settings(database_url=migrated_sqlite_url)
     async with build_container(settings) as first:
-        todo = await first.todos.create("persists beside a session")
         session = await first.conversations.start()
     assert len(engine_disposals) == 1
     async with build_container(settings) as reopened:
-        assert (await reopened.todos.list_page()).items == (todo,)
         assert await reopened.conversations.get(session.id) == session
     assert len(engine_disposals) == 2
 
@@ -196,11 +191,11 @@ async def test_build_container_sql_settings_shares_the_database(
     make_container, migrated_sqlite_url
 ):
     settings = Settings(database_url=migrated_sqlite_url)
-    created = await make_container(settings).todos.create("buy milk")
+    created = await make_container(settings).conversations.start()
 
     reopened = make_container(settings)
 
-    assert (await reopened.todos.list_page()).items == (created,)
+    assert await reopened.conversations.get(created.id) == created
 
 
 @pytest.fixture(params=["literal", "native-uri"])
@@ -221,10 +216,10 @@ async def test_build_container_query_file_reopens_migrated_schema_and_data(
 ):
     settings = Settings(database_url=migrated_query_file_url)
     async with build_container(settings) as first:
-        created = await first.todos.create("survives disposal with URL options")
+        created = await first.conversations.start()
 
     async with build_container(settings) as reopened:
-        assert (await reopened.todos.list_page()).items == (created,)
+        assert await reopened.conversations.get(created.id) == created
 
 
 async def test_build_container_sql_settings_disposes_the_engine_on_aclose(
@@ -243,7 +238,7 @@ async def test_build_container_sql_settings_disposes_the_engine_on_aclose(
     container = build_container(
         Settings(database_url=migrated_sqlite_url), clock=fixed_clock, new_id=new_id
     )
-    await container.todos.create("opens a pooled connection")
+    await container.conversations.start()
     assert disposed == []
 
     await container.aclose()
@@ -257,8 +252,9 @@ async def test_container_cancelled_context_disposes_open_sqlite_engine_once(
     container = build_container(Settings(database_url=migrated_sqlite_url))
     with anyio.CancelScope() as cancelled:
         async with container:
-            created = await container.todos.create("opens a real pooled connection")
-            assert (await container.todos.list_page()).items == (created,)
+            created = await container.conversations.start()
+            listed = await container.conversations.list_page()
+            assert tuple(row.id for row in listed.items) == (created.id,)
             cancelled.cancel()
             await anyio.lowlevel.checkpoint()
 
@@ -271,18 +267,18 @@ async def test_container_cancelled_context_disposes_open_sqlite_engine_once(
 async def test_build_container_injected_clock_stamps_created_at(
     make_container, fixed_now
 ):
-    todo = await make_container().todos.create("buy milk")
+    view = await make_container().conversations.start()
 
-    assert todo.created_at == fixed_now
+    assert view.started_at == fixed_now
 
 
-async def test_build_container_injected_id_factory_gives_new_todos_their_ids(
+async def test_build_container_injected_id_factory_gives_new_sessions_their_ids(
     make_container, nth_id
 ):
     container = make_container()
 
-    first = await container.todos.create("first")
-    second = await container.todos.create("second")
+    first = await container.conversations.start()
+    second = await container.conversations.start()
 
     assert (first.id, second.id) == (nth_id(1), nth_id(2))
 
@@ -290,8 +286,8 @@ async def test_build_container_injected_id_factory_gives_new_todos_their_ids(
 async def test_build_container_default_id_factory_gives_ascending_uuid7_ids():
     container = build_container(Settings(database_url=None))
 
-    first = await container.todos.create("first")
-    second = await container.todos.create("second")
+    first = await container.conversations.start()
+    second = await container.conversations.start()
 
     assert (first.id.version, second.id.version) == (7, 7)
     assert first.id < second.id
@@ -299,11 +295,11 @@ async def test_build_container_default_id_factory_gives_ascending_uuid7_ids():
 
 @pytest.mark.parametrize("n", [1, 2, 255, 2**48 - 1])
 def test_nth_id_is_shaped_like_a_uuid7(nth_id, n):
-    todo_id = nth_id(n)
+    some_id = nth_id(n)
 
-    assert todo_id.version == 7
-    assert todo_id.variant == uuid.RFC_4122
-    assert nth_id(n - 1) < todo_id
+    assert some_id.version == 7
+    assert some_id.variant == uuid.RFC_4122
+    assert nth_id(n - 1) < some_id
 
 
 def test_utc_now_returns_timezone_aware_utc_time():
@@ -324,7 +320,6 @@ async def test_container_aclose_releases_registered_resource_once(make_container
     resources.push_async_callback(_record, closed, "resource")
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -352,7 +347,6 @@ async def test_container_context_cancelled_scope_finishes_callbacks_once(
     resources.push_async_callback(cleanup, "second")
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -384,7 +378,6 @@ async def test_container_aclose_cancelled_scope_finishes_before_cancellation(
     resources.push_async_callback(cleanup)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -431,7 +424,6 @@ async def test_container_suspended_cleanup_finishes_before_caller_outcome(
     resources.push_async_callback(suspended)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -481,7 +473,6 @@ async def test_container_concurrent_close_callers_share_complete_lifo_cleanup(
     resources.push_async_callback(suspended)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -517,7 +508,6 @@ async def test_container_concurrent_exits_propagate_each_body_error(make_contain
     resources.push_async_callback(close)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -577,7 +567,6 @@ async def test_container_entered_manager_rejected_and_exits_in_caller_scope(
             # Exercise runtime validation from an untyped external caller.
             services = make_container()
             return Container(
-                services.todos,
                 conversations=services.conversations,
                 models=services.models,
                 _resources=resources,
@@ -598,7 +587,6 @@ async def test_container_context_exit_releases_registered_resource(make_containe
     resources.push_async_callback(_record, closed, "resource")
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -617,7 +605,6 @@ async def test_container_context_failure_releases_registered_resource(make_conta
     resources.push_async_callback(_record, closed, "resource")
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -645,7 +632,6 @@ async def test_container_cleanup_failure_runs_remaining_callbacks_and_propagates
     resources.push_async_callback(fail_cleanup)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -663,7 +649,7 @@ def test_build_container_failure_propagates_the_builder_error(monkeypatch):
         message = "build failed"
         raise ValueError(message)
 
-    monkeypatch.setattr(composition, "_build_repositories", fail_build)
+    monkeypatch.setattr(composition, "_build_repository", fail_build)
 
     with pytest.raises(ValueError, match="build failed"):
         build_container(Settings())
@@ -674,11 +660,11 @@ async def test_build_container_success_keeps_registered_resources_until_aclose(
 ):
     closed: list[str] = []
 
-    def build_repositories(settings, resources):
+    def build_repository(settings, resources):
         resources.push_async_callback(_record, closed, "owned")
-        return InMemoryTodoRepository(), InMemorySessionRepository()
+        return InMemorySessionRepository()
 
-    monkeypatch.setattr(composition, "_build_repositories", build_repositories)
+    monkeypatch.setattr(composition, "_build_repository", build_repository)
 
     container = build_container(Settings())
     assert closed == []
@@ -701,7 +687,6 @@ async def test_container_context_cleanup_failure_chains_original_body_error(
     resources.push_async_callback(fail_cleanup)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -727,7 +712,6 @@ async def test_container_disposal_callbacks_cannot_suppress_body_error(make_cont
     resources.push_async_callback(close)
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,
@@ -747,7 +731,6 @@ async def test_container_registration_after_ownership_transfer_rejected(make_con
     resources = composition.ResourceClosers()
     services = make_container()
     container = Container(
-        services.todos,
         conversations=services.conversations,
         models=services.models,
         _resources=resources,

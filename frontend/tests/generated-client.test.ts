@@ -1,18 +1,18 @@
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
-  deleteTodoMutation,
-  listTodosInfiniteOptions,
-  listTodosOptions,
+  cancelSessionActionMutation,
+  listSessionsInfiniteOptions,
+  listSessionsOptions,
 } from "../src/api/generated/@tanstack/react-query.gen";
 import { createClient, createConfig } from "../src/api/generated/client";
 import { client } from "../src/api/generated/client.gen";
-import { deleteTodo } from "../src/api/generated/sdk.gen";
+import { cancelSessionAction } from "../src/api/generated/sdk.gen";
 
 describe("generated API contract", () => {
   it("keeps relative requests and stable list operation keys", () => {
     expect(client.getConfig().baseUrl || "").toBe("");
-    expect(listTodosOptions().queryKey[0]._id).toBe("listTodos");
+    expect(listSessionsOptions().queryKey[0]._id).toBe("listSessions");
   });
 
   it("keeps an explicit empty base URL instead of the client's default host", () => {
@@ -20,9 +20,9 @@ describe("generated API contract", () => {
 
     const options = { client: testClient, baseUrl: "" };
 
-    expect(listTodosOptions(options).queryKey[0].baseUrl).toBe("");
-    expect(listTodosInfiniteOptions(options).queryKey[0].baseUrl).toBe("");
-    expect(listTodosOptions({ client: testClient }).queryKey[0].baseUrl).toBe(
+    expect(listSessionsOptions(options).queryKey[0].baseUrl).toBe("");
+    expect(listSessionsInfiniteOptions(options).queryKey[0].baseUrl).toBe("");
+    expect(listSessionsOptions({ client: testClient }).queryKey[0].baseUrl).toBe(
       "https://other.example",
     );
   });
@@ -37,9 +37,10 @@ describe("generated API contract", () => {
         }),
       );
 
-      const result = await deleteTodo({
+      const result = await cancelSessionAction({
         client: testClient,
-        path: { todo_id: "0199c1f0-0000-7000-8000-000000000001" },
+        path: { session_id: "0199c1f0-0000-7000-8000-000000000001" },
+        body: { version: 1 },
         parseAs,
         throwOnError: true,
       });
@@ -49,7 +50,7 @@ describe("generated API contract", () => {
     },
   );
 
-  it("passes undefined to a successful delete mutation callback", async () => {
+  it("passes undefined to a successful cancel mutation callback", async () => {
     const testClient = createClient(
       createConfig({
         baseUrl: "http://localhost",
@@ -59,14 +60,15 @@ describe("generated API contract", () => {
     const queryClient = new QueryClient();
     let successData: unknown = "not called";
     const mutation = new MutationObserver(queryClient, {
-      ...deleteTodoMutation({ client: testClient }),
+      ...cancelSessionActionMutation({ client: testClient }),
       onSuccess: (data) => {
         successData = data;
       },
     });
 
     await mutation.mutate({
-      path: { todo_id: "0199c1f0-0000-7000-8000-000000000001" },
+      path: { session_id: "0199c1f0-0000-7000-8000-000000000001" },
+      body: { version: 1 },
     });
 
     expect(successData).toBeUndefined();
@@ -112,14 +114,14 @@ describe("generated API contract", () => {
       });
 
       const result = await queryClient.fetchInfiniteQuery({
-        ...listTodosInfiniteOptions({ client: testClient }),
+        ...listSessionsInfiniteOptions({ client: testClient }),
         initialPageParam: pageParam,
         getNextPageParam: () => undefined,
       });
 
       expect(result.pages).toEqual([{ items: [], next_cursor: null }]);
       expect(requests).toHaveLength(1);
-      expect(requests[0]?.pathname).toBe("/api/todos");
+      expect(requests[0]?.pathname).toBe("/api/sessions");
       expect(requests[0]?.searchParams.get("cursor")).toBe(
         typeof pageParam === "string" ? pageParam : null,
       );

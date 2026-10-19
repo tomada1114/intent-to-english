@@ -5,6 +5,7 @@ import "./msw/server";
 // On a line of its own: the bootstrap rewrites it to a display name of up to
 // 60 characters, which must not push any line past Biome's 88 columns.
 const APP_NAME = "Intent to English";
+const TAGLINE = "英語で話す前に、日本語で言いたいことを決める練習";
 
 beforeEach(() => {
   // main.tsx runs on import, so each test imports a fresh copy.
@@ -23,7 +24,7 @@ test("main renders the index route through the router into #root", async () => {
 
   await import("../src/main");
 
-  const heading = await screen.findByRole("heading", { name: APP_NAME });
+  const heading = await screen.findByRole("heading", { level: 1, name: TAGLINE });
   expect(heading).toBeInTheDocument();
   expect(screen.getByRole("banner")).toHaveTextContent(APP_NAME);
 });
