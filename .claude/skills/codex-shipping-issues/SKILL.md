@@ -1,8 +1,8 @@
 ---
 name: codex-shipping-issues
 description: >
-  Use when shipping a GitHub issue from a Codex Cloud or Codex-managed checkout through
-  a regular pull request, up to three review rounds with a local fallback for failed,
+  Use when running in Codex to ship a GitHub issue through a regular pull request,
+  up to three review rounds with a local fallback for failed,
   unavailable or stalled GitHub Codex review, findings addressed, current-head CI
   and the requested PR-only or merge stopping point;
   preparing or cleaning a linked worktree; or checking the evidence for a PR-only run.
