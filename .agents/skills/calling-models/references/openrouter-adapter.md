@@ -11,19 +11,26 @@ the mode"; the external facts below that the overview does not state carry their
 - `composition.py` builds the adapter only when it chooses OpenRouter, passing the key
   from `Settings`, both model ids, and a monotonic clock for latency. The key is
   unwrapped from its secret type here and nowhere else.
-- The adapter builds one `openai.AsyncOpenAI` itself, with `base_url`
+- `build_openrouter_partner` builds one `openai.AsyncOpenAI`, with `base_url`
   `https://openrouter.ai/api/v1`, `api_key` the key, `max_retries=0`, and the app's
-  name as its attribution header in `default_headers`. It hands that client to
+  name as `X-OpenRouter-Title` in `default_headers`. It hands that client to
   `OpenRouterProvider(openai_client=...)` and gives the provider nothing else.
 - Everything goes on the client because the provider ignores its own `api_key`,
   `app_url`, and `app_title` once it is given a client, and on that path it still reads
   `OPENROUTER_API_KEY`, `OPENROUTER_APP_URL`, and `OPENROUTER_APP_TITLE` from the
   environment without using them. So no environment value reaches a request
-  (`providers/openrouter.py` at https://github.com/pydantic/pydantic-ai/tree/v2.57.0,
-  checked 2026-10-17).
+  (`providers/openrouter.py` at https://github.com/pydantic/pydantic-ai/tree/v2.55.0,
+  checked 2026-10-18).
+- `app_title` is explicit, supplied with the API's `APP_TITLE` (`Intent to English`).
+  OpenRouter documents `X-OpenRouter-Title` as the current name (`X-Title` remains
+  compatible); a title alone creates no public app page. No app URL is configured,
+  so the builder sends no invented `HTTP-Referer`
+  (https://openrouter.ai/docs/app-attribution, checked 2026-10-18).
 - Each role gets an `OpenRouterModel` for its model id over that one provider. Each task
   gets one `Agent`, built once, with `output_type=NativeOutput(<the task's schema
-  model>)`, output retries 0, and no tools.
+  model>)`, `retries=0`, and no tools. At the resolved 2.55.0 tag, the explicit
+  per-agent switch is `agent.instrument = False`, which overrides a global
+  `Agent.instrument_all()` default (`agent/__init__.py` at the tag above).
 - The client holds connections, so the builder registers `client.close` with
   `ResourceClosers`. **REQUIRED:** `designing-core-logic` (its adding-a-port reference,
   "An adapter that holds a resource").
@@ -51,14 +58,16 @@ the mode"; the external facts below that the overview does not state carry their
 PydanticAI turns an `openai.APIStatusError` with a status of 400 or more into
 `ModelHTTPError` (carrying `status_code`), and an `openai.APIConnectionError` into
 `ModelAPIError`, chaining the original with `from`; an error OpenRouter returns inside a
-200 body becomes `ModelHTTPError` with that error's code, or `ModelAPIError`. `openai.APITimeoutError` is a
+200 body with a numeric error code becomes `ModelHTTPError`; null choices without an
+error envelope become `ModelAPIError`. An invalid envelope missing its required code
+is a schema failure instead. `openai.APITimeoutError` is a
 subclass of `APIConnectionError`, so a client timeout arrives as a plain
 `ModelAPIError` whose `__cause__` is the timeout. A schema that does not validate ends
 the run with `UnexpectedModelBehavior` when output retries are 0
 (`models/openai.py`'s `_map_api_errors`, `models/openrouter.py`, and `_agent_graph.py` at
-https://github.com/pydantic/pydantic-ai/tree/v2.57.0;
-https://github.com/openai/openai-python/blob/main/src/openai/_exceptions.py; both
-checked 2026-10-17).
+https://github.com/pydantic/pydantic-ai/tree/v2.55.0;
+https://github.com/openai/openai-python/blob/v3.29.0/src/openai/_exceptions.py;
+checked against the installed locked sources, 2026-10-18).
 
 Test the timeout before the connection error, or every timeout becomes unavailable:
 
@@ -89,7 +98,7 @@ fails a test instead of shipping. Any other exception is a bug and propagates.
   it was sent. One test per task proves a valid answer converts to the right core
   value, an invalid one becomes the parse failure, and the messages hold what
   `prompts.py` rendered.
-- **Error mapping:** the real `OpenRouterModel` over an `AsyncOpenAI` whose HTTP client
+- **Error mapping:** the real `OpenRouterModel` over an `AsyncOpenAI` whose `httpx2` client
   has a mocked transport that answers each case (a 429, a 500, a timeout, a refused
   connection, a response without cost). `ALLOW_MODEL_REQUESTS` blocks a real model
   class, so only these tests lift it, with

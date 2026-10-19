@@ -15,6 +15,7 @@ dependencies = [
     "aiosqlite>=0.22",
     "alembic>=1.20",
     "fastapi>=0.141.1",
+    "pydantic-ai-slim[openrouter]>=2.55.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.1",
     "uvicorn>=0.53.0",
@@ -73,6 +74,8 @@ src = ["src", "tests"]
 "sqlalchemy".msg = "the core is I/O-free; use sqlalchemy only in intent_to_english.adapters and backend/migrations"
 "alembic".msg = "the core is I/O-free; use alembic only in intent_to_english.adapters and backend/migrations"
 "aiosqlite".msg = "the core is I/O-free; use aiosqlite only in intent_to_english.adapters and backend/migrations"
+"pydantic_ai".msg = "model SDKs belong only in intent_to_english.adapters.models"
+"openai".msg = "model SDKs belong only in intent_to_english.adapters.models"
 
 # Replaces, never merges with, the root's per-file-ignores: the root's entries
 # name root paths (scripts/, tests/, .agents/skills/), none of which is here.
