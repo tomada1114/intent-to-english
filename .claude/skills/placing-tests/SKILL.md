@@ -85,7 +85,8 @@ The frontend's suite is `frontend/tests/`, run by Vitest with
   a file of its own (`TodoList.tsx` is). **REQUIRED:** `building-screens`.
 - Shared test code lives under `frontend/tests/`: `setup.ts` (the jest-dom matchers and
   `cleanup`, run before every file), `msw/server.ts` (the MSW server and its default
-  handlers), and `msw/helpers.tsx` (`renderWithQuery`, `deferred`). A handler one test
+  handlers), and `msw/helpers.tsx` (`renderWithQuery`, `deferred`, and the typed session
+  view factories with `serveSession` and `renderSession`). A handler one test
   needs goes in that test with `server.use(...)`; one every test needs goes in
   `msw/server.ts`; a helper moves to `msw/helpers.tsx` only when a second file needs it.
 - The browser test is one flow, not a second component suite: add a spec only for a

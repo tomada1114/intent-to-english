@@ -64,9 +64,9 @@ frontend/
 │   ├── main.tsx          # The entry point: QueryClientProvider around RouterProvider
 │   ├── router.ts         # createAppRouter(queryClient, options?) and the Register declaration
 │   ├── routeTree.gen.ts  # Generated from routes/ by the router plugin; committed, never hand-edited
-│   ├── routes/           # File-based routes: __root.tsx (the layout), index.tsx (/)
-│   ├── features/         # Screens and components grouped by feature (todos/)
-│   ├── lib/              # Cross-feature query policy and Problem Details helpers
+│   ├── routes/           # File-based routes: __root.tsx (the layout and header), index.tsx (/), sessions.$sessionId.tsx (S2)
+│   ├── features/         # Screens and components grouped by feature (todos/, conversation/)
+│   ├── lib/              # Cross-feature query policy, Problem Details helpers, and the header's HeaderItems slot
 │   └── styles.css        # `@import "tailwindcss";`, imported by main.tsx only
 └── tests/            # Vitest tests (*.test.ts, *.test.tsx), mirroring src/, and setup.ts
 ```

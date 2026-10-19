@@ -54,9 +54,9 @@ submit is blocked.
 - Every request the code under test makes is answered by an MSW handler, never by a
   mocked `fetch` or a mocked generated SDK function: the generated client then runs as
   in production. Import `server` from `frontend/tests/msw/server.ts` in every test that
-  renders something that fetches. Its default handler answers `GET /api/todos` with an
-  empty page; add per-test handlers with `server.use(...)`, which the module resets
-  after each test.
+  renders something that fetches. Its default handlers answer `GET /api/todos` with an
+  empty page and `GET /api/meta` with `openrouter` (the header shows no badge); add
+  per-test handlers with `server.use(...)`, which the module resets after each test.
 - Type each response with the generated types so a contract change fails `tsc`:
   `HttpResponse.json<TodoPageResponse>({ items, next_cursor: null })`,
   `HttpResponse.json<ProblemDetails>(problem, { status: 500 })`.
