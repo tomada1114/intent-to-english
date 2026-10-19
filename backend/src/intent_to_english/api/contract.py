@@ -13,7 +13,11 @@ from typing import TYPE_CHECKING
 
 from intent_to_english.api.app import create_app
 from intent_to_english.composition import build_container
-from intent_to_english.settings import Settings
+from intent_to_english.settings import (
+    DEFAULT_COACH_MODEL,
+    DEFAULT_PARTNER_MODEL,
+    Settings,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -33,6 +37,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         cors_origins=[],
         log_level="INFO",
         log_format="text",
+        OPENROUTER_API_KEY=None,
+        model_mode="fixed",
+        coach_model=DEFAULT_COACH_MODEL,
+        partner_model=DEFAULT_PARTNER_MODEL,
     )
     # A supplied, resource-free memory container avoids the factory's logging
     # configuration. Neither construction nor openapi() enters lifespan.

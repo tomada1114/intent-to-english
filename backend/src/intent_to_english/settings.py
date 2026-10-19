@@ -1,4 +1,4 @@
-"""Runtime configuration from ``INTENT_TO_ENGLISH_`` environment variables and backend/.env."""
+"""Runtime configuration from application variables, the key alias and backend/.env."""
 
 from __future__ import annotations
 
@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import parse_qs, parse_qsl, unquote, urlsplit
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ENV_PREFIX = "INTENT_TO_ENGLISH_"
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+DEFAULT_COACH_MODEL = "anthropic/claude-sonnet-5.5"
+DEFAULT_PARTNER_MODEL = "anthropic/claude-haiku-5.5"
 SQLITE_URL_PREFIX = "sqlite+aiosqlite:///"
 POSTGRESQL_URL_PREFIX = "postgresql+asyncpg://"
 # The blocking driver's form, refused with a pointer to the async one.
@@ -45,7 +47,7 @@ class Settings(BaseSettings):
         database_url: A SQLAlchemy URL for an async driver —
             ``sqlite+aiosqlite:///<path>`` for a SQLite file or
             ``postgresql+asyncpg://...`` for a PostgreSQL server — selects the
-            SQL repository; unset (or set to an empty string) keeps to-dos in
+            SQL repositories; unset (or set to an empty string) keeps to-dos and sessions in
             memory for the life of the process. Read from
             ``INTENT_TO_ENGLISH_DATABASE_URL``. The database must already be migrated
             (``just backend db-upgrade``): the app never creates its schema.
@@ -53,6 +55,10 @@ class Settings(BaseSettings):
             comma-separated ``INTENT_TO_ENGLISH_CORS_ORIGINS``; empty disables CORS.
         log_level: DEBUG, INFO, WARNING or ERROR, case-insensitive; blank uses INFO.
         log_format: text or JSON lines; blank uses text.
+        openrouter_api_key: Optional secret read from unprefixed OPENROUTER_API_KEY.
+        model_mode: auto or fixed; blank uses auto. Composition currently stays fixed.
+        coach_model: The Coach model id, defaulting when empty.
+        partner_model: The Partner model id, defaulting when empty.
     """
 
     model_config = SettingsConfigDict(
@@ -66,6 +72,41 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = []
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["text", "json"] = "text"
+    # alias keeps the typed constructor aligned with validation_alias; no field-name fallback.
+    openrouter_api_key: SecretStr | None = Field(
+        default=None,
+        alias="OPENROUTER_API_KEY",
+        validation_alias="OPENROUTER_API_KEY",
+        repr=False,
+    )
+    model_mode: Literal["auto", "fixed"] = "auto"
+    coach_model: str = DEFAULT_COACH_MODEL
+    partner_model: str = DEFAULT_PARTNER_MODEL
+
+    @field_validator("openrouter_api_key", mode="before")
+    @classmethod
+    def _parse_provider_key(cls, value: object) -> object:
+        """Keep a blank shell/dotenv key from selecting a provider."""
+        text = value.get_secret_value() if isinstance(value, SecretStr) else value
+        return None if isinstance(text, str) and not text.strip() else value
+
+    @field_validator("model_mode", mode="before")
+    @classmethod
+    def _parse_model_mode(cls, value: object) -> object:
+        """An empty example-file value keeps the default mode."""
+        return "auto" if value == "" else value
+
+    @field_validator("coach_model", mode="before")
+    @classmethod
+    def _parse_coach_model(cls, value: object) -> object:
+        """Default an empty id and name the variable for whitespace-only input."""
+        return _model_id(value, DEFAULT_COACH_MODEL, f"{ENV_PREFIX}COACH_MODEL")
+
+    @field_validator("partner_model", mode="before")
+    @classmethod
+    def _parse_partner_model(cls, value: object) -> object:
+        """Default an empty id and name the variable for whitespace-only input."""
+        return _model_id(value, DEFAULT_PARTNER_MODEL, f"{ENV_PREFIX}PARTNER_MODEL")
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -138,6 +179,16 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
         return value
+
+
+def _model_id(value: object, default: str, variable: str) -> object:
+    """Preserve model ids while refusing a whitespace-only configuration."""
+    if value == "":
+        return default
+    if isinstance(value, str) and not value.strip():
+        msg = f"{variable} must not contain only whitespace"
+        raise ValueError(msg)
+    return value
 
 
 def _check_sqlite_path(url: str, path: str) -> None:

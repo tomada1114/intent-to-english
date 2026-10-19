@@ -37,9 +37,9 @@ backend/
 ├── var/             # Gitignored: the development database, dev.db
 ├── src/intent_to_english/
 │   ├── core/            # Framework-free: domain model, ports (Protocols), services, errors
-│   ├── adapters/        # Port implementations: in-memory, and SQL (adapters/sql/: tables, engine, repository)
+│   ├── adapters/        # Port implementations: memory/SQL repositories and models/fixed.py
 │   ├── api/             # FastAPI: create_app(settings) factory, routers (api/routers/), Pydantic schemas
-│   ├── settings.py      # pydantic-settings `Settings`, read from INTENT_TO_ENGLISH_* environment variables
+│   ├── settings.py      # Prefixed settings and the unprefixed OPENROUTER_API_KEY secret alias
 │   └── composition.py   # Composition root: wires adapters into services for the API
 └── tests/           # The app's suite, mirroring src/intent_to_english/ (`placing-tests`)
 ```
@@ -53,6 +53,10 @@ backend/
   They run on the resource's event loop in a separate Task/Context and never suppress
   body errors. Scope-bound managers stay with their acquiring caller
   (`designing-core-logic`).
+- The container supplies both TodoService and ConversationService. Their SQL
+  repositories share one lazy engine and disposal callback; without a database URL
+  both stores are in memory. Both model roles currently use the fixed adapters in
+  every configured mode, and meta reads that selected mode from the container.
 - Domain errors derive from `core.errors.AppError`; the API maps them in one
   place (`api/app.py`), per `designing-errors`.
 - The schema belongs to the migrations: the app never creates or alters a table,

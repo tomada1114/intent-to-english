@@ -5,6 +5,557 @@ export type ClientOptions = {
 };
 
 /**
+ * AcknowledgmentEntryResponse
+ *
+ * A acknowledgment timeline entry.
+ */
+export type AcknowledgmentEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'acknowledgment';
+    payload: AcknowledgmentPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * AcknowledgmentPayloadResponse
+ *
+ * The AcknowledgmentPayload wire fields.
+ */
+export type AcknowledgmentPayloadResponse = {
+    /**
+     * Build Hint
+     */
+    build_hint: string | null;
+    /**
+     * Line
+     */
+    line: string;
+};
+
+/**
+ * Action
+ *
+ * The closed set of action values shared by every layer.
+ */
+export type Action = 'open' | 'intent' | 'english_direct' | 'english' | 'hint' | 'reading' | 'retry' | 'show_answer' | 'typed_copy' | 'skip' | 'partner_reply' | 'restate' | 'rewrite_intent' | 'practice_again' | 'ask' | 'end' | 'wrap_up';
+
+export type ActionInputResponse = NoInputResponse | TextInputResponse | HintInputResponse | ReadingInputResponse | RestateInputResponse;
+
+/**
+ * AnswerEntryResponse
+ *
+ * A answer timeline entry.
+ */
+export type AnswerEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'answer';
+    payload: AnswerPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * AnswerPayloadResponse
+ *
+ * The AnswerPayload wire fields.
+ */
+export type AnswerPayloadResponse = {
+    /**
+     * Example
+     */
+    example: string;
+};
+
+/**
+ * AskActionRequest
+ *
+ * Body for the ask action.
+ */
+export type AskActionRequest = {
+    /**
+     * Action
+     */
+    action: 'ask';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * BlankOffResponse
+ *
+ * The missing blanks and their larger hint.
+ */
+export type BlankOffResponse = {
+    /**
+     * Blanks
+     */
+    blanks: Array<number>;
+    /**
+     * Hint
+     */
+    hint: string;
+    /**
+     * Readings Noted
+     */
+    readings_noted: Array<ReadingNoteResponse>;
+};
+
+/**
+ * CancelSessionRequest
+ *
+ * The version of the awaited action being abandoned.
+ */
+export type CancelSessionRequest = {
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * CheckInAnswer
+ *
+ * The closed set of checkinanswer values shared by every layer.
+ */
+export type CheckInAnswer = 'continue' | 'end';
+
+/**
+ * CheckInAnswerEntryResponse
+ *
+ * A check_in_answer timeline entry.
+ */
+export type CheckInAnswerEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'check_in_answer';
+    payload: CheckInAnswerPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * CheckInAnswerPayloadResponse
+ *
+ * The CheckInAnswerPayload wire fields.
+ */
+export type CheckInAnswerPayloadResponse = {
+    answer: CheckInAnswer;
+};
+
+/**
+ * CheckInEntryResponse
+ *
+ * A check_in timeline entry.
+ */
+export type CheckInEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'check_in';
+    payload: EmptyPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * CoachAnswerEntryResponse
+ *
+ * A coach_answer timeline entry.
+ */
+export type CoachAnswerEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'coach_answer';
+    payload: CoachAnswerPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * CoachAnswerPayloadResponse
+ *
+ * The CoachAnswerPayload wire fields.
+ */
+export type CoachAnswerPayloadResponse = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * EmptyPayloadResponse
+ *
+ * The EmptyPayload wire fields.
+ */
+export type EmptyPayloadResponse = {
+    [key: string]: never;
+};
+
+/**
+ * EndActionRequest
+ *
+ * Body for the end action.
+ */
+export type EndActionRequest = {
+    /**
+     * Action
+     */
+    action: 'end';
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * EnglishActionRequest
+ *
+ * Body for the english action.
+ */
+export type EnglishActionRequest = {
+    /**
+     * Action
+     */
+    action: 'english';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * EnglishDirectActionRequest
+ *
+ * Body for the english_direct action.
+ */
+export type EnglishDirectActionRequest = {
+    /**
+     * Action
+     */
+    action: 'english_direct';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * EnglishEntryResponse
+ *
+ * A english timeline entry.
+ */
+export type EnglishEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'english';
+    payload: EnglishPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * EnglishPayloadResponse
+ *
+ * The EnglishPayload wire fields.
+ */
+export type EnglishPayloadResponse = {
+    /**
+     * Is Direct
+     */
+    is_direct: boolean;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * FeedbackEntryResponse
+ *
+ * A feedback timeline entry.
+ */
+export type FeedbackEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'feedback';
+    payload: FeedbackPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * FeedbackPayloadResponse
+ *
+ * The FeedbackPayload wire fields.
+ */
+export type FeedbackPayloadResponse = {
+    feedback: FeedbackResponse;
+    /**
+     * Intent
+     */
+    intent: string | null;
+};
+
+/**
+ * FeedbackResponse
+ *
+ * The checked feedback and its optional retry template.
+ */
+export type FeedbackResponse = {
+    /**
+     * First Line
+     */
+    first_line: string;
+    /**
+     * Fixes
+     */
+    fixes: Array<FixResponse>;
+    /**
+     * Readings Noted
+     */
+    readings_noted: Array<ReadingNoteResponse>;
+    /**
+     * Request Line
+     */
+    request_line: string | null;
+    /**
+     * Sentence
+     */
+    sentence: string | null;
+    /**
+     * Template
+     */
+    template: string | null;
+};
+
+/**
+ * FixResponse
+ *
+ * One numbered sentence-ordered fix.
+ */
+export type FixResponse = {
+    /**
+     * Number
+     */
+    number: number;
+    /**
+     * Original
+     */
+    original: string | null;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Replacement
+     */
+    replacement: string;
+    tag: FixTag;
+};
+
+/**
+ * FixTag
+ *
+ * The closed set of fixtag values shared by every layer.
+ */
+export type FixTag = 'miss' | 'improvement';
+
+/**
+ * GapHintEntryResponse
+ *
+ * A gap_hint timeline entry.
+ */
+export type GapHintEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'gap_hint';
+    payload: GapHintPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * GapHintPayloadResponse
+ *
+ * The GapHintPayload wire fields.
+ */
+export type GapHintPayloadResponse = {
+    /**
+     * Hint
+     */
+    hint: string;
+};
+
+/**
  * HealthResponse
  *
  * Body of ``GET /healthz``.
@@ -14,6 +565,444 @@ export type HealthResponse = {
      * Status
      */
     status?: 'ok';
+};
+
+/**
+ * HintActionRequest
+ *
+ * Body for the hint action.
+ */
+export type HintActionRequest = {
+    /**
+     * Action
+     */
+    action: 'hint';
+    /**
+     * Gap
+     */
+    gap: string;
+    /**
+     * Partial English
+     */
+    partial_english?: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * HintInputResponse
+ *
+ * A recoverable gap request.
+ */
+export type HintInputResponse = {
+    /**
+     * Gap
+     */
+    gap: string;
+    /**
+     * Partial English
+     */
+    partial_english: string;
+};
+
+/**
+ * HintRequestEntryResponse
+ *
+ * A hint_request timeline entry.
+ */
+export type HintRequestEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'hint_request';
+    payload: HintRequestPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * HintRequestPayloadResponse
+ *
+ * The HintRequestPayload wire fields.
+ */
+export type HintRequestPayloadResponse = {
+    /**
+     * Gap
+     */
+    gap: string;
+    /**
+     * Partial English
+     */
+    partial_english: string;
+};
+
+/**
+ * IntentActionRequest
+ *
+ * Body for the intent action.
+ */
+export type IntentActionRequest = {
+    /**
+     * Action
+     */
+    action: 'intent';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * IntentEntryResponse
+ *
+ * A intent timeline entry.
+ */
+export type IntentEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'intent';
+    payload: IntentPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * IntentPayloadResponse
+ *
+ * The IntentPayload wire fields.
+ */
+export type IntentPayloadResponse = {
+    /**
+     * Is Replacement
+     */
+    is_replacement: boolean;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * LastSubmissionResponse
+ *
+ * Pending or recoverable input without internal submission identity.
+ */
+export type LastSubmissionResponse = {
+    action: Action;
+    /**
+     * Failure Code
+     */
+    failure_code: string | null;
+    input: ActionInputResponse;
+    state: LastSubmissionState;
+};
+
+/**
+ * LastSubmissionState
+ *
+ * The closed set of lastsubmissionstate values shared by every layer.
+ */
+export type LastSubmissionState = 'pending' | 'failed' | 'interrupted';
+
+/**
+ * LineKind
+ *
+ * The closed set of linekind values shared by every layer.
+ */
+export type LineKind = 'opener' | 'reply' | 'restatement';
+
+/**
+ * MetaResponse
+ *
+ * The mode selected by the process container.
+ */
+export type MetaResponse = {
+    /**
+     * Model Mode
+     */
+    model_mode: 'fixed' | 'openrouter';
+};
+
+/**
+ * NoInputResponse
+ *
+ * An action without learner input.
+ */
+export type NoInputResponse = {
+    [key: string]: never;
+};
+
+/**
+ * OpenActionRequest
+ *
+ * Body for the open action.
+ */
+export type OpenActionRequest = {
+    /**
+     * Action
+     */
+    action: 'open';
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * PartnerLineEntryResponse
+ *
+ * A partner_line timeline entry.
+ */
+export type PartnerLineEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'partner_line';
+    payload: PartnerLinePayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * PartnerLinePayloadResponse
+ *
+ * The PartnerLinePayload wire fields.
+ */
+export type PartnerLinePayloadResponse = {
+    /**
+     * Has Question
+     */
+    has_question: boolean;
+    line_kind: LineKind;
+    restate_mode: RestateMode | null;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * PartnerReplyActionRequest
+ *
+ * Body for the partner_reply action.
+ */
+export type PartnerReplyActionRequest = {
+    /**
+     * Action
+     */
+    action: 'partner_reply';
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * PieceGivenResponse
+ *
+ * The remaining pieces at the end of a retry.
+ */
+export type PieceGivenResponse = {
+    /**
+     * Line
+     */
+    line: string;
+    /**
+     * Pieces
+     */
+    pieces: Array<PieceResponse>;
+};
+
+/**
+ * PieceResponse
+ *
+ * One requested piece after the second retry.
+ */
+export type PieceResponse = {
+    /**
+     * Number
+     */
+    number: number;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * PracticeAgainActionRequest
+ *
+ * Body for the practice_again action.
+ */
+export type PracticeAgainActionRequest = {
+    /**
+     * Action
+     */
+    action: 'practice_again';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * PracticeEntryResponse
+ *
+ * A practice timeline entry.
+ */
+export type PracticeEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'practice';
+    payload: PracticePayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * PracticePayloadResponse
+ *
+ * The PracticePayload wire fields.
+ */
+export type PracticePayloadResponse = {
+    /**
+     * Sentence
+     */
+    sentence: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * PracticeResultEntryResponse
+ *
+ * A practice_result timeline entry.
+ */
+export type PracticeResultEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'practice_result';
+    payload: PracticeResultPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * PracticeResultPayloadResponse
+ *
+ * The PracticeResultPayload wire fields.
+ */
+export type PracticeResultPayloadResponse = {
+    result: RetryResultResponse;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
 };
 
 /**
@@ -73,6 +1062,602 @@ export type ProblemFieldError = {
 };
 
 /**
+ * QuestionEntryResponse
+ *
+ * A question timeline entry.
+ */
+export type QuestionEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'question';
+    payload: QuestionPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * QuestionPayloadResponse
+ *
+ * The QuestionPayload wire fields.
+ */
+export type QuestionPayloadResponse = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * ReadingActionRequest
+ *
+ * Body for the reading action.
+ */
+export type ReadingActionRequest = {
+    /**
+     * Action
+     */
+    action: 'reading';
+    /**
+     * Reading
+     */
+    reading: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * ReadingChoiceEntryResponse
+ *
+ * A reading_choice timeline entry.
+ */
+export type ReadingChoiceEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'reading_choice';
+    payload: ReadingChoicePayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * ReadingChoicePayloadResponse
+ *
+ * The ReadingChoicePayload wire fields.
+ */
+export type ReadingChoicePayloadResponse = {
+    /**
+     * Chosen
+     */
+    chosen: string;
+    /**
+     * Word
+     */
+    word: string;
+};
+
+/**
+ * ReadingInputResponse
+ *
+ * A recoverable reading choice.
+ */
+export type ReadingInputResponse = {
+    /**
+     * Reading
+     */
+    reading: string;
+};
+
+/**
+ * ReadingNoteResponse
+ *
+ * The written word and the interpretation used.
+ */
+export type ReadingNoteResponse = {
+    /**
+     * Read As
+     */
+    read_as: string;
+    /**
+     * Written
+     */
+    written: string;
+};
+
+/**
+ * ReadingQuestionEntryResponse
+ *
+ * A reading_question timeline entry.
+ */
+export type ReadingQuestionEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'reading_question';
+    payload: ReadingQuestionPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * ReadingQuestionPayloadResponse
+ *
+ * The ReadingQuestionPayload wire fields.
+ */
+export type ReadingQuestionPayloadResponse = {
+    /**
+     * Readings
+     */
+    readings: [
+        string,
+        string
+    ];
+    /**
+     * Word
+     */
+    word: string;
+};
+
+/**
+ * RestateActionRequest
+ *
+ * Body for the restate action.
+ */
+export type RestateActionRequest = {
+    /**
+     * Action
+     */
+    action: 'restate';
+    mode: RestateMode;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * RestateInputResponse
+ *
+ * A recoverable restatement request.
+ */
+export type RestateInputResponse = {
+    mode: RestateMode;
+};
+
+/**
+ * RestateMode
+ *
+ * The closed set of restatemode values shared by every layer.
+ */
+export type RestateMode = 'shorter' | 'simpler';
+
+/**
+ * RetryAcceptedResponse
+ *
+ * A retry that conveys the intended English.
+ */
+export type RetryAcceptedResponse = {
+    /**
+     * Line
+     */
+    line: string;
+    /**
+     * Readings Noted
+     */
+    readings_noted: Array<ReadingNoteResponse>;
+};
+
+/**
+ * RetryActionRequest
+ *
+ * Body for the retry action.
+ */
+export type RetryActionRequest = {
+    /**
+     * Action
+     */
+    action: 'retry';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * RetryEntryResponse
+ *
+ * A retry timeline entry.
+ */
+export type RetryEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'retry';
+    payload: RetryPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * RetryPayloadResponse
+ *
+ * The RetryPayload wire fields.
+ */
+export type RetryPayloadResponse = {
+    /**
+     * Sentence
+     */
+    sentence: string;
+    /**
+     * Submission Number
+     */
+    submission_number: number;
+};
+
+/**
+ * RetryResultEntryResponse
+ *
+ * A retry_result timeline entry.
+ */
+export type RetryResultEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'retry_result';
+    payload: RetryResultPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * RetryResultPayloadResponse
+ *
+ * The RetryResultPayload wire fields.
+ */
+export type RetryResultPayloadResponse = {
+    result: RetryResultResponse;
+};
+
+export type RetryResultResponse = RetryAcceptedResponse | BlankOffResponse | PieceGivenResponse;
+
+/**
+ * RewriteIntentActionRequest
+ *
+ * Body for the rewrite_intent action.
+ */
+export type RewriteIntentActionRequest = {
+    /**
+     * Action
+     */
+    action: 'rewrite_intent';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * SessionPageResponse
+ *
+ * One bounded page and its opaque continuation cursor.
+ */
+export type SessionPageResponse = {
+    /**
+     * Items
+     */
+    items: Array<SessionSummaryResponse>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: string | null;
+};
+
+/**
+ * SessionResponse
+ *
+ * The complete public session view, independent of internal working state.
+ */
+export type SessionResponse = {
+    /**
+     * Allowed Actions
+     */
+    allowed_actions: Array<Action>;
+    /**
+     * Ended At
+     */
+    ended_at: string | null;
+    /**
+     * Entries
+     */
+    entries: Array<TimelineEntryResponse>;
+    /**
+     * Finished Replies
+     */
+    finished_replies: number;
+    /**
+     * Id
+     */
+    id: string;
+    last_submission: LastSubmissionResponse | null;
+    stage: Stage;
+    /**
+     * Started At
+     */
+    started_at: string;
+    status: SessionStatus;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+    /**
+     * Version
+     */
+    version: number;
+    wrap_up: WrapUpResponse | null;
+};
+
+/**
+ * SessionStatus
+ *
+ * The closed set of sessionstatus values shared by every layer.
+ */
+export type SessionStatus = 'in_progress' | 'ended';
+
+/**
+ * SessionSummaryResponse
+ *
+ * One row of the newest-first session list.
+ */
+export type SessionSummaryResponse = {
+    /**
+     * Finished Replies
+     */
+    finished_replies: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Opener
+     */
+    opener: string | null;
+    /**
+     * Started At
+     */
+    started_at: string;
+    status: SessionStatus;
+};
+
+/**
+ * ShowAnswerActionRequest
+ *
+ * Body for the show_answer action.
+ */
+export type ShowAnswerActionRequest = {
+    /**
+     * Action
+     */
+    action: 'show_answer';
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * SkipActionRequest
+ *
+ * Body for the skip action.
+ */
+export type SkipActionRequest = {
+    /**
+     * Action
+     */
+    action: 'skip';
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * SkipEntryResponse
+ *
+ * A skip timeline entry.
+ */
+export type SkipEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'skip';
+    payload: EmptyPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * Stage
+ *
+ * The closed set of stage values shared by every layer.
+ */
+export type Stage = 'opening' | 'intent' | 'english' | 'reading_check' | 'retry' | 'answer_shown' | 'partner_turn' | 'check_in' | 'ended';
+
+/**
+ * TextInputResponse
+ *
+ * Recoverable learner text.
+ */
+export type TextInputResponse = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+export type TimelineEntryResponse = ({
+    kind: 'partner_line';
+} & PartnerLineEntryResponse) | ({
+    kind: 'intent';
+} & IntentEntryResponse) | ({
+    kind: 'acknowledgment';
+} & AcknowledgmentEntryResponse) | ({
+    kind: 'english';
+} & EnglishEntryResponse) | ({
+    kind: 'hint_request';
+} & HintRequestEntryResponse) | ({
+    kind: 'gap_hint';
+} & GapHintEntryResponse) | ({
+    kind: 'reading_question';
+} & ReadingQuestionEntryResponse) | ({
+    kind: 'reading_choice';
+} & ReadingChoiceEntryResponse) | ({
+    kind: 'feedback';
+} & FeedbackEntryResponse) | ({
+    kind: 'retry';
+} & RetryEntryResponse) | ({
+    kind: 'retry_result';
+} & RetryResultEntryResponse) | ({
+    kind: 'answer';
+} & AnswerEntryResponse) | ({
+    kind: 'typed_copy';
+} & TypedCopyEntryResponse) | ({
+    kind: 'skip';
+} & SkipEntryResponse) | ({
+    kind: 'turn_done';
+} & TurnDoneEntryResponse) | ({
+    kind: 'question';
+} & QuestionEntryResponse) | ({
+    kind: 'coach_answer';
+} & CoachAnswerEntryResponse) | ({
+    kind: 'check_in';
+} & CheckInEntryResponse) | ({
+    kind: 'check_in_answer';
+} & CheckInAnswerEntryResponse) | ({
+    kind: 'practice';
+} & PracticeEntryResponse) | ({
+    kind: 'practice_result';
+} & PracticeResultEntryResponse);
+
+/**
  * TodoCreateRequest
  *
  * Body of ``POST /api/todos``.
@@ -129,6 +1714,455 @@ export type TodoResponse = {
      */
     title: string;
 };
+
+/**
+ * TurnDoneEntryResponse
+ *
+ * A turn_done timeline entry.
+ */
+export type TurnDoneEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'turn_done';
+    payload: TurnDonePayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * TurnDonePayloadResponse
+ *
+ * The TurnDonePayload wire fields.
+ */
+export type TurnDonePayloadResponse = {
+    end: TurnEnd;
+    /**
+     * English
+     */
+    english: string;
+};
+
+/**
+ * TurnEnd
+ *
+ * The closed set of turnend values shared by every layer.
+ */
+export type TurnEnd = 'accepted' | 'skipped' | 'answer_typed' | 'no_fix_needed' | 'piece_given';
+
+/**
+ * TypedCopyActionRequest
+ *
+ * Body for the typed_copy action.
+ */
+export type TypedCopyActionRequest = {
+    /**
+     * Action
+     */
+    action: 'typed_copy';
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * TypedCopyEntryResponse
+ *
+ * A typed_copy timeline entry.
+ */
+export type TypedCopyEntryResponse = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'typed_copy';
+    payload: TypedCopyPayloadResponse;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Session Id
+     */
+    session_id: string;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+};
+
+/**
+ * TypedCopyPayloadResponse
+ *
+ * The TypedCopyPayload wire fields.
+ */
+export type TypedCopyPayloadResponse = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * WrapUpActionRequest
+ *
+ * Body for the wrap_up action.
+ */
+export type WrapUpActionRequest = {
+    /**
+     * Action
+     */
+    action: 'wrap_up';
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * WrapUpItemResponse
+ *
+ * An expression encountered during this session.
+ */
+export type WrapUpItemResponse = {
+    /**
+     * Note
+     */
+    note: string;
+    /**
+     * Phrase
+     */
+    phrase: string;
+};
+
+/**
+ * WrapUpResponse
+ *
+ * An empty list differs from a wrap-up that is still due.
+ */
+export type WrapUpResponse = {
+    /**
+     * Items
+     */
+    items: Array<WrapUpItemResponse>;
+};
+
+export type GetMetaData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/meta';
+};
+
+export type GetMetaErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unprocessable Content
+     */
+    422: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetMetaError = GetMetaErrors[keyof GetMetaErrors];
+
+export type GetMetaResponses = {
+    /**
+     * Successful Response
+     */
+    200: MetaResponse;
+};
+
+export type GetMetaResponse = GetMetaResponses[keyof GetMetaResponses];
+
+export type ListSessionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Cursor
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/sessions';
+};
+
+export type ListSessionsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unprocessable Content
+     */
+    422: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type ListSessionsError = ListSessionsErrors[keyof ListSessionsErrors];
+
+export type ListSessionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionPageResponse;
+};
+
+export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
+
+export type CreateSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/sessions';
+};
+
+export type CreateSessionErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unprocessable Content
+     */
+    422: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateSessionError = CreateSessionErrors[keyof CreateSessionErrors];
+
+export type CreateSessionResponses = {
+    /**
+     * Successful Response
+     */
+    201: SessionResponse;
+};
+
+export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
+export type GetSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/sessions/{session_id}';
+};
+
+export type GetSessionErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Unprocessable Content
+     */
+    422: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetSessionError = GetSessionErrors[keyof GetSessionErrors];
+
+export type GetSessionResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionResponse;
+};
+
+export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type PerformSessionActionData = {
+    /**
+     * Body
+     */
+    body: ({
+        action: 'open';
+    } & OpenActionRequest) | ({
+        action: 'intent';
+    } & IntentActionRequest) | ({
+        action: 'english_direct';
+    } & EnglishDirectActionRequest) | ({
+        action: 'english';
+    } & EnglishActionRequest) | ({
+        action: 'hint';
+    } & HintActionRequest) | ({
+        action: 'reading';
+    } & ReadingActionRequest) | ({
+        action: 'retry';
+    } & RetryActionRequest) | ({
+        action: 'show_answer';
+    } & ShowAnswerActionRequest) | ({
+        action: 'typed_copy';
+    } & TypedCopyActionRequest) | ({
+        action: 'skip';
+    } & SkipActionRequest) | ({
+        action: 'partner_reply';
+    } & PartnerReplyActionRequest) | ({
+        action: 'restate';
+    } & RestateActionRequest) | ({
+        action: 'rewrite_intent';
+    } & RewriteIntentActionRequest) | ({
+        action: 'practice_again';
+    } & PracticeAgainActionRequest) | ({
+        action: 'ask';
+    } & AskActionRequest) | ({
+        action: 'end';
+    } & EndActionRequest) | ({
+        action: 'wrap_up';
+    } & WrapUpActionRequest);
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/sessions/{session_id}/actions';
+};
+
+export type PerformSessionActionErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Unprocessable Content
+     */
+    422: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+    /**
+     * Bad Gateway
+     */
+    502: ProblemDetails;
+    /**
+     * Service Unavailable
+     */
+    503: ProblemDetails;
+    /**
+     * Gateway Timeout
+     */
+    504: ProblemDetails;
+};
+
+export type PerformSessionActionError = PerformSessionActionErrors[keyof PerformSessionActionErrors];
+
+export type PerformSessionActionResponses = {
+    /**
+     * Successful Response
+     */
+    200: SessionResponse;
+};
+
+export type PerformSessionActionResponse = PerformSessionActionResponses[keyof PerformSessionActionResponses];
+
+export type CancelSessionActionData = {
+    body: CancelSessionRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/api/sessions/{session_id}/cancel';
+};
+
+export type CancelSessionActionErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Unprocessable Content
+     */
+    422: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type CancelSessionActionError = CancelSessionActionErrors[keyof CancelSessionActionErrors];
+
+export type CancelSessionActionResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type CancelSessionActionResponse = CancelSessionActionResponses[keyof CancelSessionActionResponses];
 
 export type ListTodosData = {
     body?: never;

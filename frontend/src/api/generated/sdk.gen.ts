@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CompleteTodoData, CompleteTodoErrors, CompleteTodoResponses, CreateTodoData, CreateTodoErrors, CreateTodoResponses, DeleteTodoData, DeleteTodoErrors, DeleteTodoResponses, HealthzData, HealthzErrors, HealthzResponses, ListTodosData, ListTodosErrors, ListTodosResponses } from './types.gen';
+import type { CancelSessionActionData, CancelSessionActionErrors, CancelSessionActionResponses, CompleteTodoData, CompleteTodoErrors, CompleteTodoResponses, CreateSessionData, CreateSessionErrors, CreateSessionResponses, CreateTodoData, CreateTodoErrors, CreateTodoResponses, DeleteTodoData, DeleteTodoErrors, DeleteTodoResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetSessionData, GetSessionErrors, GetSessionResponses, HealthzData, HealthzErrors, HealthzResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListTodosData, ListTodosErrors, ListTodosResponses, PerformSessionActionData, PerformSessionActionErrors, PerformSessionActionResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,62 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Get Meta
+ *
+ * Report the mode selected by the application's container.
+ */
+export const getMeta = <ThrowOnError extends boolean = false>(options?: Options<GetMetaData, ThrowOnError>): RequestResult<GetMetaResponses, GetMetaErrors, ThrowOnError> => (options?.client ?? client).get<GetMetaResponses, GetMetaErrors, ThrowOnError>({ url: '/api/meta', ...options });
+
+/**
+ * List Sessions
+ *
+ * List one page of sessions, newest first.
+ */
+export const listSessions = <ThrowOnError extends boolean = false>(options?: Options<ListSessionsData, ThrowOnError>): RequestResult<ListSessionsResponses, ListSessionsErrors, ThrowOnError> => (options?.client ?? client).get<ListSessionsResponses, ListSessionsErrors, ThrowOnError>({ url: '/api/sessions', ...options });
+
+/**
+ * Create Session
+ *
+ * Create an opening session before any model request.
+ */
+export const createSession = <ThrowOnError extends boolean = false>(options?: Options<CreateSessionData, ThrowOnError>): RequestResult<CreateSessionResponses, CreateSessionErrors, ThrowOnError> => (options?.client ?? client).post<CreateSessionResponses, CreateSessionErrors, ThrowOnError>({ url: '/api/sessions', ...options });
+
+/**
+ * Get Session
+ *
+ * Read a session's timeline and recoverable input.
+ */
+export const getSession = <ThrowOnError extends boolean = false>(options: Options<GetSessionData, ThrowOnError>): RequestResult<GetSessionResponses, GetSessionErrors, ThrowOnError> => (options.client ?? client).get<GetSessionResponses, GetSessionErrors, ThrowOnError>({ url: '/api/sessions/{session_id}', ...options });
+
+/**
+ * Perform Session Action
+ *
+ * Apply one action at the version the learner answered.
+ */
+export const performSessionAction = <ThrowOnError extends boolean = false>(options: Options<PerformSessionActionData, ThrowOnError>): RequestResult<PerformSessionActionResponses, PerformSessionActionErrors, ThrowOnError> => (options.client ?? client).post<PerformSessionActionResponses, PerformSessionActionErrors, ThrowOnError>({
+    url: '/api/sessions/{session_id}/actions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Cancel Session Action
+ *
+ * Cancel pending work at the supplied version, including an absent target.
+ */
+export const cancelSessionAction = <ThrowOnError extends boolean = false>(options: Options<CancelSessionActionData, ThrowOnError>): RequestResult<CancelSessionActionResponses, CancelSessionActionErrors, ThrowOnError> => (options.client ?? client).post<CancelSessionActionResponses, CancelSessionActionErrors, ThrowOnError>({
+    url: '/api/sessions/{session_id}/cancel',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * List Todos

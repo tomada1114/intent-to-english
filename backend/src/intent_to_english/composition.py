@@ -11,21 +11,32 @@ import uuid
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 from anyio import CancelScope
 from anyio.lowlevel import checkpoint_if_cancelled
 
-from intent_to_english.adapters.memory import InMemoryTodoRepository
+from intent_to_english.adapters.memory import (
+    InMemorySessionRepository,
+    InMemoryTodoRepository,
+)
+from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.repository import SqlTodoRepository
-from intent_to_english.core.services import TodoService
+from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
+from intent_to_english.core.services import ConversationService, TodoService
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from types import TracebackType
+    from uuid import UUID
 
-    from intent_to_english.core.ports import Clock, IdFactory, TodoRepository
+    from intent_to_english.core.ports import (
+        Clock,
+        IdFactory,
+        SessionRepository,
+        TodoRepository,
+    )
     from intent_to_english.settings import Settings
 
 
@@ -83,6 +94,8 @@ class Container:
     """The services an entry point may call, built once per process."""
 
     todos: TodoService
+    conversations: ConversationService = field(kw_only=True)
+    model_mode: Literal["fixed", "openrouter"] = field(default="fixed", kw_only=True)
     _resources: ResourceClosers = field(
         default_factory=ResourceClosers, repr=False, compare=False
     )
@@ -158,7 +171,11 @@ def utc_now() -> datetime:
 
 
 def build_container(
-    settings: Settings, clock: Clock = utc_now, new_id: IdFactory = uuid.uuid7
+    settings: Settings,
+    clock: Clock = utc_now,
+    new_id: IdFactory = uuid.uuid7,
+    *,
+    boot_id: UUID | None = None,
 ) -> Container:
     """Choose the adapters ``settings`` asks for and wire them into services.
 
@@ -175,19 +192,36 @@ def build_container(
         clock: Stamps new to-dos; tests pass a fixed one.
         new_id: Gives new to-dos their ids; ``uuid.uuid7``, whose ids ascend
             in creation order, unless a test passes a predictable factory.
+        boot_id: One process identity; tests may inject it to check interruption.
 
     Returns:
         The services and their owned resources, ready for an entry point to
         call. Await ``aclose()``, or use it with ``async with``, when done.
     """
     resources = ResourceClosers()
-    repository = _build_repository(settings, resources)
-    todos = TodoService(repository, clock, new_id)
-    return Container(todos=todos, _resources=resources)
+    todo_repository, session_repository = _build_repositories(settings, resources)
+    todos = TodoService(todo_repository, clock, new_id)
+    conversations = ConversationService(
+        session_repository,
+        FixedPartnerModel(),
+        FixedCoachModel(),
+        clock,
+        new_id,
+        boot_id if boot_id is not None else uuid.uuid7(),
+    )
+    # The live composition branch belongs to #28; a key never activates billing here.
+    return Container(
+        todos=todos,
+        conversations=conversations,
+        model_mode="fixed",
+        _resources=resources,
+    )
 
 
-def _build_repository(settings: Settings, resources: ResourceClosers) -> TodoRepository:
-    """Return the SQL repository when a database URL is configured, else memory.
+def _build_repositories(
+    settings: Settings, resources: ResourceClosers
+) -> tuple[TodoRepository, SessionRepository]:
+    """Return both SQL repositories on one engine, or independent memory stores.
 
     The SQL repository's engine is the one resource the container owns: it
     connects on first use, so registering ``engine.dispose`` here leaves
@@ -196,7 +230,7 @@ def _build_repository(settings: Settings, resources: ResourceClosers) -> TodoRep
     table.
     """
     if settings.database_url is None:
-        return InMemoryTodoRepository()
+        return InMemoryTodoRepository(), InMemorySessionRepository()
     engine = make_engine(settings.database_url)
     resources.push_async_callback(engine.dispose)
-    return SqlTodoRepository(engine)
+    return SqlTodoRepository(engine), SqlSessionRepository(engine)

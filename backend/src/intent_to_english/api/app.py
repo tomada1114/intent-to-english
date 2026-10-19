@@ -20,7 +20,7 @@ from intent_to_english.api.middleware import (
     RequestIdMiddleware,
     ServerDiagnosticMiddleware,
 )
-from intent_to_english.api.routers import health, todos
+from intent_to_english.api.routers import health, meta, sessions, todos
 from intent_to_english.api.schemas import (
     PROBLEM_MEDIA_TYPE,
     ProblemDetails,
@@ -30,10 +30,21 @@ from intent_to_english.api.schemas import (
 )
 from intent_to_english.composition import Container, build_container
 from intent_to_english.core.errors import (
+    ActionCancelledError,
+    ActionInProgressError,
+    ActionNotAllowedError,
     AppError,
     InvalidCursorError,
+    InvalidInputError,
     InvalidPageLimitError,
     InvalidTodoError,
+    ModelOutputInvalidError,
+    ModelRateLimitedError,
+    ModelTimeoutError,
+    ModelUnavailableError,
+    SessionEndedError,
+    SessionNotFoundError,
+    StaleSessionError,
     TodoNotFoundError,
 )
 from intent_to_english.logging_config import configure_logging, request_id_var
@@ -180,6 +191,8 @@ def create_app(
     app.state.container = services
     app.include_router(health.router)
     app.include_router(todos.router, prefix=API_PREFIX)
+    app.include_router(sessions.router, prefix=API_PREFIX)
+    app.include_router(meta.router, prefix=API_PREFIX)
     # The decorator form, unlike add_exception_handler, type-checks a handler
     # that takes AppError rather than any Exception.
     app.exception_handler(AppError)(_handle_app_error)
@@ -203,10 +216,29 @@ def _status_for(error: AppError) -> HTTPStatus:
         The status to answer with.
     """
     match error:
-        case TodoNotFoundError():
+        case TodoNotFoundError() | SessionNotFoundError():
             status = HTTPStatus.NOT_FOUND
-        case InvalidTodoError() | InvalidCursorError() | InvalidPageLimitError():
+        case (
+            InvalidTodoError()
+            | InvalidCursorError()
+            | InvalidPageLimitError()
+            | InvalidInputError()
+        ):
             status = HTTPStatus.UNPROCESSABLE_CONTENT
+        case (
+            StaleSessionError()
+            | ActionInProgressError()
+            | ActionNotAllowedError()
+            | SessionEndedError()
+            | ActionCancelledError()
+        ):
+            status = HTTPStatus.CONFLICT
+        case ModelTimeoutError():
+            status = HTTPStatus.GATEWAY_TIMEOUT
+        case ModelRateLimitedError():
+            status = HTTPStatus.SERVICE_UNAVAILABLE
+        case ModelUnavailableError() | ModelOutputInvalidError():
+            status = HTTPStatus.BAD_GATEWAY
         case _:
             status = HTTPStatus.BAD_REQUEST
     return status

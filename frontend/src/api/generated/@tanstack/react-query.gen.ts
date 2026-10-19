@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { completeTodo, createTodo, deleteTodo, healthz, listTodos, type Options } from '../sdk.gen';
-import type { CompleteTodoData, CompleteTodoError, CompleteTodoResponse, CreateTodoData, CreateTodoError, CreateTodoResponse, DeleteTodoData, DeleteTodoError, DeleteTodoResponse, HealthzData, HealthzError, HealthzResponse, ListTodosData, ListTodosError, ListTodosResponse } from '../types.gen';
+import { cancelSessionAction, completeTodo, createSession, createTodo, deleteTodo, getMeta, getSession, healthz, listSessions, listTodos, type Options, performSessionAction } from '../sdk.gen';
+import type { CancelSessionActionData, CancelSessionActionError, CancelSessionActionResponse, CompleteTodoData, CompleteTodoError, CompleteTodoResponse, CreateSessionData, CreateSessionError, CreateSessionResponse, CreateTodoData, CreateTodoError, CreateTodoResponse, DeleteTodoData, DeleteTodoError, DeleteTodoResponse, GetMetaData, GetMetaError, GetMetaResponse, GetSessionData, GetSessionError, GetSessionResponse, HealthzData, HealthzError, HealthzResponse, ListSessionsData, ListSessionsError, ListSessionsResponse, ListTodosData, ListTodosError, ListTodosResponse, PerformSessionActionData, PerformSessionActionError, PerformSessionActionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -39,16 +39,16 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
     return [params];
 };
 
-export const listTodosQueryKey = (options?: Options<ListTodosData>) => createQueryKey('listTodos', options);
+export const getMetaQueryKey = (options?: Options<GetMetaData>) => createQueryKey('getMeta', options);
 
 /**
- * List Todos
+ * Get Meta
  *
- * List one page of to-dos, oldest first; `next_cursor` fetches the next one.
+ * Report the mode selected by the application's container.
  */
-export const listTodosOptions = (options?: Options<ListTodosData>) => queryOptions<ListTodosResponse, ListTodosError, ListTodosResponse, ReturnType<typeof listTodosQueryKey>>({
+export const getMetaOptions = (options?: Options<GetMetaData>) => queryOptions<GetMetaResponse, GetMetaError, GetMetaResponse, ReturnType<typeof getMetaQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listTodos({
+        const { data } = await getMeta({
             ...options,
             ...queryKey[0],
             signal,
@@ -56,7 +56,27 @@ export const listTodosOptions = (options?: Options<ListTodosData>) => queryOptio
         });
         return data;
     },
-    queryKey: listTodosQueryKey(options)
+    queryKey: getMetaQueryKey(options)
+});
+
+export const listSessionsQueryKey = (options?: Options<ListSessionsData>) => createQueryKey('listSessions', options);
+
+/**
+ * List Sessions
+ *
+ * List one page of sessions, newest first.
+ */
+export const listSessionsOptions = (options?: Options<ListSessionsData>) => queryOptions<ListSessionsResponse, ListSessionsError, ListSessionsResponse, ReturnType<typeof listSessionsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listSessions({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listSessionsQueryKey(options)
 });
 
 const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
@@ -87,6 +107,135 @@ const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'hea
     }
     return params as unknown as typeof page;
 };
+
+export const listSessionsInfiniteQueryKey = (options?: Options<ListSessionsData>): QueryKey<Options<ListSessionsData>> => createQueryKey('listSessions', options, true);
+
+/**
+ * List Sessions
+ *
+ * List one page of sessions, newest first.
+ */
+export const listSessionsInfiniteOptions = (options?: Options<ListSessionsData>) => {
+    const opts = infiniteQueryOptions<ListSessionsResponse, ListSessionsError, InfiniteData<ListSessionsResponse>, QueryKey<Options<ListSessionsData>>, string | null | Pick<QueryKey<Options<ListSessionsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    {
+        initialPageParam: {},
+        getNextPageParam: () => undefined,
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            const page: Pick<QueryKey<Options<ListSessionsData>>[0], 'body' | 'headers' | 'path' | 'query'> = pageParam !== null && typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    cursor: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listSessions({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listSessionsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Create Session
+ *
+ * Create an opening session before any model request.
+ */
+export const createSessionMutation = (options?: Partial<Options<CreateSessionData>>): UseMutationOptions<CreateSessionResponse, CreateSessionError, Options<CreateSessionData>> => {
+    const mutationOptions: UseMutationOptions<CreateSessionResponse, CreateSessionError, Options<CreateSessionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createSession({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getSessionQueryKey = (options: Options<GetSessionData>) => createQueryKey('getSession', options);
+
+/**
+ * Get Session
+ *
+ * Read a session's timeline and recoverable input.
+ */
+export const getSessionOptions = (options: Options<GetSessionData>) => queryOptions<GetSessionResponse, GetSessionError, GetSessionResponse, ReturnType<typeof getSessionQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getSession({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getSessionQueryKey(options)
+});
+
+/**
+ * Perform Session Action
+ *
+ * Apply one action at the version the learner answered.
+ */
+export const performSessionActionMutation = (options?: Partial<Options<PerformSessionActionData>>): UseMutationOptions<PerformSessionActionResponse, PerformSessionActionError, Options<PerformSessionActionData>> => {
+    const mutationOptions: UseMutationOptions<PerformSessionActionResponse, PerformSessionActionError, Options<PerformSessionActionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await performSessionAction({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Cancel Session Action
+ *
+ * Cancel pending work at the supplied version, including an absent target.
+ */
+export const cancelSessionActionMutation = (options?: Partial<Options<CancelSessionActionData>>): UseMutationOptions<CancelSessionActionResponse, CancelSessionActionError, Options<CancelSessionActionData>> => {
+    const mutationOptions: UseMutationOptions<CancelSessionActionResponse, CancelSessionActionError, Options<CancelSessionActionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await cancelSessionAction({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listTodosQueryKey = (options?: Options<ListTodosData>) => createQueryKey('listTodos', options);
+
+/**
+ * List Todos
+ *
+ * List one page of to-dos, oldest first; `next_cursor` fetches the next one.
+ */
+export const listTodosOptions = (options?: Options<ListTodosData>) => queryOptions<ListTodosResponse, ListTodosError, ListTodosResponse, ReturnType<typeof listTodosQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listTodos({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listTodosQueryKey(options)
+});
 
 export const listTodosInfiniteQueryKey = (options?: Options<ListTodosData>): QueryKey<Options<ListTodosData>> => createQueryKey('listTodos', options, true);
 

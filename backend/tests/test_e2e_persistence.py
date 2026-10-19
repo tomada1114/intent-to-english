@@ -37,10 +37,14 @@ VERIFIER = E2E / "verify_persistence.py"
 ENVIRONMENT_TS = E2E / "environment.ts"
 ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 TITLE = "Buy milk (e2e)"
-E2E_VALUES = {
+E2E_VALUES: dict[str, object] = {
     "cors_origins": [],
     "log_level": "INFO",
     "log_format": "text",
+    "openrouter_api_key": None,
+    "model_mode": "fixed",
+    "coach_model": "anthropic/claude-sonnet-5.5",
+    "partner_model": "anthropic/claude-haiku-5.5",
 }
 
 pytestmark = pytest.mark.anyio
@@ -195,20 +199,24 @@ def test_verifier_settings_outrank_environment_and_dotenv(
     verifier, monkeypatch, tmp_path
 ):
     hostile = {
-        "DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
-        "CORS_ORIGINS": "https://hostile.example",
-        "LOG_LEVEL": "DEBUG",
-        "LOG_FORMAT": "json",
+        "INTENT_TO_ENGLISH_DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
+        "INTENT_TO_ENGLISH_CORS_ORIGINS": "https://hostile.example",
+        "INTENT_TO_ENGLISH_LOG_LEVEL": "DEBUG",
+        "INTENT_TO_ENGLISH_LOG_FORMAT": "json",
+        "OPENROUTER_API_KEY": "dummy-hostile-key",
+        "INTENT_TO_ENGLISH_MODEL_MODE": "auto",
+        "INTENT_TO_ENGLISH_COACH_MODEL": "hostile/coach",
+        "INTENT_TO_ENGLISH_PARTNER_MODEL": "hostile/partner",
     }
     dotenv = tmp_path / "scratch.env"
     dotenv.write_text(
-        "".join(f"{ENV_PREFIX}{k}={v}\n" for k, v in hostile.items()), encoding="utf-8"
+        "".join(f"{k}={v}\n" for k, v in hostile.items()), encoding="utf-8"
     )
     # As if backend/.env held the hostile values, without touching that file.
     monkeypatch.setitem(Settings.model_config, "env_file", dotenv)
     assert Settings().log_format == "json"
     for name, value in hostile.items():
-        monkeypatch.setenv(f"{ENV_PREFIX}{name}", value)
+        monkeypatch.setenv(name, value)
     url = f"sqlite+aiosqlite:///{tmp_path / 'e2e.db'}"
 
     settings = verifier.isolated_settings(url)
@@ -229,6 +237,11 @@ def test_e2e_settings_environment_names_every_settings_field():
     body = re.search(r"function settingsEnvironment\(.*?\n\}", source, re.DOTALL)
     assert body is not None
 
-    names = set(re.findall(rf"\b({ENV_PREFIX}[A-Z_]+):", body[0]))
+    names = set(re.findall(r"\b([A-Z_]+):", body[0]))
 
-    assert names == {f"{ENV_PREFIX}{field.upper()}" for field in Settings.model_fields}
+    assert names == {
+        field.validation_alias
+        if isinstance(field.validation_alias, str)
+        else f"{ENV_PREFIX}{name.upper()}"
+        for name, field in Settings.model_fields.items()
+    }

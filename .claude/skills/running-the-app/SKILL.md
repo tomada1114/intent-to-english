@@ -51,16 +51,16 @@ Stop at the first tier that shows what the change does.
 - **Loopback only.** uvicorn binds `127.0.0.1` (`just backend dev` passes it); never
   pass `--host 0.0.0.0`. Vite binds `localhost`, maybe `::1` alone: check both.
 
-## Set every `INTENT_TO_ENGLISH_*` setting explicitly
+## Set every application setting explicitly
 
-The developer's shell may export `INTENT_TO_ENGLISH_*` variables — `INTENT_TO_ENGLISH_DATABASE_URL` pointing
-at their real data, for one. `Settings` also reads module-relative `backend/.env`.
-An unset variable can be filled from that file, so clear inherited prefixed variables
-and then set every current setting explicitly: database URL, CORS origins, log level, and log format. An
-empty value wins over the file and selects the default. Add each future setting here.
+The shell and module-relative `backend/.env` may hold real data or a provider key.
+Clear inherited application variables and the unprefixed `OPENROUTER_API_KEY` alias,
+including case variants. Set every field explicitly: database URL, CORS origins,
+log level/format, key, mode and both model ids. An empty value wins over the file;
+empty ids select the defaults. Force `fixed` mode and an empty key for observations.
 
 ```bash
-env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= uv run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port"
+env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port"
 ```
 
 Set `INTENT_TO_ENGLISH_DATABASE_URL=` for the in-memory store, or point it at a file in a
@@ -71,7 +71,7 @@ database. The app never creates its schema, so migrate the scratch file first, i
 same shell command (**BACKGROUND:** `persisting-data`):
 
 ```bash
-env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= uv run --locked alembic -c backend/alembic.ini upgrade head
+env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked alembic -c backend/alembic.ini upgrade head
 ```
 
 Set the variable in the same shell command that starts the server: an agent's shell
@@ -109,21 +109,21 @@ for _ in range(300):
         sys.exit(1)
     time.sleep(0.1)
 sys.exit(1)'
-port=$(uv run --locked python -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+port=$(uv --no-cache run --locked python -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
 log=$(mktemp)
-uv run --locked python -c "$probe" "$port"; rc=$?
+uv --no-cache run --locked python -c "$probe" "$port"; rc=$?
 if [ "$rc" = 1 ]; then
-  env $(env | sed -n 's/^\(INTENT_TO_ENGLISH_[^=]*\)=.*/-u \1/p') INTENT_TO_ENGLISH_DATABASE_URL= INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= uv run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port" >"$log" 2>&1 &
+  env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL= INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port" >"$log" 2>&1 &
   pid=$!
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
-  if uv run --locked python -c "$ready" "$log" "$port" && kill -0 "$pid" 2>/dev/null; then
+  if uv --no-cache run --locked python -c "$ready" "$log" "$port" && kill -0 "$pid" 2>/dev/null; then
     curl -sS -i "http://127.0.0.1:$port/healthz"; echo
     curl -sS -i -X POST "http://127.0.0.1:$port/api/todos" -H 'content-type: application/json' -d '{"title": "buy milk"}'; echo
   else
     echo "the server did not start; nothing was sent"
   fi
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; trap - EXIT
-  uv run --locked python -c "$probe" "$port"; rc=$?
+  uv --no-cache run --locked python -c "$probe" "$port"; rc=$?
   case "$rc" in
     1) echo "nothing listening on $port" ;;
     0) echo "something still listens on $port: report it, do not kill it" ;;

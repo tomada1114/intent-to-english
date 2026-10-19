@@ -358,9 +358,17 @@ replacement, using the boot id and cutoff to recognize it (§ Core flows).
 | Setting | Default | Effect |
 |---|---|---|
 | `OPENROUTER_API_KEY` | unset | the OpenRouter key, unprefixed (the name OpenRouter documents), read through a validation alias as a secret; unset or blank runs the fixed-response mode |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` uses OpenRouter when a key is set; `fixed` forces the fixed-response mode, so the browser test never bills even where a key is exported |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` and `fixed` currently select the fixed adapters; `fixed` explicitly pins the browser test to offline responses |
 | `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | the Coach's OpenRouter model id |
 | `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | the Partner's OpenRouter model id |
+
+The composition root selects both fixed adapters in every mode and exposes that
+selection through `Container.model_mode`. The provider-key alias is a `SecretStr`,
+omitted from settings repr; a blank key is none. Empty model ids keep their defaults,
+while whitespace-only ids fail at startup naming their variables. One boot id is made
+per container build, independently of entity ids. With SQL selected, the two repository
+ports share one lazy engine and one disposal callback. This keeps the full HTTP flow
+usable without a key while the live composition branch remains #28's separate scope.
 
 The adapter builds the `openai.AsyncOpenAI` client with the key, OpenRouter's base URL, the
 app's attribution header, and `max_retries=0`, and hands it to the provider, so no environment
@@ -377,11 +385,11 @@ and a blank still off included), and report provider `fixed` with no tokens or c
 
 | Route | Result |
 |---|---|
-| `POST /api/sessions` | 201 with the new session at `opening` |
+| `POST /api/sessions` | 201 with the new session at `opening`, version 0; no model call |
 | `GET /api/sessions?cursor=&limit=` | one page, newest first, 20 by default: id, start time, status, finished replies, opener |
 | `GET /api/sessions/{id}` | the `SessionView` |
-| `POST /api/sessions/{id}/actions` | the new `SessionView`; the body is one of the actions above, told apart by `action`, with `version` |
-| `POST /api/sessions/{id}/cancel` | 204; the pending submission is cancelled |
+| `POST /api/sessions/{id}/actions` | the new `SessionView`; 17 body models discriminated by `action`, each with `version`; text actions use `text`, hints use `gap` and `partial_english`, readings use `reading`, restatements use `mode`, and model-free actions carry no input fields |
+| `POST /api/sessions/{id}/cancel` | body `{"version": <int>}`; 204 whether or not that version has pending work, 404 for an unknown session, and 422 when version is missing; the session version does not move |
 | `GET /api/meta` | `{"model_mode": "fixed" \| "openrouter"}`, for the header badge on every screen |
 
 | Error | Status | Code |
@@ -393,6 +401,9 @@ and a blank still off included), and report provider `fixed` with no tokens or c
 | the session has ended | 409 | `session_ended` |
 | the output arrived after a cancel | 409 | `action_cancelled` |
 | an input outside its limits | 422 | `invalid_input` |
+| a forged listing cursor | 422 | `invalid_cursor` |
+| a page limit outside 1–100 | 422 | `invalid_page_limit` |
+| a body or path that does not parse | 422 | `request_invalid` |
 | the call passed 60 s | 504 | `model_timeout` |
 | the provider is rate limiting | 503 | `model_rate_limited` |
 | the provider failed or is unreachable | 502 | `model_unavailable` |
@@ -400,6 +411,12 @@ and a blank still off included), and report provider `fixed` with no tokens or c
 
 The screen chooses its banner text from the code (ux-guidelines § States). The template's
 Problem Details shape, request-id middleware, and `AppError` mapping in `api/app.py` stay.
+The wire models are separate Pydantic values: every timeline entry has one of 21
+`kind` discriminators, and the public view includes both start/end times. The core
+owns text limits, so those failures keep `invalid_input` instead of parser errors.
+`end` runs without a model and returns the ended view immediately; feedback makes a
+null wrap-up due and permits only `wrap_up`. With no feedback, `WrapUp(items=())`
+is already complete. The separate `wrap_up` action returns the new ended view.
 
 ### Evaluation lives in the repository
 

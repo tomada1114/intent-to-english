@@ -7,6 +7,7 @@ import logging
 
 import pytest
 
+from intent_to_english.api import contract as contract_module
 from intent_to_english.api.app import create_app
 from intent_to_english.api.contract import main
 from intent_to_english.settings import Settings
@@ -76,8 +77,12 @@ def test_export_ignores_environment_and_creates_no_database(tmp_path, monkeypatc
         "CORS_ORIGINS": "invalid origin",
         "LOG_LEVEL": "INVALID",
         "LOG_FORMAT": "INVALID",
+        "MODEL_MODE": "INVALID",
+        "COACH_MODEL": " ",
+        "PARTNER_MODEL": " ",
     }.items():
         monkeypatch.setenv(f"INTENT_TO_ENGLISH_{name}", value)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy-never-exported")
 
     assert main(["--output", str(target)]) == 0
 
@@ -107,6 +112,28 @@ def test_export_preserves_logging_handlers(tmp_path):
     assert main(["--output", str(tmp_path / "openapi.json")]) == 0
 
     assert (logger.handlers, logger.level, logger.propagate) == before
+
+
+def test_export_sets_every_field_explicitly_and_never_uses_a_runtime_key(
+    tmp_path, monkeypatch
+):
+    captured: list[Settings] = []
+
+    def record_settings(**kwargs):
+        settings = Settings(**kwargs)
+        captured.append(settings)
+        return settings
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy-never-used")
+    monkeypatch.setattr(contract_module, "Settings", record_settings)
+    assert main(["--output", str(tmp_path / "contract.json")]) == 0
+    assert len(captured) == 1
+    settings = captured[0]
+    assert settings.model_fields_set == set(Settings.model_fields)
+    assert settings.openrouter_api_key is None
+    assert settings.model_mode == "fixed"
+    assert settings.coach_model == "anthropic/claude-sonnet-5.5"
+    assert settings.partner_model == "anthropic/claude-haiku-5.5"
 
 
 def test_export_is_deterministic_and_preserves_unicode(tmp_path, monkeypatch):

@@ -1,6 +1,843 @@
 {
   "components": {
     "schemas": {
+      "AcknowledgmentEntryResponse": {
+        "additionalProperties": false,
+        "description": "A acknowledgment timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "acknowledgment",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AcknowledgmentPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "AcknowledgmentEntryResponse",
+        "type": "object"
+      },
+      "AcknowledgmentPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The AcknowledgmentPayload wire fields.",
+        "properties": {
+          "build_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Build Hint"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "build_hint"
+        ],
+        "title": "AcknowledgmentPayloadResponse",
+        "type": "object"
+      },
+      "Action": {
+        "description": "The closed set of action values shared by every layer.",
+        "enum": [
+          "open",
+          "intent",
+          "english_direct",
+          "english",
+          "hint",
+          "reading",
+          "retry",
+          "show_answer",
+          "typed_copy",
+          "skip",
+          "partner_reply",
+          "restate",
+          "rewrite_intent",
+          "practice_again",
+          "ask",
+          "end",
+          "wrap_up"
+        ],
+        "title": "Action",
+        "type": "string"
+      },
+      "ActionInputResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/NoInputResponse"
+          },
+          {
+            "$ref": "#/components/schemas/TextInputResponse"
+          },
+          {
+            "$ref": "#/components/schemas/HintInputResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ReadingInputResponse"
+          },
+          {
+            "$ref": "#/components/schemas/RestateInputResponse"
+          }
+        ]
+      },
+      "AnswerEntryResponse": {
+        "additionalProperties": false,
+        "description": "A answer timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "answer",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AnswerPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "AnswerEntryResponse",
+        "type": "object"
+      },
+      "AnswerPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The AnswerPayload wire fields.",
+        "properties": {
+          "example": {
+            "title": "Example",
+            "type": "string"
+          }
+        },
+        "required": [
+          "example"
+        ],
+        "title": "AnswerPayloadResponse",
+        "type": "object"
+      },
+      "AskActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the ask action.",
+        "properties": {
+          "action": {
+            "const": "ask",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "AskActionRequest",
+        "type": "object"
+      },
+      "BlankOffResponse": {
+        "additionalProperties": false,
+        "description": "The missing blanks and their larger hint.",
+        "properties": {
+          "blanks": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Blanks",
+            "type": "array"
+          },
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          },
+          "readings_noted": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingNoteResponse"
+            },
+            "title": "Readings Noted",
+            "type": "array"
+          }
+        },
+        "required": [
+          "blanks",
+          "hint",
+          "readings_noted"
+        ],
+        "title": "BlankOffResponse",
+        "type": "object"
+      },
+      "CancelSessionRequest": {
+        "additionalProperties": false,
+        "description": "The version of the awaited action being abandoned.",
+        "properties": {
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "CancelSessionRequest",
+        "type": "object"
+      },
+      "CheckInAnswer": {
+        "description": "The closed set of checkinanswer values shared by every layer.",
+        "enum": [
+          "continue",
+          "end"
+        ],
+        "title": "CheckInAnswer",
+        "type": "string"
+      },
+      "CheckInAnswerEntryResponse": {
+        "additionalProperties": false,
+        "description": "A check_in_answer timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "check_in_answer",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CheckInAnswerPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "CheckInAnswerEntryResponse",
+        "type": "object"
+      },
+      "CheckInAnswerPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The CheckInAnswerPayload wire fields.",
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/CheckInAnswer"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "title": "CheckInAnswerPayloadResponse",
+        "type": "object"
+      },
+      "CheckInEntryResponse": {
+        "additionalProperties": false,
+        "description": "A check_in timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "check_in",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/EmptyPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "CheckInEntryResponse",
+        "type": "object"
+      },
+      "CoachAnswerEntryResponse": {
+        "additionalProperties": false,
+        "description": "A coach_answer timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "coach_answer",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CoachAnswerPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "CoachAnswerEntryResponse",
+        "type": "object"
+      },
+      "CoachAnswerPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The CoachAnswerPayload wire fields.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "CoachAnswerPayloadResponse",
+        "type": "object"
+      },
+      "EmptyPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The EmptyPayload wire fields.",
+        "properties": {},
+        "title": "EmptyPayloadResponse",
+        "type": "object"
+      },
+      "EndActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the end action.",
+        "properties": {
+          "action": {
+            "const": "end",
+            "title": "Action",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "EndActionRequest",
+        "type": "object"
+      },
+      "EnglishActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the english action.",
+        "properties": {
+          "action": {
+            "const": "english",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "EnglishActionRequest",
+        "type": "object"
+      },
+      "EnglishDirectActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the english_direct action.",
+        "properties": {
+          "action": {
+            "const": "english_direct",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "EnglishDirectActionRequest",
+        "type": "object"
+      },
+      "EnglishEntryResponse": {
+        "additionalProperties": false,
+        "description": "A english timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "english",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/EnglishPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "EnglishEntryResponse",
+        "type": "object"
+      },
+      "EnglishPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The EnglishPayload wire fields.",
+        "properties": {
+          "is_direct": {
+            "title": "Is Direct",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "is_direct"
+        ],
+        "title": "EnglishPayloadResponse",
+        "type": "object"
+      },
+      "FeedbackEntryResponse": {
+        "additionalProperties": false,
+        "description": "A feedback timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "feedback",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/FeedbackPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "FeedbackEntryResponse",
+        "type": "object"
+      },
+      "FeedbackPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The FeedbackPayload wire fields.",
+        "properties": {
+          "feedback": {
+            "$ref": "#/components/schemas/FeedbackResponse"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          }
+        },
+        "required": [
+          "intent",
+          "feedback"
+        ],
+        "title": "FeedbackPayloadResponse",
+        "type": "object"
+      },
+      "FeedbackResponse": {
+        "additionalProperties": false,
+        "description": "The checked feedback and its optional retry template.",
+        "properties": {
+          "first_line": {
+            "title": "First Line",
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/FixResponse"
+            },
+            "title": "Fixes",
+            "type": "array"
+          },
+          "readings_noted": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingNoteResponse"
+            },
+            "title": "Readings Noted",
+            "type": "array"
+          },
+          "request_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Line"
+          },
+          "sentence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sentence"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          }
+        },
+        "required": [
+          "first_line",
+          "fixes",
+          "sentence",
+          "template",
+          "request_line",
+          "readings_noted"
+        ],
+        "title": "FeedbackResponse",
+        "type": "object"
+      },
+      "FixResponse": {
+        "additionalProperties": false,
+        "description": "One numbered sentence-ordered fix.",
+        "properties": {
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "original": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "replacement": {
+            "title": "Replacement",
+            "type": "string"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/FixTag"
+          }
+        },
+        "required": [
+          "number",
+          "original",
+          "replacement",
+          "reason",
+          "tag"
+        ],
+        "title": "FixResponse",
+        "type": "object"
+      },
+      "FixTag": {
+        "description": "The closed set of fixtag values shared by every layer.",
+        "enum": [
+          "miss",
+          "improvement"
+        ],
+        "title": "FixTag",
+        "type": "string"
+      },
+      "GapHintEntryResponse": {
+        "additionalProperties": false,
+        "description": "A gap_hint timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "gap_hint",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/GapHintPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "GapHintEntryResponse",
+        "type": "object"
+      },
+      "GapHintPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The GapHintPayload wire fields.",
+        "properties": {
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hint"
+        ],
+        "title": "GapHintPayloadResponse",
+        "type": "object"
+      },
       "HealthResponse": {
         "description": "Body of ``GET /healthz``.",
         "properties": {
@@ -12,6 +849,628 @@
           }
         },
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HintActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the hint action.",
+        "properties": {
+          "action": {
+            "const": "hint",
+            "title": "Action",
+            "type": "string"
+          },
+          "gap": {
+            "title": "Gap",
+            "type": "string"
+          },
+          "partial_english": {
+            "default": "",
+            "title": "Partial English",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "gap"
+        ],
+        "title": "HintActionRequest",
+        "type": "object"
+      },
+      "HintInputResponse": {
+        "additionalProperties": false,
+        "description": "A recoverable gap request.",
+        "properties": {
+          "gap": {
+            "title": "Gap",
+            "type": "string"
+          },
+          "partial_english": {
+            "title": "Partial English",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gap",
+          "partial_english"
+        ],
+        "title": "HintInputResponse",
+        "type": "object"
+      },
+      "HintRequestEntryResponse": {
+        "additionalProperties": false,
+        "description": "A hint_request timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "hint_request",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/HintRequestPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "HintRequestEntryResponse",
+        "type": "object"
+      },
+      "HintRequestPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The HintRequestPayload wire fields.",
+        "properties": {
+          "gap": {
+            "title": "Gap",
+            "type": "string"
+          },
+          "partial_english": {
+            "title": "Partial English",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gap",
+          "partial_english"
+        ],
+        "title": "HintRequestPayloadResponse",
+        "type": "object"
+      },
+      "IntentActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the intent action.",
+        "properties": {
+          "action": {
+            "const": "intent",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "IntentActionRequest",
+        "type": "object"
+      },
+      "IntentEntryResponse": {
+        "additionalProperties": false,
+        "description": "A intent timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "intent",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/IntentPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "IntentEntryResponse",
+        "type": "object"
+      },
+      "IntentPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The IntentPayload wire fields.",
+        "properties": {
+          "is_replacement": {
+            "title": "Is Replacement",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "is_replacement"
+        ],
+        "title": "IntentPayloadResponse",
+        "type": "object"
+      },
+      "LastSubmissionResponse": {
+        "additionalProperties": false,
+        "description": "Pending or recoverable input without internal submission identity.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/Action"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ActionInputResponse"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LastSubmissionState"
+          }
+        },
+        "required": [
+          "state",
+          "action",
+          "input",
+          "failure_code"
+        ],
+        "title": "LastSubmissionResponse",
+        "type": "object"
+      },
+      "LastSubmissionState": {
+        "description": "The closed set of lastsubmissionstate values shared by every layer.",
+        "enum": [
+          "pending",
+          "failed",
+          "interrupted"
+        ],
+        "title": "LastSubmissionState",
+        "type": "string"
+      },
+      "LineKind": {
+        "description": "The closed set of linekind values shared by every layer.",
+        "enum": [
+          "opener",
+          "reply",
+          "restatement"
+        ],
+        "title": "LineKind",
+        "type": "string"
+      },
+      "MetaResponse": {
+        "additionalProperties": false,
+        "description": "The mode selected by the process container.",
+        "properties": {
+          "model_mode": {
+            "enum": [
+              "fixed",
+              "openrouter"
+            ],
+            "title": "Model Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_mode"
+        ],
+        "title": "MetaResponse",
+        "type": "object"
+      },
+      "NoInputResponse": {
+        "additionalProperties": false,
+        "description": "An action without learner input.",
+        "properties": {},
+        "title": "NoInputResponse",
+        "type": "object"
+      },
+      "OpenActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the open action.",
+        "properties": {
+          "action": {
+            "const": "open",
+            "title": "Action",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "OpenActionRequest",
+        "type": "object"
+      },
+      "PartnerLineEntryResponse": {
+        "additionalProperties": false,
+        "description": "A partner_line timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "partner_line",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/PartnerLinePayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "PartnerLineEntryResponse",
+        "type": "object"
+      },
+      "PartnerLinePayloadResponse": {
+        "additionalProperties": false,
+        "description": "The PartnerLinePayload wire fields.",
+        "properties": {
+          "has_question": {
+            "title": "Has Question",
+            "type": "boolean"
+          },
+          "line_kind": {
+            "$ref": "#/components/schemas/LineKind"
+          },
+          "restate_mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestateMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "has_question",
+          "line_kind",
+          "restate_mode"
+        ],
+        "title": "PartnerLinePayloadResponse",
+        "type": "object"
+      },
+      "PartnerReplyActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the partner_reply action.",
+        "properties": {
+          "action": {
+            "const": "partner_reply",
+            "title": "Action",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "PartnerReplyActionRequest",
+        "type": "object"
+      },
+      "PieceGivenResponse": {
+        "additionalProperties": false,
+        "description": "The remaining pieces at the end of a retry.",
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "pieces": {
+            "items": {
+              "$ref": "#/components/schemas/PieceResponse"
+            },
+            "title": "Pieces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pieces",
+          "line"
+        ],
+        "title": "PieceGivenResponse",
+        "type": "object"
+      },
+      "PieceResponse": {
+        "additionalProperties": false,
+        "description": "One requested piece after the second retry.",
+        "properties": {
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "text"
+        ],
+        "title": "PieceResponse",
+        "type": "object"
+      },
+      "PracticeAgainActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the practice_again action.",
+        "properties": {
+          "action": {
+            "const": "practice_again",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "PracticeAgainActionRequest",
+        "type": "object"
+      },
+      "PracticeEntryResponse": {
+        "additionalProperties": false,
+        "description": "A practice timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "practice",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/PracticePayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "PracticeEntryResponse",
+        "type": "object"
+      },
+      "PracticePayloadResponse": {
+        "additionalProperties": false,
+        "description": "The PracticePayload wire fields.",
+        "properties": {
+          "sentence": {
+            "title": "Sentence",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "turn_index",
+          "sentence"
+        ],
+        "title": "PracticePayloadResponse",
+        "type": "object"
+      },
+      "PracticeResultEntryResponse": {
+        "additionalProperties": false,
+        "description": "A practice_result timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "practice_result",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/PracticeResultPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "PracticeResultEntryResponse",
+        "type": "object"
+      },
+      "PracticeResultPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The PracticeResultPayload wire fields.",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/RetryResultResponse"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "turn_index",
+          "result"
+        ],
+        "title": "PracticeResultPayloadResponse",
         "type": "object"
       },
       "ProblemDetails": {
@@ -102,6 +1561,934 @@
         "title": "ProblemFieldError",
         "type": "object"
       },
+      "QuestionEntryResponse": {
+        "additionalProperties": false,
+        "description": "A question timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "question",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/QuestionPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "QuestionEntryResponse",
+        "type": "object"
+      },
+      "QuestionPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The QuestionPayload wire fields.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "QuestionPayloadResponse",
+        "type": "object"
+      },
+      "ReadingActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the reading action.",
+        "properties": {
+          "action": {
+            "const": "reading",
+            "title": "Action",
+            "type": "string"
+          },
+          "reading": {
+            "title": "Reading",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "reading"
+        ],
+        "title": "ReadingActionRequest",
+        "type": "object"
+      },
+      "ReadingChoiceEntryResponse": {
+        "additionalProperties": false,
+        "description": "A reading_choice timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "reading_choice",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReadingChoicePayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "ReadingChoiceEntryResponse",
+        "type": "object"
+      },
+      "ReadingChoicePayloadResponse": {
+        "additionalProperties": false,
+        "description": "The ReadingChoicePayload wire fields.",
+        "properties": {
+          "chosen": {
+            "title": "Chosen",
+            "type": "string"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "chosen"
+        ],
+        "title": "ReadingChoicePayloadResponse",
+        "type": "object"
+      },
+      "ReadingInputResponse": {
+        "additionalProperties": false,
+        "description": "A recoverable reading choice.",
+        "properties": {
+          "reading": {
+            "title": "Reading",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reading"
+        ],
+        "title": "ReadingInputResponse",
+        "type": "object"
+      },
+      "ReadingNoteResponse": {
+        "additionalProperties": false,
+        "description": "The written word and the interpretation used.",
+        "properties": {
+          "read_as": {
+            "title": "Read As",
+            "type": "string"
+          },
+          "written": {
+            "title": "Written",
+            "type": "string"
+          }
+        },
+        "required": [
+          "written",
+          "read_as"
+        ],
+        "title": "ReadingNoteResponse",
+        "type": "object"
+      },
+      "ReadingQuestionEntryResponse": {
+        "additionalProperties": false,
+        "description": "A reading_question timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "reading_question",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReadingQuestionPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "ReadingQuestionEntryResponse",
+        "type": "object"
+      },
+      "ReadingQuestionPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The ReadingQuestionPayload wire fields.",
+        "properties": {
+          "readings": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Readings",
+            "type": "array"
+          },
+          "word": {
+            "title": "Word",
+            "type": "string"
+          }
+        },
+        "required": [
+          "word",
+          "readings"
+        ],
+        "title": "ReadingQuestionPayloadResponse",
+        "type": "object"
+      },
+      "RestateActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the restate action.",
+        "properties": {
+          "action": {
+            "const": "restate",
+            "title": "Action",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/RestateMode"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "mode"
+        ],
+        "title": "RestateActionRequest",
+        "type": "object"
+      },
+      "RestateInputResponse": {
+        "additionalProperties": false,
+        "description": "A recoverable restatement request.",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/RestateMode"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "RestateInputResponse",
+        "type": "object"
+      },
+      "RestateMode": {
+        "description": "The closed set of restatemode values shared by every layer.",
+        "enum": [
+          "shorter",
+          "simpler"
+        ],
+        "title": "RestateMode",
+        "type": "string"
+      },
+      "RetryAcceptedResponse": {
+        "additionalProperties": false,
+        "description": "A retry that conveys the intended English.",
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "readings_noted": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingNoteResponse"
+            },
+            "title": "Readings Noted",
+            "type": "array"
+          }
+        },
+        "required": [
+          "line",
+          "readings_noted"
+        ],
+        "title": "RetryAcceptedResponse",
+        "type": "object"
+      },
+      "RetryActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the retry action.",
+        "properties": {
+          "action": {
+            "const": "retry",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "RetryActionRequest",
+        "type": "object"
+      },
+      "RetryEntryResponse": {
+        "additionalProperties": false,
+        "description": "A retry timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "retry",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RetryPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "RetryEntryResponse",
+        "type": "object"
+      },
+      "RetryPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The RetryPayload wire fields.",
+        "properties": {
+          "sentence": {
+            "title": "Sentence",
+            "type": "string"
+          },
+          "submission_number": {
+            "title": "Submission Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sentence",
+          "submission_number"
+        ],
+        "title": "RetryPayloadResponse",
+        "type": "object"
+      },
+      "RetryResultEntryResponse": {
+        "additionalProperties": false,
+        "description": "A retry_result timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "retry_result",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RetryResultPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "RetryResultEntryResponse",
+        "type": "object"
+      },
+      "RetryResultPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The RetryResultPayload wire fields.",
+        "properties": {
+          "result": {
+            "$ref": "#/components/schemas/RetryResultResponse"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "RetryResultPayloadResponse",
+        "type": "object"
+      },
+      "RetryResultResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RetryAcceptedResponse"
+          },
+          {
+            "$ref": "#/components/schemas/BlankOffResponse"
+          },
+          {
+            "$ref": "#/components/schemas/PieceGivenResponse"
+          }
+        ]
+      },
+      "RewriteIntentActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the rewrite_intent action.",
+        "properties": {
+          "action": {
+            "const": "rewrite_intent",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "RewriteIntentActionRequest",
+        "type": "object"
+      },
+      "SessionPageResponse": {
+        "additionalProperties": false,
+        "description": "One bounded page and its opaque continuation cursor.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSummaryResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "SessionPageResponse",
+        "type": "object"
+      },
+      "SessionResponse": {
+        "additionalProperties": false,
+        "description": "The complete public session view, independent of internal working state.",
+        "properties": {
+          "allowed_actions": {
+            "items": {
+              "$ref": "#/components/schemas/Action"
+            },
+            "title": "Allowed Actions",
+            "type": "array"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntryResponse"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "finished_replies": {
+            "title": "Finished Replies",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_submission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastSubmissionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "wrap_up": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WrapUpResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "stage",
+          "version",
+          "turn_index",
+          "finished_replies",
+          "started_at",
+          "ended_at",
+          "allowed_actions",
+          "entries",
+          "last_submission",
+          "wrap_up"
+        ],
+        "title": "SessionResponse",
+        "type": "object"
+      },
+      "SessionStatus": {
+        "description": "The closed set of sessionstatus values shared by every layer.",
+        "enum": [
+          "in_progress",
+          "ended"
+        ],
+        "title": "SessionStatus",
+        "type": "string"
+      },
+      "SessionSummaryResponse": {
+        "additionalProperties": false,
+        "description": "One row of the newest-first session list.",
+        "properties": {
+          "finished_replies": {
+            "title": "Finished Replies",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "opener": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opener"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SessionStatus"
+          }
+        },
+        "required": [
+          "id",
+          "started_at",
+          "status",
+          "finished_replies",
+          "opener"
+        ],
+        "title": "SessionSummaryResponse",
+        "type": "object"
+      },
+      "ShowAnswerActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the show_answer action.",
+        "properties": {
+          "action": {
+            "const": "show_answer",
+            "title": "Action",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "ShowAnswerActionRequest",
+        "type": "object"
+      },
+      "SkipActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the skip action.",
+        "properties": {
+          "action": {
+            "const": "skip",
+            "title": "Action",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "SkipActionRequest",
+        "type": "object"
+      },
+      "SkipEntryResponse": {
+        "additionalProperties": false,
+        "description": "A skip timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "skip",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/EmptyPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "SkipEntryResponse",
+        "type": "object"
+      },
+      "Stage": {
+        "description": "The closed set of stage values shared by every layer.",
+        "enum": [
+          "opening",
+          "intent",
+          "english",
+          "reading_check",
+          "retry",
+          "answer_shown",
+          "partner_turn",
+          "check_in",
+          "ended"
+        ],
+        "title": "Stage",
+        "type": "string"
+      },
+      "TextInputResponse": {
+        "additionalProperties": false,
+        "description": "Recoverable learner text.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextInputResponse",
+        "type": "object"
+      },
+      "TimelineEntryResponse": {
+        "discriminator": {
+          "mapping": {
+            "acknowledgment": "#/components/schemas/AcknowledgmentEntryResponse",
+            "answer": "#/components/schemas/AnswerEntryResponse",
+            "check_in": "#/components/schemas/CheckInEntryResponse",
+            "check_in_answer": "#/components/schemas/CheckInAnswerEntryResponse",
+            "coach_answer": "#/components/schemas/CoachAnswerEntryResponse",
+            "english": "#/components/schemas/EnglishEntryResponse",
+            "feedback": "#/components/schemas/FeedbackEntryResponse",
+            "gap_hint": "#/components/schemas/GapHintEntryResponse",
+            "hint_request": "#/components/schemas/HintRequestEntryResponse",
+            "intent": "#/components/schemas/IntentEntryResponse",
+            "partner_line": "#/components/schemas/PartnerLineEntryResponse",
+            "practice": "#/components/schemas/PracticeEntryResponse",
+            "practice_result": "#/components/schemas/PracticeResultEntryResponse",
+            "question": "#/components/schemas/QuestionEntryResponse",
+            "reading_choice": "#/components/schemas/ReadingChoiceEntryResponse",
+            "reading_question": "#/components/schemas/ReadingQuestionEntryResponse",
+            "retry": "#/components/schemas/RetryEntryResponse",
+            "retry_result": "#/components/schemas/RetryResultEntryResponse",
+            "skip": "#/components/schemas/SkipEntryResponse",
+            "turn_done": "#/components/schemas/TurnDoneEntryResponse",
+            "typed_copy": "#/components/schemas/TypedCopyEntryResponse"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PartnerLineEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/IntentEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/AcknowledgmentEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/EnglishEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/HintRequestEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/GapHintEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ReadingQuestionEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ReadingChoiceEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/FeedbackEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/RetryEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/RetryResultEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/AnswerEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/TypedCopyEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/SkipEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/TurnDoneEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/QuestionEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/CoachAnswerEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/CheckInEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/CheckInAnswerEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/PracticeEntryResponse"
+          },
+          {
+            "$ref": "#/components/schemas/PracticeResultEntryResponse"
+          }
+        ]
+      },
       "TodoCreateRequest": {
         "description": "Body of ``POST /api/todos``.\n\nThe title is left unconstrained here on purpose: the core owns the length\nrule, and its ``InvalidTodoError`` becomes the 422 response.",
         "properties": {
@@ -175,6 +2562,233 @@
         ],
         "title": "TodoResponse",
         "type": "object"
+      },
+      "TurnDoneEntryResponse": {
+        "additionalProperties": false,
+        "description": "A turn_done timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "turn_done",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/TurnDonePayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "TurnDoneEntryResponse",
+        "type": "object"
+      },
+      "TurnDonePayloadResponse": {
+        "additionalProperties": false,
+        "description": "The TurnDonePayload wire fields.",
+        "properties": {
+          "end": {
+            "$ref": "#/components/schemas/TurnEnd"
+          },
+          "english": {
+            "title": "English",
+            "type": "string"
+          }
+        },
+        "required": [
+          "english",
+          "end"
+        ],
+        "title": "TurnDonePayloadResponse",
+        "type": "object"
+      },
+      "TurnEnd": {
+        "description": "The closed set of turnend values shared by every layer.",
+        "enum": [
+          "accepted",
+          "skipped",
+          "answer_typed",
+          "no_fix_needed",
+          "piece_given"
+        ],
+        "title": "TurnEnd",
+        "type": "string"
+      },
+      "TypedCopyActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the typed_copy action.",
+        "properties": {
+          "action": {
+            "const": "typed_copy",
+            "title": "Action",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version",
+          "text"
+        ],
+        "title": "TypedCopyActionRequest",
+        "type": "object"
+      },
+      "TypedCopyEntryResponse": {
+        "additionalProperties": false,
+        "description": "A typed_copy timeline entry.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "typed_copy",
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/TypedCopyPayloadResponse"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_index": {
+            "title": "Turn Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "seq",
+          "turn_index",
+          "created_at",
+          "kind",
+          "payload"
+        ],
+        "title": "TypedCopyEntryResponse",
+        "type": "object"
+      },
+      "TypedCopyPayloadResponse": {
+        "additionalProperties": false,
+        "description": "The TypedCopyPayload wire fields.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TypedCopyPayloadResponse",
+        "type": "object"
+      },
+      "WrapUpActionRequest": {
+        "additionalProperties": false,
+        "description": "Body for the wrap_up action.",
+        "properties": {
+          "action": {
+            "const": "wrap_up",
+            "title": "Action",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "WrapUpActionRequest",
+        "type": "object"
+      },
+      "WrapUpItemResponse": {
+        "additionalProperties": false,
+        "description": "An expression encountered during this session.",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phrase",
+          "note"
+        ],
+        "title": "WrapUpItemResponse",
+        "type": "object"
+      },
+      "WrapUpResponse": {
+        "additionalProperties": false,
+        "description": "An empty list differs from a wrap-up that is still due.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WrapUpItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WrapUpResponse",
+        "type": "object"
       }
     }
   },
@@ -184,6 +2798,538 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/meta": {
+      "get": {
+        "description": "Report the mode selected by the application's container.",
+        "operationId": "get_meta",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Meta",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "description": "List one page of sessions, newest first.",
+        "operationId": "list_sessions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "List Sessions",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "post": {
+        "description": "Create an opening session before any model request.",
+        "operationId": "create_session",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}": {
+      "get": {
+        "description": "Read a session's timeline and recoverable input.",
+        "operationId": "get_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Session",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/actions": {
+      "post": {
+        "description": "Apply one action at the version the learner answered.",
+        "operationId": "perform_session_action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "ask": "#/components/schemas/AskActionRequest",
+                    "end": "#/components/schemas/EndActionRequest",
+                    "english": "#/components/schemas/EnglishActionRequest",
+                    "english_direct": "#/components/schemas/EnglishDirectActionRequest",
+                    "hint": "#/components/schemas/HintActionRequest",
+                    "intent": "#/components/schemas/IntentActionRequest",
+                    "open": "#/components/schemas/OpenActionRequest",
+                    "partner_reply": "#/components/schemas/PartnerReplyActionRequest",
+                    "practice_again": "#/components/schemas/PracticeAgainActionRequest",
+                    "reading": "#/components/schemas/ReadingActionRequest",
+                    "restate": "#/components/schemas/RestateActionRequest",
+                    "retry": "#/components/schemas/RetryActionRequest",
+                    "rewrite_intent": "#/components/schemas/RewriteIntentActionRequest",
+                    "show_answer": "#/components/schemas/ShowAnswerActionRequest",
+                    "skip": "#/components/schemas/SkipActionRequest",
+                    "typed_copy": "#/components/schemas/TypedCopyActionRequest",
+                    "wrap_up": "#/components/schemas/WrapUpActionRequest"
+                  },
+                  "propertyName": "action"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/OpenActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/IntentActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EnglishDirectActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EnglishActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HintActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReadingActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RetryActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ShowAnswerActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TypedCopyActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SkipActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PartnerReplyActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RestateActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RewriteIntentActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PracticeAgainActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AskActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EndActionRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WrapUpActionRequest"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          }
+        },
+        "summary": "Perform Session Action",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/cancel": {
+      "post": {
+        "description": "Cancel pending work at the supplied version, including an absent target.",
+        "operationId": "cancel_session_action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Cancel Session Action",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/api/todos": {
       "get": {
         "description": "List one page of to-dos, oldest first; `next_cursor` fetches the next one.",

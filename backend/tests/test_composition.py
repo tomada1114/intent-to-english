@@ -12,12 +12,18 @@ from pathlib import Path
 import anyio
 import pytest
 from alembic import command
+from pydantic import SecretStr
 from sqlalchemy import event
 
 from intent_to_english import composition
-from intent_to_english.adapters.memory import InMemoryTodoRepository
+from intent_to_english.adapters.memory import (
+    InMemorySessionRepository,
+    InMemoryTodoRepository,
+)
 from intent_to_english.adapters.sql.engine import make_engine
+from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.composition import Container, build_container, utc_now
+from intent_to_english.core import models as m
 from intent_to_english.core.models import Page
 from intent_to_english.settings import Settings
 
@@ -68,6 +74,87 @@ async def test_build_container_default_settings_uses_an_independent_memory_store
     await first.todos.create("only in first")
 
     assert await second.todos.list_page() == Page(items=(), next_cursor=None)
+
+
+@pytest.mark.parametrize("mode", ["auto", "fixed"])
+async def test_build_container_wires_independent_fixed_conversations(
+    make_container, mode
+):
+    settings = Settings(model_mode=mode, OPENROUTER_API_KEY=SecretStr("dummy-key"))
+    first = make_container(settings)
+    second = make_container(settings)
+    view = await first.conversations.start()
+    opened = await first.conversations.act(view.id, m.ActionRequest(m.Action.OPEN, 0))
+    assert opened.stage is m.Stage.INTENT
+    assert first.model_mode == "fixed"
+    assert await second.conversations.list_page() == Page((), None)
+
+
+async def test_build_container_shares_one_sql_engine_for_both_services(
+    migrated_sqlite_url, engine_disposals
+):
+    settings = Settings(database_url=migrated_sqlite_url)
+    async with build_container(settings) as first:
+        todo = await first.todos.create("persists beside a session")
+        session = await first.conversations.start()
+    assert len(engine_disposals) == 1
+    async with build_container(settings) as reopened:
+        assert (await reopened.todos.list_page()).items == (todo,)
+        assert await reopened.conversations.get(session.id) == session
+    assert len(engine_disposals) == 2
+
+
+async def test_build_container_injected_boot_distinguishes_pending_from_interrupted(
+    migrated_sqlite_url, fixed_clock, fixed_now, new_id, nth_id
+):
+    settings = Settings(database_url=migrated_sqlite_url)
+    boot = nth_id(900)
+    async with build_container(settings, fixed_clock, new_id, boot_id=boot) as first:
+        session = await first.conversations.start()
+        engine = make_engine(migrated_sqlite_url)
+        try:
+            repository = SqlSessionRepository(engine)
+            await repository.begin_submission(
+                m.Submission(
+                    nth_id(800),
+                    session.id,
+                    0,
+                    m.Action.OPEN,
+                    m.NoInput(),
+                    boot,
+                    fixed_now,
+                ),
+                frozenset({m.Stage.OPENING}),
+                fixed_now,
+            )
+        finally:
+            await engine.dispose()
+        pending = (await first.conversations.get(session.id)).last_submission
+        assert pending is not None
+        assert pending.state is m.LastSubmissionState.PENDING
+    async with build_container(
+        settings, fixed_clock, new_id, boot_id=nth_id(901)
+    ) as reopened:
+        interrupted = (await reopened.conversations.get(session.id)).last_submission
+        assert interrupted is not None
+        assert interrupted.state is m.LastSubmissionState.INTERRUPTED
+
+
+async def test_build_container_default_boot_identity_is_fresh_once_per_build(
+    monkeypatch, fixed_clock, new_id, nth_id
+):
+    generated: list[uuid.UUID] = []
+
+    def make_boot():
+        boot = nth_id(900 + len(generated))
+        generated.append(boot)
+        return boot
+
+    monkeypatch.setattr(uuid, "uuid7", make_boot)
+    for _ in range(2):
+        async with build_container(Settings(), fixed_clock, new_id) as container:
+            await container.conversations.start()
+    assert generated == [nth_id(900), nth_id(901)]
 
 
 async def test_build_container_sql_settings_shares_the_database(
@@ -200,7 +287,10 @@ async def test_container_aclose_releases_registered_resource_once(make_container
     closed: list[str] = []
     resources = composition.ResourceClosers()
     resources.push_async_callback(_record, closed, "resource")
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     await container.aclose()
     await container.aclose()
@@ -222,7 +312,10 @@ async def test_container_context_cancelled_scope_finishes_callbacks_once(
 
     resources.push_async_callback(cleanup, "first")
     resources.push_async_callback(cleanup, "second")
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     with anyio.CancelScope() as cancelled:
         async with container:
@@ -248,7 +341,10 @@ async def test_container_aclose_cancelled_scope_finishes_before_cancellation(
         closed.append("resource")
 
     resources.push_async_callback(cleanup)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     with anyio.CancelScope() as cancelled:
         cancelled.cancel()
@@ -289,7 +385,10 @@ async def test_container_suspended_cleanup_finishes_before_caller_outcome(
 
     resources.push_async_callback(_record, closed, "remaining")
     resources.push_async_callback(suspended)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     async def close(task_status=anyio.TASK_STATUS_IGNORED):
         task_status.started(asyncio.current_task())
@@ -333,7 +432,10 @@ async def test_container_concurrent_close_callers_share_complete_lifo_cleanup(
 
     resources.push_async_callback(_record, closed, "remaining")
     resources.push_async_callback(suspended)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     async def close(task_status=anyio.TASK_STATUS_IGNORED):
         task_status.started()
@@ -363,7 +465,10 @@ async def test_container_concurrent_exits_propagate_each_body_error(make_contain
         closed.append("resource")
 
     resources.push_async_callback(close)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     async def fail(error, task_status=anyio.TASK_STATUS_IGNORED):
         task_status.started()
@@ -417,7 +522,12 @@ async def test_container_entered_manager_rejected_and_exits_in_caller_scope(
 
         def transfer(resources):
             # Exercise runtime validation from an untyped external caller.
-            return Container(make_container().todos, _resources=resources)
+            services = make_container()
+            return Container(
+                services.todos,
+                conversations=services.conversations,
+                _resources=resources,
+            )
 
         with pytest.raises(TypeError, match="task-independent disposal callbacks"):
             transfer(caller_resources)
@@ -432,7 +542,10 @@ async def test_container_context_exit_releases_registered_resource(make_containe
     closed: list[str] = []
     resources = composition.ResourceClosers()
     resources.push_async_callback(_record, closed, "resource")
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     async with container as entered:
         assert entered is container
@@ -445,7 +558,10 @@ async def test_container_context_failure_releases_registered_resource(make_conta
     closed: list[str] = []
     resources = composition.ResourceClosers()
     resources.push_async_callback(_record, closed, "resource")
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     message = "operation failed"
     with pytest.raises(ValueError, match="operation failed"):
@@ -467,7 +583,10 @@ async def test_container_cleanup_failure_runs_remaining_callbacks_and_propagates
         raise ValueError(message)
 
     resources.push_async_callback(fail_cleanup)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     with pytest.raises(ValueError, match="cleanup failed"):
         await container.aclose()
@@ -481,7 +600,7 @@ def test_build_container_failure_propagates_the_builder_error(monkeypatch):
         message = "build failed"
         raise ValueError(message)
 
-    monkeypatch.setattr(composition, "_build_repository", fail_build)
+    monkeypatch.setattr(composition, "_build_repositories", fail_build)
 
     with pytest.raises(ValueError, match="build failed"):
         build_container(Settings())
@@ -492,11 +611,11 @@ async def test_build_container_success_keeps_registered_resources_until_aclose(
 ):
     closed: list[str] = []
 
-    def build_repository(settings, resources):
+    def build_repositories(settings, resources):
         resources.push_async_callback(_record, closed, "owned")
-        return InMemoryTodoRepository()
+        return InMemoryTodoRepository(), InMemorySessionRepository()
 
-    monkeypatch.setattr(composition, "_build_repository", build_repository)
+    monkeypatch.setattr(composition, "_build_repositories", build_repositories)
 
     container = build_container(Settings())
     assert closed == []
@@ -517,7 +636,10 @@ async def test_container_context_cleanup_failure_chains_original_body_error(
         raise cleanup_error
 
     resources.push_async_callback(fail_cleanup)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     with pytest.raises(RuntimeError, match="cleanup failed") as caught:
         async with container:
@@ -537,7 +659,10 @@ async def test_container_disposal_callbacks_cannot_suppress_body_error(make_cont
         return True
 
     resources.push_async_callback(close)
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
     error = ValueError("operation failed")
 
     with pytest.raises(ValueError, match="operation failed") as caught:
@@ -551,7 +676,10 @@ async def test_container_disposal_callbacks_cannot_suppress_body_error(make_cont
 
 async def test_container_registration_after_ownership_transfer_rejected(make_container):
     resources = composition.ResourceClosers()
-    container = Container(make_container().todos, _resources=resources)
+    services = make_container()
+    container = Container(
+        services.todos, conversations=services.conversations, _resources=resources
+    )
 
     with pytest.raises(RuntimeError, match="before building the Container"):
         resources.push_async_callback(_record, [], "late")
