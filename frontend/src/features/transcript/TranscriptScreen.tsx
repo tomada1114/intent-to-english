@@ -170,10 +170,17 @@ export function TranscriptScreen({
   });
 
   const stored = view.last_submission;
+  // No response at all: the layout's banner and its 再試行 are the only way
+  // on, so the section shows neither its failure line nor a waiting line.
+  const unanswered =
+    due &&
+    stored?.state !== "pending" &&
+    wrapUp.isError &&
+    toApiError(wrapUp.error).kind === "unknown";
   // A wrap-up the refreshed view shows running (another tab's) outranks this
   // tab's own refused request: wait for it instead of offering [もう一度].
   const failure: string | null =
-    !due || stored?.state === "pending"
+    !due || stored?.state === "pending" || unanswered
       ? null
       : wrapUp.isPending
         ? null
@@ -182,7 +189,7 @@ export function TranscriptScreen({
           : stored !== null && stored.action === "wrap_up"
             ? wrapUpFailureLine(stored.failure_code)
             : null;
-  const waiting = due && failure === null;
+  const waiting = due && failure === null && !unanswered;
 
   function toggle(turn: number) {
     setOpen((previous) => {
