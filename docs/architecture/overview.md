@@ -253,7 +253,8 @@ means there is nothing to make. The screen derives both panes and the next-actio
 
 ### Models are called through PydanticAI, inside the model adapters
 
-The app depends on `pydantic-ai-slim` with its `openrouter` extra, imported only under
+The app locks `pydantic-ai-slim[openrouter]` 2.55.0 under the seven-day dependency window,
+imported only under
 `adapters/models/`: the core's import test and ruff's banned-api rule keep `pydantic_ai` and
 `openai` out of `core/`, and review keeps them out of `api/` and the storage adapters. PydanticAI supplies the OpenRouter model and provider, typed structured output,
 and test models, and Bedrock later is its Bedrock model with the `bedrock` extra (boto3)
@@ -262,30 +263,44 @@ behind the same ports. The app turns off what would hide calls from the core:
 - **No automatic retries.** PydanticAI's output retries are 0, and the provider gets an
   `openai.AsyncOpenAI` client with `max_retries=0` (the SDK's default is 2): one request is
   one recorded, billed call, and the 60 s budget per call holds.
-- **JSON schema output.** Every task's `output_type` is wrapped in `NativeOutput`, which
+- **JSON schema output.** Each implemented task's `output_type` is wrapped in `NativeOutput`, which
   sends a JSON schema `response_format`. PydanticAI's default is a forced tool call, which
   Claude Sonnet 5.5 rejects.
 - **Usage per request.** Tokens come from each `ModelResponse.usage`; the provider-reported
   cost from `ModelResponse.provider_details["cost"]`.
 
+The Partner's `open`, `reply` and `restate` agents are built once over one model.
+The client builder registers its close callback with `ResourceClosers`, uses the
+explicit key and `X-OpenRouter-Title` app name, and supplies no provider credentials
+or attribution arguments that could pick up shell values. The per-agent
+`instrument = False` overrides global instrumentation. A 60-second scope also bounds
+the complete run, not only SDK socket waits. Parse failures retain response usage,
+while provider failures carry only safe core errors and latency. The Coach and live
+composition branch remain #28's scope; every configured mode still runs fixed.
+
 Rejected: calling OpenRouter with httpx2 directly — no new package and full control, but the
 request, the schema, parsing, retries, and error mapping would all be hand-written, and Bedrock
 would be a second adapter written from scratch.
 
-Sources, checked 2026-10-17: https://pypi.org/pypi/pydantic-ai-slim/json (2.57.0 released
-2026-10-16, Python ≥3.11, MIT; extras `openrouter` = `openai>=3.26.0`, `bedrock` = `boto3`);
-https://github.com/pydantic/pydantic-ai/tree/v2.57.0 (`providers/openrouter.py`: the base URL
+Sources, checked 2026-10-18 against the resolved tag and installed metadata:
+https://github.com/pydantic/pydantic-ai/releases/tag/v2.55.0 (released 2026-10-09,
+Python ≥3.11, MIT; extra `openrouter` requires `openai>=3.26.0`);
+https://github.com/pydantic/pydantic-ai/tree/v2.55.0 (`providers/openrouter.py`: the base URL
 `https://openrouter.ai/api/v1` and `openai_client=`; `models/openrouter.py`: OpenRouter's cost
 copied into `provider_details`; `profiles/__init__.py`: the default output mode is a tool
 call); https://github.com/pydantic/pydantic-ai/blob/main/docs/version-policy.md (no
 intentional breaking change in a minor release; the next major at least three months after
-2.0.0 of 2026-06-23); https://github.com/openai/openai-python/blob/main/src/openai/_constants.py
+2.0.0 of 2026-06-23); https://github.com/openai/openai-python/blob/v3.29.0/src/openai/_constants.py
 (`DEFAULT_MAX_RETRIES = 2`). Claude Sonnet 5.5 returns 400 on a forced `tool_choice`:
 https://platform.claude.com/docs/en/about-claude/models/migration-guide (Migrating to Claude
-Sonnet 5.5; Anthropic's reference as cached on 2026-10-06). The lock gains about ten packages
-(openai, griffelib, opentelemetry-api, genai-prices, pydantic-graph, logfire-api, jiter,
-sniffio, and their dependencies), all under MIT, Apache-2.0, BSD-3-Clause, or ISC, with pure
-or cp314 wheels (PyPI, checked 2026-10-17).
+Sonnet 5.5; Anthropic's reference as cached on 2026-10-06). This lock adds nine packages:
+pydantic-ai-slim, pydantic-graph, openai, griffelib, opentelemetry-api, genai-prices,
+logfire-api, jiter and sniffio. Their installed metadata declares MIT, Apache-2.0, or
+ISC, with pure or cp314 wheels. OSV's version-specific query returned no advisories
+for the nine resolved versions on 2026-10-18; Dependency Review and OSV CI remain gates.
+OpenRouter documents `X-OpenRouter-Title` as its current app-name header
+(https://openrouter.ai/docs/app-attribution, checked 2026-10-18); without a configured
+app URL the builder sends no `HTTP-Referer` and creates no public attribution page.
 
 ### Two role ports, shaped by their tasks
 

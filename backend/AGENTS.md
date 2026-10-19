@@ -37,7 +37,7 @@ backend/
 ├── var/             # Gitignored: the development database, dev.db
 ├── src/intent_to_english/
 │   ├── core/            # Framework-free: domain model, ports (Protocols), services, errors
-│   ├── adapters/        # Port implementations: memory/SQL repositories and models/fixed.py
+│   ├── adapters/        # Memory/SQL repositories and fixed/OpenRouter model roles
 │   ├── api/             # FastAPI: create_app(settings) factory, routers (api/routers/), Pydantic schemas
 │   ├── settings.py      # Prefixed settings and the unprefixed OPENROUTER_API_KEY secret alias
 │   └── composition.py   # Composition root: wires adapters into services for the API
@@ -57,6 +57,9 @@ backend/
   repositories share one lazy engine and disposal callback; without a database URL
   both stores are in memory. Both model roles currently use the fixed adapters in
   every configured mode, and meta reads that selected mode from the container.
+- The OpenRouter Partner adapter has three retry-free PydanticAI task agents and
+  an explicitly owned client, but is not selected by composition until #28. Model
+  SDK imports stay under `adapters/models/`; the suite blocks real model requests.
 - Domain errors derive from `core.errors.AppError`; the API maps them in one
   place (`api/app.py`), per `designing-errors`.
 - The schema belongs to the migrations: the app never creates or alters a table,

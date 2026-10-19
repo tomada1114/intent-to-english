@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+import pydantic_ai.models
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -17,6 +18,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from intent_to_english.composition import Container, build_container
 from intent_to_english.settings import Settings
 from tests.settings_env import without_settings_env
+
+# FunctionModel is offline; only explicitly mocked transport tests lift this guard.
+pydantic_ai.models.ALLOW_MODEL_REQUESTS = False
 
 FIXED_NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
