@@ -67,14 +67,18 @@ export function ServerStatusProvider({ children }: { children: ReactNode }) {
         const { query, action } = event;
         if (action.type === "success") {
           status.resolve(key);
-        } else if (
-          action.type === "error" &&
-          !isCancelledError(action.error) &&
-          toApiError(action.error).kind === "unknown"
-        ) {
-          status.report(key, () => {
-            void queryClient.refetchQueries({ queryKey: query.queryKey, exact: true });
-          });
+        } else if (action.type === "error" && !isCancelledError(action.error)) {
+          if (toApiError(action.error).kind === "unknown") {
+            status.report(key, () => {
+              void queryClient.refetchQueries({
+                queryKey: query.queryKey,
+                exact: true,
+              });
+            });
+          } else {
+            // Problem Details: the server answered, whatever it said.
+            status.resolve(key);
+          }
         }
       }),
     [queryClient, status],
@@ -102,7 +106,7 @@ export function ServerUnreachableBanner() {
   if (retries.size === 0) return null;
   return (
     <Banner
-      className="mx-4 mt-2"
+      className="mx-4 mt-2 shrink-0"
       message={UNREACHABLE_MESSAGE}
       action={{
         label: "再試行",

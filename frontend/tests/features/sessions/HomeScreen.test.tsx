@@ -29,6 +29,8 @@ import { server } from "../../msw/server";
 const TAGLINE = "英語で話す前に、日本語で言いたいことを決める練習";
 const EMPTY = "まだ会話はありません。最初の会話を始めましょう。";
 const LIST_FAILED = "会話の一覧を読み込めませんでした。";
+/** The server's answer to a failed list read: Problem Details, not silence. */
+const LIST_ERROR = { status: 500, title: "Internal Server Error" };
 
 /** The home screen at `/`, with a stand-in S2 route to navigate to. */
 function renderHome() {
@@ -338,7 +340,7 @@ describe("HomeScreen", () => {
             next_cursor: "20",
           });
         }
-        if (failNext) return HttpResponse.json({}, { status: 500 });
+        if (failNext) return HttpResponse.json(LIST_ERROR, { status: 500 });
         return HttpResponse.json<SessionPageResponse>({
           items: all.slice(20),
           next_cursor: null,
@@ -367,7 +369,7 @@ describe("HomeScreen", () => {
   it("still starts a session while the list has failed", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get("/api/sessions", () => HttpResponse.json({}, { status: 500 })),
+      http.get("/api/sessions", () => HttpResponse.json(LIST_ERROR, { status: 500 })),
       http.post("/api/sessions", () =>
         HttpResponse.json<SessionResponse>(sessionView({ stage: "opening" }), {
           status: 201,

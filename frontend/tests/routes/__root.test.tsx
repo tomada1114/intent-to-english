@@ -178,6 +178,13 @@ describe("the root layout", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(requests).toBe(2);
+    // One outage, one alert: S1's own load-failed banner stays out of it, also
+    // once the skeleton's minimum has ended.
+    await waitFor(() => expect(screen.queryByText("読み込んでいます…")).toBeNull());
+    expect(screen.getAllByRole("alert")).toEqual([alert]);
+    expect(
+      screen.queryByText("会話の一覧を読み込めませんでした。"),
+    ).not.toBeInTheDocument();
     reachable = true;
 
     await user.click(within(alert).getByRole("button", { name: "再試行" }));
@@ -253,6 +260,48 @@ describe("the root layout", () => {
       await screen.findByText("まだ会話はありません。最初の会話を始めましょう。"),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+  });
+
+  it("hides the server-unreachable banner once a later read gets an answer, even an error (S4)", async () => {
+    useMeta("openrouter");
+    let reads = 0;
+    server.use(
+      http.get(`/api/sessions/${SESSION_ID}`, () => {
+        reads += 1;
+        return reads <= 2
+          ? HttpResponse.error()
+          : HttpResponse.json<ProblemDetails>(
+              {
+                type: "about:blank",
+                title: "Not Found",
+                status: 404,
+                detail: "No such session",
+                code: "session_not_found",
+                request_id: "req-9",
+              },
+              { status: 404 },
+            );
+      }),
+    );
+    const router = renderAt(`/sessions/${SESSION_ID}`);
+    expect(
+      await screen.findByText(UNREACHABLE, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    // A read the screen makes by itself (not the banner's 再試行) gets an answer.
+    await act(() =>
+      router.options.context.queryClient.invalidateQueries({
+        queryKey: [{ _id: "getSession" }],
+      }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "この会話は見つかりませんでした。",
+      }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
   });
 });
