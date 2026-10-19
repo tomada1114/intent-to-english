@@ -1,7 +1,9 @@
 import { getSessionOptions } from "../../api/generated/@tanstack/react-query.gen";
 import type {
   Action,
+  ActionInputResponse,
   BlankOffResponse,
+  LastSubmissionResponse,
   PerformSessionActionData,
   PieceGivenResponse,
   RetryAcceptedResponse,
@@ -116,6 +118,26 @@ export function announcementFor(
     default:
       return null;
   }
+}
+
+/**
+ * The action a stored submission names, as the screen sends it again: the
+ * server kept exactly this action's input fields.
+ */
+export function toActionInput(submission: LastSubmissionResponse): ActionInput {
+  return { action: submission.action, ...submission.input } as ActionInput;
+}
+
+/** What a stored input puts back in the composer and the hint box, if anything. */
+export function restoredFields(input: ActionInputResponse): {
+  text?: string;
+  gap?: string;
+} {
+  if ("gap" in input && "partial_english" in input) {
+    return { text: input.partial_english, gap: input.gap };
+  }
+  if ("text" in input && typeof input.text === "string") return { text: input.text };
+  return {};
 }
 
 const PARTNER_ACTIONS: readonly Action[] = ["open", "partner_reply", "restate"];

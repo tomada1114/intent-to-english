@@ -90,3 +90,17 @@ export function useArrivals(entries: readonly Entry[]): Arrival {
   }, [entries]);
   return arrival;
 }
+
+/**
+ * Whether `ms` have passed since `key` last changed to a value other than
+ * null: a wait's own clock, which restarts for each new key.
+ */
+export function useAfter(key: string | null, ms: number): boolean {
+  const [passed, setPassed] = useState<string | null>(null);
+  useEffect(() => {
+    if (key === null) return undefined;
+    const timer = window.setTimeout(() => setPassed(key), ms);
+    return () => window.clearTimeout(timer);
+  }, [key, ms]);
+  return key !== null && passed === key;
+}

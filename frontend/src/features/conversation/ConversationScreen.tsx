@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -8,12 +8,23 @@ import {
   useRef,
   useState,
 } from "react";
-import { performSessionActionMutation } from "../../api/generated/@tanstack/react-query.gen";
+import {
+  cancelSessionActionMutation,
+  performSessionActionMutation,
+} from "../../api/generated/@tanstack/react-query.gen";
 import type { Action, SessionResponse } from "../../api/generated/types.gen";
+import { Banner } from "../../lib/Banner";
+import { settleAfterMinimum, useDelayedLoading } from "../../lib/delayed-loading";
 import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatStart } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { type ApiError, toApiError } from "../../lib/problem-details";
+import { useServerStatus } from "../../lib/ServerStatus";
+import {
+  modelFailureReason,
+  SUBMISSION_POLL_MS,
+  submissionPending,
+} from "../../lib/submission";
 import {
   COACH_ENGLISH,
   ENTER,
@@ -25,16 +36,24 @@ import { Composer } from "./Composer";
 import { EndSession } from "./EndSession";
 import { ConversationTimeline, TurnTimeline } from "./entries";
 import { HintRequest } from "./HintRequest";
-import { type Arrival, useArrivals, useFollowBottom, useWideLayout } from "./hooks";
+import {
+  type Arrival,
+  useAfter,
+  useArrivals,
+  useFollowBottom,
+  useWideLayout,
+} from "./hooks";
 import {
   type ActionInput,
   type Control,
   lineBeingAnswered,
   paneFor,
   previousTurnLine,
+  restoredFields,
   type SessionView,
   sessionQueryOptions,
   stageUi,
+  toActionInput,
 } from "./session";
 
 /** Actions whose text is the composer's: a success clears it, nothing else does. */
@@ -46,6 +65,29 @@ const COMPOSER_ACTIONS: ReadonlySet<Action> = new Set([
   "typed_copy",
 ]);
 
+/** From the send, how long a wait runs before it offers [中止] (ux-guidelines § States). */
+export const LONG_WAIT_MS = 10_000;
+
+const PARTNER_WAITING = "Partner が返事を考えています…";
+const COACH_WAITING = "コーチが確認しています…";
+const LONG_WAIT = "時間がかかっています（最大2分）";
+const CANCELLED = "中止しました。";
+const STALE = "別の画面でこの会話が進みました。最新の状態を読み込みました。";
+
+/** Conflicts that mean the shown view is out of date: read it again, then say so. */
+const STALE_CODES: ReadonlySet<string> = new Set([
+  "stale_session",
+  "action_in_progress",
+  "action_not_allowed",
+]);
+
+/** The keys this screen reports a request with no response under. */
+const UNANSWERED = {
+  action: "session-action",
+  cancel: "session-cancel",
+  end: "session-end",
+};
+
 const HOW_TO = [
   "1. 返したいことを、まず日本語で送ってください",
   "2. それを自分で英語にしてみてください（途中まででOK。詰まったら「ヒント」）",
@@ -55,42 +97,91 @@ const HOW_TO = [
 
 type Tab = "conversation" | "coach";
 
-/** The template's error display for a submission the server reports as failed. */
-const STORED_FAILURE: ApiError = {
-  kind: "problem",
-  status: 500,
-  title: "The last submission did not finish",
-  fieldErrors: {},
-};
+/** One request this tab is waiting for. */
+interface Attempt {
+  id: number;
+  input: ActionInput;
+  /** The version the action answers, which a cancel names. */
+  version: number;
+  /** [中止] was pressed and its 204 has not arrived yet. */
+  cancelling: boolean;
+}
+
+/** How the last action this tab sent (or cancelled) ended, while it matters. */
+type Outcome =
+  | { kind: "failed"; input: ActionInput; code: string | undefined }
+  | { kind: "invalid"; field: "text" | "gap"; message: string }
+  | { kind: "cancelled"; action: Action }
+  | { kind: "stale" };
+
+/** A 422's message for the field the action's input came from, if it names one. */
+function fieldMessage(
+  error: Extract<ApiError, { kind: "problem" }>,
+  field: "text" | "gap",
+): string | undefined {
+  const messages = error.fieldErrors[field];
+  if (messages !== undefined) return messages.join(" ");
+  return error.code === "invalid_input" ? (error.detail ?? error.title) : undefined;
+}
+
+/** 「コーチの返事を受け取れませんでした（<reason>）。」, or the Partner's, by pane. */
+function failureLine(pane: "partner" | "coach", code: string | null | undefined) {
+  const reason = modelFailureReason(code);
+  const who = pane === "partner" ? "Partner の" : "コーチの";
+  return reason === undefined
+    ? `${who}返事を受け取れませんでした。`
+    : `${who}返事を受け取れませんでした（${reason}）。`;
+}
+
+/** The text a failed or interrupted submission puts back in the fields. */
+function restoredFrom(view: SessionView): { text?: string; gap?: string } {
+  const stored = view.last_submission;
+  return stored === null || stored.state === "pending"
+    ? {}
+    : restoredFields(stored.input);
+}
 
 /**
  * S2, the conversation in progress (and, read-only, an ended one): the
  * Partner's pane and the Coach's, side by side from 1024 px and tabs below.
  * Every stage, control, and 👉 次 line comes from the view; the screen sends
  * `open` and `partner_reply` by itself, and writes each result into the
- * session query, so the route re-renders with the server's next stage.
+ * session query, so the route re-renders with the server's next stage. A wait
+ * shows its line after 300 ms and offers [中止] at 10 s; a failure shows its
+ * banner with [もう一度]; nothing the learner typed is lost on the way.
  */
 export function ConversationScreen({
   view,
   backLink,
+  notice,
 }: {
   view: SessionView;
   /** The header's 「← 会話一覧」, which the route supplies as a router link. */
   backLink?: ReactNode;
+  /** Above both panes: the route's banner when reading the session again failed. */
+  notice?: ReactNode;
 }) {
   const queryClient = useQueryClient();
   const sessionKey = sessionQueryOptions(view.id).queryKey;
+  const status = useServerStatus();
   const wide = useWideLayout();
   const ids = useId();
   const [tab, setTab] = useState<Tab>("coach");
   const [unread, setUnread] = useState(false);
-  const [text, setText] = useState("");
-  const [gap, setGap] = useState("");
+  // A failed or interrupted submission's text comes back in the composer.
+  const [text, setText] = useState(() => restoredFrom(view).text ?? "");
+  const [gap, setGap] = useState(() => restoredFrom(view).gap ?? "");
   const [directTurn, setDirectTurn] = useState<number | null>(null);
-  const [hintOpen, setHintOpen] = useState(false);
+  const [hintOpen, setHintOpen] = useState(() => restoredFrom(view).gap !== undefined);
   const [howToOpen, setHowToOpen] = useState(true);
   /** A past turn the learner selected on the left, shown read-only on the right. */
   const [pastTurn, setPastTurn] = useState<number | null>(null);
+  const [attempt, setAttemptState] = useState<Attempt | null>(null);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [endError, setEndError] = useState<ApiError | null>(null);
+  /** The stored submission this tab has since sent over or cancelled. */
+  const [settledKey, setSettledKey] = useState<string | null>(null);
+  const [cancellingStored, setCancellingStored] = useState<string | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   const focusAfterPast = useRef<"back" | "composer" | null>(null);
   const coachHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -102,12 +193,43 @@ export function ConversationScreen({
     conversation: null,
     coach: null,
   });
-  // A second send can arrive before React renders the disabled state.
-  const inFlight = useRef(false);
+  // The request being waited for, read by settling requests: a second send can
+  // arrive before React renders the disabled state, and a cancelled or
+  // superseded request's late answer must find it gone.
+  const attemptRef = useRef<Attempt | null>(null);
+  const attempts = useRef(0);
   const autoSent = useRef<number | null>(null);
   /** The version of a result that should take focus once it is shown. */
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
+  const latestVersion = useRef(view.version);
+
+  /** Whether the request `id` is still the one being waited for. */
+  function waitingFor(id: number) {
+    return attemptRef.current?.id === id;
+  }
+
+  function setAttempt(next: Attempt | null) {
+    attemptRef.current = next;
+    setAttemptState(next);
+  }
+
+  const stored = view.last_submission;
+  const storedKey =
+    stored === null ? null : `${view.version}:${stored.action}:${stored.state}`;
+  const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
+  // A submission the server still runs that this tab did not send (a reload,
+  // another tab): wait for it, reading the session every 2 s.
+  const storedPending =
+    attempt === null && storedLive?.state === "pending" ? storedLive : null;
+
+  useQuery({
+    ...sessionQueryOptions(view.id),
+    refetchInterval: (query) =>
+      submissionPending(query.state.data) && attemptRef.current === null
+        ? SUBMISSION_POLL_MS
+        : false,
+  });
 
   async function writeView(next: SessionResponse) {
     // A result for an older version (an action an `end` superseded) never
@@ -118,66 +240,246 @@ export function ConversationScreen({
     await queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
   }
 
+  const readAgain = () => queryClient.invalidateQueries({ queryKey: sessionKey });
+
   const action = useMutation({
     ...performSessionActionMutation(),
     // A read that started before the action must not overwrite its result.
     onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
-    onSuccess: (next, variables) => {
-      const sent = variables.body.action;
-      if (COMPOSER_ACTIONS.has(sent)) setText("");
-      if (sent === "hint") {
-        setGap("");
-        setHintOpen(false);
-      }
-      focusOnResult.current = next.version;
-      return writeView(next);
-    },
-    onSettled: () => {
-      inFlight.current = false;
-    },
   });
+  const cancelAction = useMutation(cancelSessionActionMutation());
   const end = useMutation({
     ...performSessionActionMutation(),
     onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
-    onSuccess: (next) => writeView(next),
   });
 
-  function send(input: ActionInput) {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    action.mutate({
-      path: { session_id: view.id },
-      body: { ...input, version: view.version },
-    });
+  async function send(input: ActionInput) {
+    if (attemptRef.current !== null) return;
+    attempts.current += 1;
+    const sent: Attempt = {
+      id: attempts.current,
+      input,
+      version: view.version,
+      cancelling: false,
+    };
+    setAttempt(sent);
+    setOutcome(null);
+    setSettledKey(storedKey);
+    status.resolve(UNANSWERED.action);
+    let next: SessionResponse;
+    try {
+      // A slow answer waits out the waiting line's 500 ms minimum.
+      next = await settleAfterMinimum(() =>
+        action.mutateAsync({
+          path: { session_id: view.id },
+          body: { ...input, version: sent.version },
+        }),
+      );
+    } catch (error) {
+      if (waitingFor(sent.id)) await fail(sent, toApiError(error));
+      return;
+    }
+    // Cancelled, or superseded by `end`: the answer is discarded.
+    if (!waitingFor(sent.id)) return;
+    setAttempt(null);
+    if (COMPOSER_ACTIONS.has(input.action)) setText("");
+    if (input.action === "hint") {
+      setGap("");
+      setHintOpen(false);
+    }
+    focusOnResult.current = next.version;
+    await writeView(next);
   }
 
-  const sending = action.isPending ? action.variables?.body.action : undefined;
-  const pending =
-    sending ??
-    (view.last_submission?.state === "pending"
-      ? view.last_submission.action
-      : undefined);
-  const busy = pending !== undefined;
-  const waitingPane = pending === undefined ? null : paneFor(pending);
+  async function fail(sent: Attempt, error: ApiError) {
+    const code = error.kind === "problem" ? error.code : undefined;
+    if (code === "action_cancelled") {
+      // Ours: the cancel's 204 finishes it. Another tab's: read what it did.
+      if (attemptRef.current?.cancelling === true) return;
+      setAttempt(null);
+      await readAgain();
+      return;
+    }
+    setAttempt(null);
+    if (error.kind === "unknown") {
+      status.report(UNANSWERED.action, () => void latest.current.send(sent.input));
+      return;
+    }
+    if (code !== undefined && STALE_CODES.has(code)) {
+      await readAgain();
+      setOutcome({ kind: "stale" });
+      return;
+    }
+    if (code === "session_ended") {
+      await readAgain();
+      return;
+    }
+    const field =
+      sent.input.action === "hint"
+        ? "gap"
+        : COMPOSER_ACTIONS.has(sent.input.action)
+          ? "text"
+          : null;
+    const message =
+      error.status === 422 && field !== null ? fieldMessage(error, field) : undefined;
+    setOutcome(
+      field !== null && message !== undefined
+        ? { kind: "invalid", field, message }
+        : { kind: "failed", input: sent.input, code },
+    );
+  }
+
+  async function cancel() {
+    const current = attemptRef.current;
+    if (current !== null) {
+      if (current.cancelling) return;
+      setAttempt({ ...current, cancelling: true });
+      try {
+        await cancelAction.mutateAsync({
+          path: { session_id: view.id },
+          body: { version: current.version },
+        });
+      } catch (error) {
+        const now = attemptRef.current;
+        if (now?.id !== current.id) return;
+        setAttempt({ ...now, cancelling: false });
+        if (toApiError(error).kind === "unknown") {
+          status.report(UNANSWERED.cancel, () => void latest.current.cancel());
+        }
+        return;
+      }
+      // The result came first and is shown: nothing was cancelled.
+      if (!waitingFor(current.id)) return;
+      setAttempt(null);
+      setOutcome({ kind: "cancelled", action: current.input.action });
+      return;
+    }
+    const pending = storedPending;
+    if (pending === null || cancellingStored === storedKey) return;
+    const version = view.version;
+    setCancellingStored(storedKey);
+    try {
+      await cancelAction.mutateAsync({
+        path: { session_id: view.id },
+        body: { version },
+      });
+    } catch (error) {
+      setCancellingStored(null);
+      if (toApiError(error).kind === "unknown") {
+        status.report(UNANSWERED.cancel, () => void latest.current.cancel());
+      }
+      return;
+    }
+    setCancellingStored(null);
+    // The stored result arrived first and is shown: nothing was cancelled.
+    if (latestVersion.current !== version) return;
+    setSettledKey(storedKey);
+    const fields = restoredFields(pending.input);
+    if (fields.text !== undefined) setText(fields.text);
+    if (fields.gap !== undefined) {
+      setGap(fields.gap);
+      setHintOpen(true);
+    }
+    setOutcome({ kind: "cancelled", action: pending.action });
+    await readAgain();
+  }
+
+  async function endSession() {
+    setEndError(null);
+    status.resolve(UNANSWERED.end);
+    try {
+      const next = await end.mutateAsync({
+        path: { session_id: view.id },
+        body: { action: "end", version: view.version },
+      });
+      // Ending supersedes the request in flight: its answer is discarded.
+      setAttempt(null);
+      setOutcome(null);
+      await writeView(next);
+    } catch (caught) {
+      const error = toApiError(caught);
+      const code = error.kind === "problem" ? error.code : undefined;
+      if (error.kind === "unknown") {
+        status.report(UNANSWERED.end, () => void latest.current.endSession());
+      } else if (code !== undefined && STALE_CODES.has(code)) {
+        await readAgain();
+        setOutcome({ kind: "stale" });
+      } else if (code === "session_ended") {
+        await readAgain();
+      } else {
+        setEndError(error);
+      }
+    }
+  }
+
+  // What a retry from the layout's banner calls: this render's functions,
+  // which send at the version shown then.
+  const latest = useRef({ send, cancel, endSession });
+  useEffect(() => {
+    latest.current = { send, cancel, endSession };
+    latestVersion.current = view.version;
+  });
+  useEffect(
+    () => () => {
+      for (const key of Object.values(UNANSWERED)) status.resolve(key);
+    },
+    [status],
+  );
+
+  // A stored submission that settles failed or interrupted later (a polled
+  // one) puts its text back too, unless the learner has typed since.
+  const restoredKey = useRef(storedKey);
+  const restoreStored = useEffectEvent(() => {
+    const fields = restoredFrom(view);
+    if (fields.text !== undefined) {
+      const restored = fields.text;
+      setText((previous) => (previous === "" ? restored : previous));
+    }
+    if (fields.gap !== undefined) {
+      const restored = fields.gap;
+      setGap((previous) => (previous === "" ? restored : previous));
+    }
+  });
+  useEffect(() => {
+    if (restoredKey.current === storedKey) return;
+    restoredKey.current = storedKey;
+    restoreStored();
+  }, [storedKey]);
+
+  const waitingAction = attempt?.input.action ?? storedPending?.action;
+  const busy = waitingAction !== undefined;
+  const waitingPane = waitingAction === undefined ? null : paneFor(waitingAction);
+  const waitKey =
+    attempt !== null
+      ? `sent:${attempt.id}`
+      : storedPending !== null
+        ? `stored:${storedKey}`
+        : null;
+  const lineShown = useDelayedLoading(busy) && busy;
+  const longWait = useAfter(waitKey, LONG_WAIT_MS);
+  const cancelling =
+    attempt?.cancelling === true ||
+    (storedPending !== null && cancellingStored === storedKey);
   const ended = view.status === "ended";
 
   const autoSend = useEffectEvent((auto: "open" | "partner_reply") => {
-    send({ action: auto });
+    void send({ action: auto });
   });
+  const autoAction =
+    view.stage === "opening"
+      ? "open"
+      : view.stage === "partner_turn"
+        ? "partner_reply"
+        : null;
   useEffect(() => {
-    const auto =
-      view.stage === "opening"
-        ? "open"
-        : view.stage === "partner_turn"
-          ? "partner_reply"
-          : null;
-    // Never for a submission the server still holds, and once per version:
-    // a failed auto-send stays failed (StrictMode re-runs this effect too).
-    if (auto === null || view.last_submission !== null) return;
+    // Never for a submission the server still holds or that failed, and once
+    // per version: a failed auto-send stays failed (StrictMode re-runs this
+    // effect too); 「もう一度」 sends it again.
+    if (autoAction === null || view.last_submission !== null) return;
     if (autoSent.current === view.version) return;
     autoSent.current = view.version;
-    autoSend(auto);
-  }, [view.stage, view.version, view.last_submission]);
+    autoSend(autoAction);
+  }, [autoAction, view.version, view.last_submission]);
 
   // Once a result's view is shown and nothing is in flight, the composer takes
   // focus, or the first control when the stage hides it.
@@ -245,46 +547,71 @@ export function ConversationScreen({
   const showHint = hintOpen && view.stage === "english";
   const ui = stageUi(view, { direct, hintOpen: showHint });
 
+  // The failure a banner shows: this tab's own, else one the view reports.
   const failure =
-    action.isError && !ended && action.variables !== undefined
-      ? { error: toApiError(action.error), action: action.variables.body.action }
-      : view.last_submission !== null &&
-          view.last_submission.state !== "pending" &&
-          action.isIdle &&
-          !ended
-        ? { error: STORED_FAILURE, action: view.last_submission.action }
-        : null;
-  const fieldMessage = (field: string) => {
-    if (failure?.error.kind !== "problem" || failure.error.status !== 422) return;
-    const messages = failure.error.fieldErrors[field];
-    if (messages !== undefined) return messages.join(" ");
-    return failure.error.code === "invalid_input"
-      ? (failure.error.detail ?? failure.error.title)
-      : undefined;
-  };
+    ended || busy
+      ? null
+      : outcome?.kind === "failed"
+        ? { input: outcome.input, code: outcome.code }
+        : outcome === null &&
+            storedLive?.state === "failed" &&
+            storedLive.failure_code !== "interrupted"
+          ? { input: toActionInput(storedLive), code: storedLive.failure_code }
+          : null;
+  const failurePane = failure === null ? null : paneFor(failure.input.action);
   const composerError =
-    failure !== null && COMPOSER_ACTIONS.has(failure.action)
-      ? fieldMessage("text")
+    outcome?.kind === "invalid" && outcome.field === "text"
+      ? outcome.message
       : undefined;
-  const gapError = failure?.action === "hint" ? fieldMessage("gap") : undefined;
-  const bannerFor = (side: "partner" | "coach") =>
-    failure !== null &&
-    composerError === undefined &&
-    gapError === undefined &&
-    paneFor(failure.action) === side ? (
-      <ErrorMessage error={failure.error} />
+  const gapError =
+    outcome?.kind === "invalid" && outcome.field === "gap"
+      ? outcome.message
+      : undefined;
+  const cancelledPane =
+    outcome?.kind === "cancelled" && !busy ? paneFor(outcome.action) : null;
+  // An auto-sent open or partner_reply that failed, was cancelled, or was
+  // interrupted is never sent again by itself: 「もう一度」 is the way on.
+  const stuck =
+    autoAction !== null &&
+    !busy &&
+    !ended &&
+    failure === null &&
+    (autoSent.current === view.version || view.last_submission !== null);
+
+  const failureBanner = (pane: "partner" | "coach") =>
+    failure !== null && failurePane === pane ? (
+      <Banner
+        message={failureLine(pane, failure.code)}
+        action={{ label: "もう一度", onClick: () => void send(failure.input) }}
+      />
     ) : null;
 
-  const left = useFollowBottom(`${view.entries.length}:${pending ?? ""}`);
-  const right = useFollowBottom(`${view.entries.length}:${pending ?? ""}:${showHint}`);
+  const cancelButton = (pane: "partner" | "coach") =>
+    waitingPane === pane && longWait ? (
+      <button
+        type="button"
+        disabled={cancelling}
+        onClick={() => void cancel()}
+        className={SECONDARY_BUTTON}
+      >
+        中止
+      </button>
+    ) : null;
+
+  const left = useFollowBottom(`${view.entries.length}:${waitingAction ?? ""}`);
+  const right = useFollowBottom(
+    `${view.entries.length}:${waitingAction ?? ""}:${showHint}`,
+  );
 
   function runControl(control: Control) {
     if (control.input === "toggle_direct") {
       setDirectTurn(direct ? null : view.turn_index);
     } else if (control.input === "open_hint") {
       setHintOpen(true);
+    } else if (control.input.action === "end") {
+      void endSession();
     } else {
-      send(control.input);
+      void send(control.input);
     }
   }
 
@@ -313,19 +640,30 @@ export function ConversationScreen({
         {...(ended ? {} : { onSelectTurn: showPastTurn })}
       />
       <div role="status" className="text-ink-muted">
-        {waitingPane === "partner" && (
-          <p className={ENTER}>Partner が返事を考えています…</p>
+        {waitingPane === "partner" && lineShown && (
+          <p className={ENTER}>{longWait ? LONG_WAIT : PARTNER_WAITING}</p>
         )}
+        {cancelledPane === "partner" && <p>{CANCELLED}</p>}
       </div>
-      {bannerFor("partner")}
+      {cancelButton("partner")}
+      {failureBanner("partner")}
+      {stuck && autoAction !== null && (
+        <button
+          type="button"
+          onClick={() => void send({ action: autoAction })}
+          className={SECONDARY_BUTTON}
+        >
+          もう一度
+        </button>
+      )}
     </>
   );
 
   // Shown under whichever turn the Coach pane holds, the current or a past one.
   const coachErrors = (
     <>
-      {bannerFor("coach")}
-      {end.isError && <ErrorMessage error={toApiError(end.error)} />}
+      {failureBanner("coach")}
+      {endError !== null && <ErrorMessage error={endError} />}
     </>
   );
 
@@ -399,13 +737,19 @@ export function ConversationScreen({
 
   const footer = ui !== null && !viewingPast && (
     <div className="space-y-3 bg-surface px-4 pt-3 pb-4 shadow-[0_-1px_0_var(--color-line)] lg:px-5">
-      <div role="status">
+      <div role="status" className="space-y-1">
         {waitingPane === "coach" ? (
-          <p className="text-ink-muted">コーチが確認しています…</p>
+          lineShown && (
+            <p className="text-ink-muted">{longWait ? LONG_WAIT : COACH_WAITING}</p>
+          )
         ) : (
-          nextLine !== null && <p className="font-bold">{`👉 次: ${nextLine}`}</p>
+          <>
+            {cancelledPane === "coach" && <p className="text-ink-muted">{CANCELLED}</p>}
+            {nextLine !== null && <p className="font-bold">{`👉 次: ${nextLine}`}</p>}
+          </>
         )}
       </div>
+      {cancelButton("coach")}
       {ui.composer !== null && (
         <Composer
           textareaRef={composerRef}
@@ -418,7 +762,7 @@ export function ConversationScreen({
           error={composerError}
           onSend={() => {
             const composer = ui.composer;
-            if (composer !== null) send({ action: composer.action, text });
+            if (composer !== null) void send({ action: composer.action, text });
           }}
         />
       )}
@@ -430,7 +774,7 @@ export function ConversationScreen({
           disabled={busy}
           error={gapError}
           onCancel={closeHint}
-          onSubmit={() => send({ action: "hint", gap, partial_english: text })}
+          onSubmit={() => void send({ action: "hint", gap, partial_english: text })}
         />
       )}
       {!busy && ui.controls.length > 0 && (
@@ -492,6 +836,7 @@ export function ConversationScreen({
       data-testid="coach-scroll"
       className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 motion-safe:scroll-smooth lg:p-5"
     >
+      {outcome?.kind === "stale" && <Banner message={STALE} />}
       {coachPane}
     </div>
   );
@@ -506,15 +851,7 @@ export function ConversationScreen({
         </span>
         {view.allowed_actions.includes("end") && (
           <span className="ml-auto shrink-0">
-            <EndSession
-              ending={end.isPending}
-              onEnd={() =>
-                end.mutate({
-                  path: { session_id: view.id },
-                  body: { action: "end", version: view.version },
-                })
-              }
-            />
+            <EndSession ending={end.isPending} onEnd={() => void endSession()} />
           </span>
         )}
       </HeaderItems>
@@ -522,76 +859,79 @@ export function ConversationScreen({
       <div role="status" aria-label="お知らせ" aria-atomic="true" className="sr-only">
         {arrival.message !== "" && <span key={arrival.key}>{arrival.message}</span>}
       </div>
-      {wide ? (
-        <div className="grid h-[calc(100dvh-3rem)] grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]">
-          <section
-            aria-label="会話"
-            className="flex min-h-0 flex-col border-r border-line bg-canvas"
-          >
-            {leftScroll}
-          </section>
-          <section aria-label="コーチ" className="flex min-h-0 flex-col bg-surface">
-            {rightScroll}
-            {footer}
-          </section>
-        </div>
-      ) : (
-        <div className="flex h-[calc(100dvh-3rem)] flex-col">
-          <div
-            role="tablist"
-            aria-label="会話とコーチ"
-            className="flex shrink-0 gap-1 border-b border-line bg-canvas px-2"
-          >
-            {(["conversation", "coach"] as const).map((name) => (
-              <button
-                key={name}
-                ref={(element) => {
-                  tabRefs.current[name] = element;
-                }}
-                type="button"
-                role="tab"
-                id={`${ids}-tab-${name}`}
-                aria-selected={tab === name}
-                aria-controls={`${ids}-panel-${name}`}
-                tabIndex={tab === name ? 0 : -1}
-                onClick={() => select(name)}
-                onKeyDown={onTabKey}
-                className={`relative inline-flex min-h-11 items-center gap-1 border-b-2 px-4 font-bold ${tab === name ? "border-ink text-ink" : "border-transparent text-ink-muted"} ${FOCUS_RING}`}
-              >
-                {name === "conversation" ? "会話" : "コーチ"}
-                {name === "conversation" && unread && (
-                  <>
-                    <span
-                      aria-hidden="true"
-                      className="size-2 rounded-full bg-partner-ink"
-                    />
-                    <span className="sr-only">（新しい発言）</span>
-                  </>
-                )}
-              </button>
-            ))}
+      <div className="flex h-[calc(100dvh-3rem)] flex-col">
+        {notice}
+        {wide ? (
+          <div className="grid min-h-0 flex-1 grid-cols-[minmax(360px,42fr)_minmax(480px,58fr)]">
+            <section
+              aria-label="会話"
+              className="flex min-h-0 flex-col border-r border-line bg-canvas"
+            >
+              {leftScroll}
+            </section>
+            <section aria-label="コーチ" className="flex min-h-0 flex-col bg-surface">
+              {rightScroll}
+              {footer}
+            </section>
           </div>
-          <section
-            role="tabpanel"
-            id={`${ids}-panel-conversation`}
-            aria-labelledby={`${ids}-tab-conversation`}
-            hidden={tab !== "conversation"}
-            className="flex min-h-0 flex-1 flex-col bg-canvas transition-opacity duration-100 starting:opacity-0"
-          >
-            {leftScroll}
-          </section>
-          <section
-            role="tabpanel"
-            id={`${ids}-panel-coach`}
-            aria-labelledby={`${ids}-tab-coach`}
-            hidden={tab !== "coach"}
-            className="flex min-h-0 flex-1 flex-col bg-surface transition-opacity duration-100 starting:opacity-0"
-          >
-            {rightScroll}
-            {footer}
-          </section>
-        </div>
-      )}
+        ) : (
+          <>
+            <div
+              role="tablist"
+              aria-label="会話とコーチ"
+              className="flex shrink-0 gap-1 border-b border-line bg-canvas px-2"
+            >
+              {(["conversation", "coach"] as const).map((name) => (
+                <button
+                  key={name}
+                  ref={(element) => {
+                    tabRefs.current[name] = element;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`${ids}-tab-${name}`}
+                  aria-selected={tab === name}
+                  aria-controls={`${ids}-panel-${name}`}
+                  tabIndex={tab === name ? 0 : -1}
+                  onClick={() => select(name)}
+                  onKeyDown={onTabKey}
+                  className={`relative inline-flex min-h-11 items-center gap-1 border-b-2 px-4 font-bold ${tab === name ? "border-ink text-ink" : "border-transparent text-ink-muted"} ${FOCUS_RING}`}
+                >
+                  {name === "conversation" ? "会話" : "コーチ"}
+                  {name === "conversation" && unread && (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="size-2 rounded-full bg-partner-ink"
+                      />
+                      <span className="sr-only">（新しい発言）</span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+            <section
+              role="tabpanel"
+              id={`${ids}-panel-conversation`}
+              aria-labelledby={`${ids}-tab-conversation`}
+              hidden={tab !== "conversation"}
+              className="flex min-h-0 flex-1 flex-col bg-canvas transition-opacity duration-100 starting:opacity-0"
+            >
+              {leftScroll}
+            </section>
+            <section
+              role="tabpanel"
+              id={`${ids}-panel-coach`}
+              aria-labelledby={`${ids}-tab-coach`}
+              hidden={tab !== "coach"}
+              className="flex min-h-0 flex-1 flex-col bg-surface transition-opacity duration-100 starting:opacity-0"
+            >
+              {rightScroll}
+              {footer}
+            </section>
+          </>
+        )}
+      </div>
     </>
   );
 }
@@ -621,11 +961,23 @@ export function ConversationSkeleton() {
   );
 }
 
-/** The session failed to load: the template's error display, in the page. */
-export function ConversationLoadError({ error }: { error: ApiError }) {
+/**
+ * 「この会話を読み込めませんでした。」 with [再読み込み]: in place of the panes
+ * when the session never loaded, or above them when reading it again failed.
+ */
+export function ConversationLoadError({
+  retrying,
+  onRetry,
+}: {
+  retrying: boolean;
+  onRetry: () => void;
+}) {
   return (
     <div className="p-4">
-      <ErrorMessage error={error} />
+      <Banner
+        message="この会話を読み込めませんでした。"
+        action={{ label: "再読み込み", onClick: onRetry, disabled: retrying }}
+      />
     </div>
   );
 }

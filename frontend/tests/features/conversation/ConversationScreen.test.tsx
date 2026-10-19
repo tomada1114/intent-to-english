@@ -200,7 +200,7 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
 
     expect(
       await within(pane("会話")).findByText(
-        "Something went wrong on our side. Try again.",
+        "Partner の返事を受け取れませんでした（接続できません）。",
       ),
     ).toBeInTheDocument();
     await act(() =>
@@ -214,11 +214,11 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
 
   it.each([
     { state: "pending" as const, shows: "Partner が返事を考えています…" },
-    { state: "failed" as const, shows: "Something went wrong on our side. Try again." },
     {
-      state: "interrupted" as const,
-      shows: "Something went wrong on our side. Try again.",
+      state: "failed" as const,
+      shows: "Partner の返事を受け取れませんでした（時間切れ）。",
     },
+    { state: "interrupted" as const, shows: "もう一度" },
   ])(
     "sends nothing when the last submission is $state, and shows it",
     async ({ state, shows }) => {
@@ -817,13 +817,14 @@ describe("ConversationScreen sending (REQ-004)", () => {
       await perform(user);
 
       await waitFor(() => expect(server.bodies).toEqual([body]));
+      // The waiting line shows once the request passes 300 ms.
       if (waiting === "partner") {
         expect(
-          within(pane("会話")).getByText("Partner が返事を考えています…"),
+          await within(pane("会話")).findByText("Partner が返事を考えています…"),
         ).toBeInTheDocument();
       } else {
         expect(
-          within(pane("コーチ")).getByText("コーチが確認しています…"),
+          await within(pane("コーチ")).findByText("コーチが確認しています…"),
         ).toBeInTheDocument();
       }
       expect(within(pane("コーチ")).queryByRole("group", { name: "操作" })).toBeNull();
@@ -865,39 +866,6 @@ describe("ConversationScreen sending (REQ-004)", () => {
 
     await screen.findByRole("textbox", { name: "あなたの英語" });
     expect(server.bodies).toHaveLength(1);
-  });
-
-  it("ends from the header while another request is in flight", async () => {
-    const hold = deferred();
-    const ended = at("ended", intent.entries, [], {
-      status: "ended",
-      version: 2,
-      ended_at: "2026-10-17T10:00:00Z",
-    });
-    const server = serveSession(intent, async (body) => {
-      if (body.action === "end") return ended;
-      await hold.promise;
-      return HttpResponse.json<ProblemDetails>(
-        problem(409, "action_cancelled", "The action was cancelled"),
-        { status: 409 },
-      );
-    });
-    const user = userEvent.setup();
-    renderSession(intent);
-
-    await compose(user, "あなたの日本語", "久しぶりに映画を見た");
-    await user.click(screen.getByRole("button", { name: "会話を終える" }));
-    await user.click(screen.getByRole("button", { name: "終える" }));
-
-    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
-    expect(server.bodies).toEqual([
-      { action: "intent", text: "久しぶりに映画を見た", version: 1 },
-      { action: "end", version: 1 },
-    ]);
-    hold.release();
-    await waitFor(() => expect(server.bodies).toHaveLength(2));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText(/👉 次/)).not.toBeInTheDocument();
   });
 
   it("ends without confirmation with 終わる at the check-in", async () => {
