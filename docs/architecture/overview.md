@@ -486,6 +486,9 @@ case still runs. Fixed mode refuses before calls or writes, naming the key and m
 variables; until #28 every configured mode therefore refuses. Both report paths and
 exactly one ordered README marker pair are checked before calls. Existing reports
 are never overwritten; exclusive writes also guard against a concurrent writer.
+Publication stages the README and replaces it only after both reports close
+successfully. A failure removes only artifacts exclusively created by that run,
+leaving the original README and any concurrent writer's files intact.
 
 The Markdown and JSON reports under `backend/evals/reports/` use
 `<UTC-date>_<coach-id>_<partner-id>`, replacing `/` with `-` in model ids. They include

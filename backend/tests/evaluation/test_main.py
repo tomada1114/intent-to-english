@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -183,3 +184,69 @@ def test_filename_preserves_a_plain_model_id_and_replaces_only_slashes():
     )
 
     assert cli.report_stem(metadata) == "2026-10-19_coach-no-slash_provider-partner"
+
+
+@pytest.mark.parametrize(
+    "failure", ["json", "readme"], ids=["second-report", "summary-publication"]
+)
+def test_publication_failure_rolls_back_only_new_artifacts(
+    files, fake_live, monkeypatch, failure
+):
+    readme, reports, args = files
+    offline = replace(
+        fake_live, models=ModelPorts(FixedPartnerModel(), FixedCoachModel())
+    )
+    monkeypatch.setattr(cli, "build_container", lambda _settings: offline)
+    real_open, real_replace = Path.open, Path.replace
+
+    def open_file(path, mode="r", *positional, **kwargs):
+        if (failure == "json" and path == reports / f"{STEM}.json" and mode == "x") or (
+            failure == "readme" and path == readme and mode == "w"
+        ):
+            message = "publication denied"
+            raise PermissionError(message)
+        return real_open(path, mode, *positional, **kwargs)
+
+    def replace_file(path, target):
+        if failure == "readme" and target == readme:
+            message = "publication denied"
+            raise PermissionError(message)
+        return real_replace(path, target)
+
+    monkeypatch.setattr(Path, "open", open_file)
+    monkeypatch.setattr(Path, "replace", replace_file)
+
+    assert cli.main(args) == 1
+
+    assert readme.read_text() == README
+    assert list(reports.iterdir()) == []
+    assert sorted(path.name for path in readme.parent.iterdir()) == [
+        "README.md",
+        "reports",
+    ]
+
+
+def test_publication_race_preserves_the_other_writers_report(
+    files, fake_live, monkeypatch
+):
+    readme, reports, args = files
+    offline = replace(
+        fake_live, models=ModelPorts(FixedPartnerModel(), FixedCoachModel())
+    )
+    monkeypatch.setattr(cli, "build_container", lambda _settings: offline)
+    real_open = Path.open
+    machine = reports / f"{STEM}.json"
+
+    def open_file(path, mode="r", *positional, **kwargs):
+        if path == machine and mode == "x":
+            with real_open(machine, "w") as handle:
+                handle.write("CONCURRENT")
+            raise FileExistsError(machine)
+        return real_open(path, mode, *positional, **kwargs)
+
+    monkeypatch.setattr(Path, "open", open_file)
+
+    assert cli.main(args) == 1
+    assert readme.read_text() == README
+    assert list(reports.iterdir()) == [machine]
+    assert machine.read_text() == "CONCURRENT"
