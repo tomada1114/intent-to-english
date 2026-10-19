@@ -432,7 +432,8 @@ export function ConversationScreen({
       <HeaderItems>
         {backLink}
         <span className="min-w-0 truncate text-[13px] text-ink-muted tabular-nums">
-          {`${startLabel} から · ${view.finished_replies}往復`}
+          <span className="max-lg:hidden">{`${startLabel} から · `}</span>
+          {`${view.finished_replies}往復`}
         </span>
         {view.allowed_actions.includes("end") && (
           <span className="ml-auto shrink-0">

@@ -68,11 +68,12 @@ export function EndSession({ onEnd, ending }: { onEnd: () => void; ending: boole
     <fieldset
       ref={group}
       aria-labelledby={questionId}
-      className="flex min-w-0 shrink-0 items-center gap-2"
+      className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2"
       onKeyDown={arm}
       onPointerDown={arm}
     >
-      <span id={questionId} className="text-sm">
+      {/* Below 640 px the question is read out but not shown: the two answers fit. */}
+      <span id={questionId} className="text-sm max-sm:sr-only">
         終えて振り返りを作りますか？
       </span>
       <button type="button" disabled={ending} onClick={onEnd} className={HEADER_BUTTON}>

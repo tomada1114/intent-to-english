@@ -20,11 +20,15 @@ function RootLayout() {
   return (
     <HeaderSlotProvider>
       <div className="min-h-dvh bg-canvas font-sans text-ink">
-        <header className="sticky top-0 z-10 flex h-12 items-center gap-4 border-b border-line bg-canvas px-4">
-          <Link to="/" className={`shrink-0 rounded-sm font-bold ${FOCUS_RING}`}>
+        <header className="group/header sticky top-0 z-10 flex h-12 items-center gap-2 border-b border-line bg-canvas px-4 lg:gap-4">
+          {/* Below 1024 px a page's own items take the room; its back link leads home. */}
+          <Link
+            to="/"
+            className={`shrink-0 rounded-sm font-bold max-lg:group-has-[[data-header-slot]:not(:empty)]/header:hidden ${FOCUS_RING}`}
+          >
             Intent to English
           </Link>
-          <HeaderSlot className="flex min-w-0 flex-1 items-center gap-4" />
+          <HeaderSlot className="flex min-w-0 flex-1 items-center gap-2 lg:gap-4" />
           <FixedModeBadge />
         </header>
         <main>

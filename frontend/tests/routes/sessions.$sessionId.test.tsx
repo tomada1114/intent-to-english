@@ -70,11 +70,14 @@ describe("/sessions/$sessionId", () => {
     const header = await screen.findByRole("banner");
     const back = await within(header).findByRole("link", { name: "← 会話一覧" });
     expect(back).toHaveAttribute("href", "/");
+    expect(within(header).getByText("4往復")).toHaveTextContent(
+      "10/17 18:40 から · 4往復",
+    );
     const badge = await within(header).findByRole("button", { name: "固定応答モード" });
     const order = [
       within(header).getByRole("link", { name: "Intent to English" }),
       back,
-      within(header).getByText("10/17 18:40 から · 4往復"),
+      within(header).getByText("4往復"),
       within(header).getByRole("button", { name: "会話を終える" }),
       badge,
     ];

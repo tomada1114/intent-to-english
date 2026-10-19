@@ -21,7 +21,7 @@ export function HeaderSlotProvider({ children }: { children: ReactNode }) {
 /** Where a page's own header items appear, inside the layout's header. */
 export function HeaderSlot({ className }: { className?: string }) {
   const setSlot = useContext(SetSlotContext);
-  return <div ref={setSlot} className={className} />;
+  return <div ref={setSlot} data-header-slot="" className={className} />;
 }
 
 /**

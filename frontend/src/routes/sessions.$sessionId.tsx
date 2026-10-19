@@ -25,7 +25,7 @@ function SessionRoute() {
         view={query.data}
         backLink={
           <Link to="/" className={BACK_LINK}>
-            ← 会話一覧
+            ← <span className="max-lg:hidden">会話</span>一覧
           </Link>
         }
       />

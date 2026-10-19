@@ -26,4 +26,4 @@ export const LABEL = "text-xs font-bold text-ink";
 export const COACH_ENGLISH = "font-en text-base leading-[1.6]";
 
 /** A secondary button sized for the 48 px header: 32 px tall. */
-export const HEADER_BUTTON = `${TACTILE} min-h-8 border border-b-2 border-line-strong bg-canvas px-3 text-sm text-ink active:border-b ${FOCUS_RING}`;
+export const HEADER_BUTTON = `${TACTILE} min-h-8 border border-b-2 border-line-strong bg-canvas px-2 text-sm sm:px-3 text-ink active:border-b ${FOCUS_RING}`;

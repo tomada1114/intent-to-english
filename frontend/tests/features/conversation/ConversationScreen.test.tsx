@@ -363,7 +363,8 @@ describe("ConversationScreen panes (REQ-002)", () => {
     serveSession(view);
     renderSession(view);
 
-    expect(screen.getByText("10/17 18:40 から · 1往復")).toBeInTheDocument();
+    // Below 1024 px only 「1往復」 shows; the start time is in the same item.
+    expect(screen.getByText("1往復")).toHaveTextContent("10/17 18:40 から · 1往復");
     expect(screen.getByRole("button", { name: "会話を終える" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "10/17 18:40 からの会話",
