@@ -217,15 +217,17 @@ describe("in-session Coach question", () => {
       const served = serveSession(english, () => {
         calls += 1;
         if (calls === 1) return HttpResponse.error();
-        served.set({
-          ...english,
-          version: 3,
-          entries: [
-            ...english.entries,
-            entry("question", { text: "Original question" }),
-            entry("coach_answer", { text: "確認できました。" }),
-          ],
-        });
+        served.set(
+          sessionView({
+            ...english,
+            version: 3,
+            entries: [
+              ...english.entries,
+              entry("question", { text: "Original question" }),
+              entry("coach_answer", { text: "確認できました。" }),
+            ],
+          }),
+        );
         return HttpResponse.json<ProblemDetails>(
           {
             type: "about:blank",
