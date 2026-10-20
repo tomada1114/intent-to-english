@@ -9,6 +9,7 @@
 
 ## Checklist
 
-- [ ] Full local verification passes on the committed tree (`just verify`)
+- [ ] Local verification evidence recorded for the committed tree (`just verify`; any host restriction documented)
+- [ ] Every expected CI check passes on the current head before merge
 - [ ] Docs updated, if a user-facing behavior, command, or setting changed
 - [ ] Breaking changes called out in the Summary

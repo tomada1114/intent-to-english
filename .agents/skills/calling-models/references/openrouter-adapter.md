@@ -11,8 +11,8 @@ the mode"; the external facts below that the overview does not state carry their
 - `composition.py` builds the adapter only when it chooses OpenRouter, passing the key
   from `Settings`, both model ids, and a monotonic clock for latency. The key is
   unwrapped from its secret type here and nowhere else.
-- `build_openrouter_partner` builds one `openai.AsyncOpenAI`, with `base_url`
-  `https://openrouter.ai/api/v1`, `api_key` the key, `max_retries=0`, and the app's
+- `build_openrouter_models` builds one `openai.AsyncOpenAI`, with `base_url`
+  `https://openrouter.ai/api/v1`, `api_key` the string unwrapped by composition, `max_retries=0`, and the app's
   name as `X-OpenRouter-Title` in `default_headers`. It hands that client to
   `OpenRouterProvider(openai_client=...)` and gives the provider nothing else.
 - Everything goes on the client because the provider ignores its own `api_key`,

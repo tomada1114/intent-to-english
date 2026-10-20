@@ -113,7 +113,7 @@ export function ServerUnreachableBanner() {
   if (retries.size === 0) return null;
   return (
     <Banner
-      className="mx-4 mt-2 shrink-0"
+      className="mx-4 mt-1 shrink-0 max-sm:gap-2 max-sm:p-2 sm:mt-2"
       message={UNREACHABLE_MESSAGE}
       action={{
         label: "再試行",

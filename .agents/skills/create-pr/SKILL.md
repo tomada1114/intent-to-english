@@ -64,10 +64,24 @@ Run `just verify`, the non-mutating gate whose steps AGENTS.md's Quick Reference
 *committed* tree is green — `just check` runs `fmt` first and proves nothing about what
 was committed.
 
-- **Any failure stops the PR.** Fix it on the branch, or report it. A formatting failure
-  is fixed with `just fmt`; commit that fix with `smart-commit`, then the gate runs
-  again. Never weaken a gate to make the run pass (AGENTS.md's "Security and human
-  approval").
+- **Every verification failure stops the PR unless the demonstrated host restriction
+  below explains it.** Fix it on the branch, or report it. Fix formatting with
+  `just fmt`, commit with `smart-commit`,
+  then run the gate again. Never weaken a gate to make it pass (AGENTS.md's
+  "Security and human approval").
+- **A demonstrated host restriction may move verification to CI.** A denied process
+  inspection or browser launch can prevent a check from executing. Use allowed
+  execution permissions when available; never bypass a denial or retry a protected
+  credential read. Record the exact command, failure, affected tests, committed SHA,
+  successful local checks and the unchanged CI job that covers each missing check.
+  A suspected environment cause or an unexplained assertion failure does not qualify.
+  Run every locally executable check and the normal commit hooks. Publish the regular
+  PR with these limits disclosed; no further confirmation is needed within an
+  authorized PR or shipping task. Never describe the local gate as passed.
+  Before merge, require successful coverage of the missing checks and every expected
+  CI check on the current head. Missing CI coverage, inaccessible checks, required
+  credentials or a manual acceptance step remain blockers. This route cannot replace
+  hooks, review, required approvals, or a product/design decision.
 - **Then `git status --short` again.** Anything that changed means the branch differs
   from what was just judged: inspect it, commit the task's changes with `smart-commit`,
   and run the gate again.
@@ -130,9 +144,10 @@ provides — so it never shows up as an untracked file in the tree the gate judg
 - **Test Plan.** The commands actually run, each with its verdict line —
   `just verify` → passed, `N passed`. Never a command that was not run, and never a raw
   log.
-- **Checklist.** Tick an item only when step 2 or step 3 showed it holds. An item that
-  cannot be ticked is a stop: report which one and why, and open nothing. A box ticked
-  on trust is the one defect in this PR a reviewer cannot see.
+- **Checklist.** Tick an item only when its evidence exists. The current-head CI item
+  stays unchecked while CI runs after publication; a qualified host restriction uses
+  step 2's documented route. Any other unmet publication prerequisite stops the PR.
+  A box ticked on trust is the one defect in this PR a reviewer cannot see.
 
 ## 6. Create or update
 
