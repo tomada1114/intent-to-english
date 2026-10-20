@@ -47,6 +47,8 @@ import {
 import {
   type ActionInput,
   type Control,
+  hasMatchingSubmission,
+  hasRecordedInput,
   lineBeingAnswered,
   paneFor,
   previousTurnLine,
@@ -104,6 +106,10 @@ interface Attempt {
   input: ActionInput;
   /** The version the action answers, which a cancel names. */
   version: number;
+  /** Last timeline entry before this send, excluding older identical input. */
+  afterSeq: number;
+  /** The stored record before this send cannot prove this request arrived. */
+  storedKey: string | null;
   /** [中止] was pressed and its 204 has not arrived yet. */
   cancelling: boolean;
 }
@@ -219,7 +225,7 @@ export function ConversationScreen({
   const [storedRound, setStoredRound] = useState(0);
   const [cancellingStored, setCancellingStored] = useState<string | null>(null);
   /** The last action got no response: the layout's [再試行] is its way on. */
-  const [unanswered, setUnanswered] = useState(false);
+  const [unanswered, setUnanswered] = useState<Attempt | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   /** Where focus goes once the next render is shown, as a control goes away. */
   const focusAfterPast = useRef<"back" | "composer" | "again" | null>(null);
@@ -237,12 +243,48 @@ export function ConversationScreen({
   // arrive before React renders the disabled state, and a cancelled or
   // superseded request's late answer must find it gone.
   const attemptRef = useRef<Attempt | null>(null);
+  const receivedAttempt = useRef<Attempt | null>(null);
   const attempts = useRef(0);
   const autoSent = useRef<number | null>(null);
   /** The version of a result that should take focus once it is shown. */
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
   const latestVersion = useRef(view.version);
+  const stored = view.last_submission;
+  const storedKey =
+    stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
+  const settleSideAfterRead = useEffectEvent((input: ActionInput) =>
+    settleSideInput(input),
+  );
+
+  // A later read can prove that a request whose response was lost did land.
+  // Drop its retry before it can resend old input at the newer stage.
+  useEffect(() => {
+    if (unanswered === null) return;
+    const advanced = view.version > unanswered.version;
+    if (
+      !advanced &&
+      (storedKey === unanswered.storedKey ||
+        !hasMatchingSubmission(view.last_submission, unanswered.input))
+    )
+      return;
+    const input = unanswered.input;
+    if (!advanced && view.last_submission?.state === "pending")
+      receivedAttempt.current = unanswered;
+    setUnanswered(null);
+    status.resolve(UNANSWERED.action);
+    const consumed = hasRecordedInput(view, input, unanswered.afterSeq);
+    if (consumed && COMPOSER_ACTIONS.has(input.action) && "text" in input) {
+      // The learner may have edited the now-enabled field since the failure.
+      setText((current) => (current === input.text ? "" : current));
+    }
+    if (consumed && input.action === "hint") {
+      setGap((current) => (current === input.gap ? "" : current));
+      if (gap === input.gap) setHintOpen(false);
+    }
+    if (consumed) settleSideAfterRead(input);
+    focusOnResult.current = view.version;
+  }, [unanswered, view, status, gap, storedKey]);
 
   /** Whether the request `id` is still the one being waited for. */
   function waitingFor(id: number) {
@@ -254,9 +296,6 @@ export function ConversationScreen({
     setAttemptState(next);
   }
 
-  const stored = view.last_submission;
-  const storedKey =
-    stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
   const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
   // The marker holds only while the view still shows that submission: a later
   // one with the same version, action, and state is another submission.
@@ -300,17 +339,20 @@ export function ConversationScreen({
 
   async function send(input: ActionInput) {
     if (attemptRef.current !== null) return false;
+    receivedAttempt.current = null;
     attempts.current += 1;
     const sent: Attempt = {
       id: attempts.current,
       input,
       version: view.version,
+      afterSeq: view.entries.at(-1)?.seq ?? 0,
+      storedKey,
       cancelling: false,
     };
     setAttempt(sent);
     setOutcome(null);
     setSettledKey(storedKey);
-    setUnanswered(false);
+    setUnanswered(null);
     status.resolve(UNANSWERED.action);
     let next: SessionResponse;
     try {
@@ -328,10 +370,11 @@ export function ConversationScreen({
     // Cancelled, or superseded by `end`: the answer is discarded.
     if (!waitingFor(sent.id)) return false;
     setAttempt(null);
-    if (COMPOSER_ACTIONS.has(input.action)) setText("");
+    if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
+      setText((current) => (current === input.text ? "" : current));
     if (input.action === "hint") {
-      setGap("");
-      setHintOpen(false);
+      setGap((current) => (current === input.gap ? "" : current));
+      if (gap === input.gap) setHintOpen(false);
     }
     settleSideInput(input);
     focusOnResult.current = next.version;
@@ -361,7 +404,7 @@ export function ConversationScreen({
     }
     setAttempt(null);
     if (error.kind === "unknown") {
-      setUnanswered(true);
+      setUnanswered(sent);
       status.report(UNANSWERED.action, () => void latest.current.send(sent.input));
       return;
     }
@@ -517,23 +560,43 @@ export function ConversationScreen({
   // interrupted, another tab's) puts its text back too, unless the learner has
   // typed since. A pending one this tab waited for that completes is a result
   // like this tab's own: its text is cleared and the composer takes focus.
-  const watched = useRef({ key: storedKey, version: view.version, pending: stored });
+  const watched = useRef({
+    key: storedKey,
+    version: view.version,
+    pending: stored,
+    afterSeq: view.entries.at(-1)?.seq ?? 0,
+  });
   const followStored = useEffectEvent(() => {
     const before = watched.current;
-    watched.current = { key: storedKey, version: view.version, pending: stored };
+    watched.current = {
+      key: storedKey,
+      version: view.version,
+      pending: stored,
+      afterSeq: view.entries.at(-1)?.seq ?? 0,
+    };
     if (before.key === storedKey) return;
     const completed =
       before.pending?.state === "pending" &&
       view.last_submission === null &&
       view.version > before.version;
     if (completed && before.pending !== null) {
-      const done = before.pending.action;
-      if (COMPOSER_ACTIONS.has(done)) setText("");
-      if (done === "hint") {
-        setGap("");
-        setHintOpen(false);
+      const received = receivedAttempt.current;
+      const input =
+        received !== null &&
+        received.version === before.version &&
+        hasMatchingSubmission(before.pending, received.input)
+          ? received.input
+          : toActionInput(before.pending);
+      receivedAttempt.current = null;
+      if (hasRecordedInput(view, input, before.afterSeq)) {
+        if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
+          setText((current) => (current === input.text ? "" : current));
+        if (input.action === "hint") {
+          setGap((current) => (current === input.gap ? "" : current));
+          if (gap === input.gap) setHintOpen(false);
+        }
+        settleSideInput(input);
       }
-      settleSideInput(toActionInput(before.pending));
       focusOnResult.current = view.version;
       return;
     }
