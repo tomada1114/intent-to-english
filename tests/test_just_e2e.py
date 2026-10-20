@@ -40,6 +40,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+pytestmark = pytest.mark.process_integration
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 

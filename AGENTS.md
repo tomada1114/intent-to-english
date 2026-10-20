@@ -86,7 +86,8 @@ just install         # Install dependencies (uv, then pnpm) and git hooks when .
 just setup           # Alias for just install (first-time setup)
 just fmt             # Format code: just frontend fmt, e2e/ (biome check --write), then the Python tree (ruff check --fix + ruff format)
 just lint            # Lint + type check: just backend lint, just frontend lint, just e2e-lint, then the root (ruff, mypy)
-just test            # Run tests: just backend test, just frontend test, then the root suite
+just test            # Run backend, frontend and root tests, excluding process integration
+just test-process    # Optional locally, required in CI: process groups, signals and cleanup
 just backend lint    # Lint and type-check the backend (ruff, ruff format --check, mypy strict)
 just backend fmt     # Format the backend
 just backend test    # Run the backend tests in parallel with branch coverage (80% floor)
@@ -171,6 +172,11 @@ re-spelling the denied operation.
 
 `just check` runs `fmt` first, so it never proves the *committed* tree green;
 `just verify` mutates nothing and is the gate for a PR or a completion claim.
+
+`just test` and `just verify` exclude the root `process_integration` tests. Run
+`just test-process` locally when needed on a host that permits process inspection
+and signals; it is optional locally and mandatory in CI's required `Coverage` job.
+The browser test remains separate under `just e2e`, required in CI's `E2E` job.
 When the host prevents a check from executing, `create-pr` defines the documented
 route to current-head CI evidence. It never permits skipping hooks or claiming a
 local pass.
@@ -189,6 +195,7 @@ being run at all.
 | One root test (`tests/`) | `uv run --locked pytest tests/test_<module>.py::test_<name>` |
 | A root Python file's lint or types (`scripts/`, `tests/`, skill scripts) | `uv run --locked ruff check <file>`, then `uv run --locked mypy` |
 | A script under `scripts/` | `uv run --locked pytest tests/test_<script>.py` |
+| Process management in the root `dev` or `e2e` recipe | `just check-harness`; optionally `just test-process` locally, always required in CI |
 | A skill under `.agents/skills/` | `just agents-sync && just agents-check && just check-harness && just test-skills` |
 | Dependencies in `pyproject.toml` or `backend/pyproject.toml` | `uv lock`, `uv sync --all-groups --locked`, then `just verify` |
 | A workflow under `.github/workflows/`, or an action under `.github/actions/` | `uv run --locked pre-commit run zizmor --all-files`, then `just check-harness` |
@@ -357,8 +364,8 @@ Each layer catches what the one before it cannot; `changing-gates` owns them.
 | Layer | Runs | Holds |
 |---|---|---|
 | Git hooks (pre-commit, `.pre-commit-config.yaml`) | Every `git commit` by any author — a human, Claude Code, Codex CLI, any tool; `check-staged` also on merge commits | No staged secret (`check-staged`), no commit on `main` (`no-commit-to-branch`), ruff, ruff-format, mypy, typos, zizmor, the skills mirror |
-| `just verify` | Before a pull request or a completion claim | A current `uv.lock`, the skills mirror, the harness self-checks (`check-harness`), ruff, mypy, the skill script tests, the test suite and its 80% branch-coverage floor |
-| CI (`.github/workflows/`) | Every pull request and push to `main`, unless noted | The `just verify` checks, the browser test (`just e2e`), typos, zizmor, and CodeQL; the PR title and Dependency Review (pull requests only); OSV-Scanner (when `uv.lock` or `pnpm-lock.yaml` changes, and weekly); gitleaks over the whole history (weekly) |
+| `just verify` | Before a pull request or a completion claim | A current `uv.lock`, the skills mirror, the harness self-checks (`check-harness`), ruff, mypy, the skill script tests, the local test suite excluding process integration, and its 80% branch-coverage floor |
+| CI (`.github/workflows/`) | Every pull request and push to `main`, unless noted | The `just verify` checks, mandatory process integration (`just test-process`) and browser tests (`just e2e`), typos, zizmor, and CodeQL; the PR title and Dependency Review (pull requests only); OSV-Scanner (when `uv.lock` or `pnpm-lock.yaml` changes, and weekly); gitleaks over the whole history (weekly) |
 | GitHub ruleset (`.github/rulesets/main.json`) | Every change to `main` | Every change arrives by a branch and a pull request, with the required checks green; no force-push, no deletion |
 
 - How `just install` installs the hooks, and which commits run none:

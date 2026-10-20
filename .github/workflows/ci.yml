@@ -111,10 +111,13 @@ jobs:
           uv tool install rust-just==1.47.1
           echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
 
-      # `just test`: the root suite, and backend::test (`just backend test`), the
-      # app's suite with the coverage floor, run in backend/. Lines stay verbatim.
+      # `just test` excludes process integration locally; CI also requires
+      # `just test-process`. Both commands stay verbatim for recipe parity.
       - name: Run the root tests
-        run: uv run --locked pytest -n auto
+        run: uv run --locked pytest -n auto -m 'not process_integration'
+
+      - name: Run the process integration tests
+        run: uv run --locked pytest -n auto -m process_integration
 
       - name: Run the backend tests and enforce coverage
         working-directory: backend

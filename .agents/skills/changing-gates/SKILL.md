@@ -68,6 +68,9 @@ says which gate looks wrong and why, and a human decides.
 A change that tightens a gate is welcome, but still owes the pull request body three
 things: which rule or option moved, why, and what now fails that did not before.
 
+Process integration is owner-approved as CI-required and locally optional;
+preserve its assertions and CI recipe parity. **BACKGROUND:** `placing-tests`.
+
 ## Python baseline
 
 Changing the supported Python moves several settings together, held by
@@ -87,6 +90,7 @@ AGENTS.md's "Enforcement layers" names the layers. Keeping them in step is this 
 | Skill script tests | — | `test-skills` | `Lint & Type Check` |
 | `uv lock --check` | — | `lock-check` | `--locked` on every `uv sync` |
 | Tests, and the 80% floor over `backend/src` | — | `test` (`backend::test` for the floor) | `Coverage` |
+| Root process integration | — | — (`test-process` is optional locally) | `Coverage` (required) |
 | Harness drift (`tests/harness`) and the Product section | — | `check-harness` | `Coverage` |
 | Biome, `tsc`, and the `@ts-*` scope over `frontend/` | `biome`, `tsc` | `lint` (`frontend::lint`) | `Frontend` |
 | Vitest and the 80 `coverage.thresholds` over `frontend/src` | — | `test` (`frontend::test`) | `Frontend` |
@@ -102,10 +106,10 @@ AGENTS.md's "Enforcement layers" names the layers. Keeping them in step is this 
 | `uv.lock` and `pnpm-lock.yaml`: licenses, advisories | — | — | `Dependency Review` (PRs), `Scan lockfiles` (OSV-Scanner) |
 | CodeQL: `python`, `actions`, `javascript-typescript` | — | — | `Analyze (<language>)` |
 
-- A check added to `just verify` gets the matching CI step, and the reverse.
-  `tests/harness/test_just_recipes.py` enforces parity for `agents-check`, `lint`,
-  `test-skills`, and `test`, `backend/justfile`'s lines included (CI runs those in a
-  `working-directory: backend` step); the reviewer checks any additional gate.
+- A check added to `just verify` gets a matching CI step; CI also requires the
+  documented separate suites `test-process` and `e2e`. Recipe parity in
+  `tests/harness/test_just_recipes.py` covers `agents-check`, `lint`, `test-skills`,
+  `test`, `test-process` and backend recipes in `working-directory: backend`.
 - Ruff's local system hooks run `uv run --locked ruff`, sharing `uv.lock` with
   `lint` and CI. A Ruff update moves the existing dependency range and lock; there
   is no separate hook revision to align. **BACKGROUND:** `merging-dependency-prs`.

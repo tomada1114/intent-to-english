@@ -102,6 +102,7 @@ uv run --locked --directory backend pytest tests/<layer>/   # one app layer
 just backend test                                           # the app's suite, coverage floor
 uv run --locked pytest tests/test_<script>.py               # one root test file
 just test                                                   # both suites and the frontend's
+just test-process                                           # process integration; optional locally
 pnpm --dir frontend exec vitest run tests/features/conversation/EndSession.test.tsx  # one frontend file
 pnpm --dir frontend exec vitest run EndSession -t "EndSession > ends the session"     # one frontend test
 just frontend test                                          # the frontend's suite, coverage gate
@@ -126,10 +127,16 @@ change" table of `backend/AGENTS.md` for the app, of `frontend/AGENTS.md` for th
 frontend, and of AGENTS.md for the rest.
 ## CI test runner
 
-CI's `Coverage` job runs the same two Python commands as `just test`: the root suite,
-then the app's suite with the coverage floor in `backend/`. The recipe parity check in
-`tests/harness/test_just_recipes.py` rejects command drift. CI's `Frontend` job runs
-`just frontend test`, and its `E2E` job `just e2e`.
+The root `process_integration` marker classifies `tests/test_just_dev.py` and
+`tests/test_just_e2e.py`: real process groups, signals and cleanup need host
+permissions. `just test` and `just verify` exclude that marker; `just test-process`
+runs it explicitly and is optional locally. A direct root pytest invocation without
+a marker filter still runs every test.
+
+CI's required `Coverage` job runs both root selections, then the app's suite with
+its unchanged coverage floor in `backend/`. The recipe parity check in
+`tests/harness/test_just_recipes.py` includes `test-process` and rejects a missing
+CI command. CI's `Frontend` job runs `just frontend test`, and `E2E` runs `just e2e`.
 
 ## The coverage floor
 
