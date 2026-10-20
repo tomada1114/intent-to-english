@@ -5,7 +5,7 @@ description: >
   a feature under src/features/<feature>/, shared code in src/lib/, server data through
   the generated queryOptions and mutation options in src/api/generated/, cache
   invalidation, URL search params, rendering an API error with toApiError and
-  ErrorMessage, Tailwind CSS styling, accessibility, and the Vitest component tests with
+  a Japanese Banner, Tailwind CSS styling, accessibility, and the Vitest component tests with
   Testing Library and MSW. Use when adding a page, route, form, or list, fetching or
   mutating server data, showing an API error, or styling a component.
 ---
@@ -88,7 +88,7 @@ checks are `frontend/AGENTS.md`'s.
 
 Every error a query or mutation throws goes through the Problem Details helpers in
 `src/lib/`: `toApiError(error)` normalizes it to an `ApiError`, and
-`<ErrorMessage error={...} />` renders it with `role="alert"`.
+a screen-specific Japanese `Banner` renders it with `role="alert"`.
 
 - `toApiError` returns `{ kind: "problem", status, title, detail?, code?, requestId?,
   fieldErrors }` for a Problem Details body, with `fieldErrors` keyed by the last
@@ -110,10 +110,9 @@ Every error a query or mutation throws goes through the Problem Details helpers 
   danger tint, an icon, Japanese copy chosen by `code` (never `status`: two codes share
   502), and the one action that recovers. The conversation screen names a model failure
   with `modelFailureReason` (`src/lib/submission.ts`), which S3 shares.
-- **Anything else renders through `ErrorMessage`.** For a 5xx it shows a generic
-  message plus the request id when the body carries one; for `kind: "unknown"` (no
-  response) a generic connection message, with no request id to show; for another 4xx,
-  the body's `detail`, else its `title`.
+- **Start and end failures use Japanese `Banner` copy** with [もう一度]. A Problem
+  Details response may include the request id under the message for diagnosis. Do not
+  expose a provider's or server's English detail as the screen's failure copy.
 - A screen that handles a code itself still parses the error with `toApiError` first.
   The conversation screen reads `code === "invalid_input"` on a 422 and shows its
   `detail` under the composer instead of in a banner.

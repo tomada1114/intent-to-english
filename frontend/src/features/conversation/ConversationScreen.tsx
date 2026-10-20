@@ -15,7 +15,6 @@ import {
 import type { Action, SessionResponse } from "../../api/generated/types.gen";
 import { Banner } from "../../lib/Banner";
 import { settleAfterMinimum, useDelayedLoading } from "../../lib/delayed-loading";
-import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatStart } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { type ApiError, toApiError } from "../../lib/problem-details";
@@ -218,6 +217,7 @@ export function ConversationScreen({
   const receivedAttempt = useRef<Attempt | null>(null);
   const attempts = useRef(0);
   const autoSent = useRef<number | null>(null);
+  const ending = useRef(false);
   /** The version of a result that should take focus once it is shown. */
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
@@ -458,6 +458,12 @@ export function ConversationScreen({
   }
 
   async function endSession() {
+    if (ending.current) return;
+    ending.current = true;
+    if (endError !== null)
+      (backToTurnRef.current ?? coachHeadingRef.current)?.focus({
+        preventScroll: true,
+      });
     setEndError(null);
     status.resolve(UNANSWERED.end);
     try {
@@ -482,6 +488,8 @@ export function ConversationScreen({
       } else {
         setEndError(error);
       }
+    } finally {
+      ending.current = false;
     }
   }
 
@@ -782,7 +790,17 @@ export function ConversationScreen({
   const coachErrors = (
     <>
       {failureBanner("coach")}
-      {endError !== null && <ErrorMessage error={endError} />}
+      {endError?.kind === "problem" && (
+        <Banner
+          message="会話を終えられませんでした。"
+          requestId={endError.requestId}
+          action={{
+            label: "もう一度",
+            onClick: () => void endSession(),
+            disabled: end.isPending,
+          }}
+        />
+      )}
     </>
   );
 

@@ -6,8 +6,8 @@ import {
   listSessionsInfiniteOptions,
 } from "../../api/generated/@tanstack/react-query.gen";
 import type { SessionSummaryResponse } from "../../api/generated/types.gen";
+import { Banner } from "../../lib/Banner";
 import { useDelayedLoading } from "../../lib/delayed-loading";
-import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatCount, formatStart } from "../../lib/format";
 import { toApiError } from "../../lib/problem-details";
 import { useServerStatus } from "../../lib/ServerStatus";
@@ -41,11 +41,20 @@ function repliesLabel(count: number): string {
  * newest in-progress session, and the newest-first list of past sessions.
  */
 export function HomeScreen() {
+  const heading = useRef<HTMLHeadingElement>(null);
   return (
     <div className="mx-auto w-full max-w-[880px] space-y-8 px-4 py-8">
       <div className="space-y-6">
-        <h1 className="text-2xl leading-[1.35] font-bold">{TAGLINE}</h1>
-        <StartSession />
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className={`text-2xl leading-[1.35] font-bold ${FOCUS_RING}`}
+        >
+          {TAGLINE}
+        </h1>
+        <StartSession
+          onStarting={() => heading.current?.focus({ preventScroll: true })}
+        />
       </div>
       <SessionList />
     </div>
@@ -53,10 +62,11 @@ export function HomeScreen() {
 }
 
 /** 「新しい会話を始める」: focused on load, usable at once, and opens S2 on success. */
-function StartSession() {
+function StartSession({ onStarting }: { onStarting: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const button = useRef<HTMLButtonElement>(null);
+  const starting = useRef(false);
   const status = useServerStatus();
   const start = useMutation({
     ...createSessionMutation(),
@@ -67,10 +77,20 @@ function StartSession() {
     // No response at all is the layout's banner, whose 再試行 starts it again.
     onError: (error) => {
       if (toApiError(error).kind === "unknown") {
-        status.report(START_KEY, () => start.mutate({}));
+        status.report(START_KEY, startOnce);
       }
     },
+    onSettled: () => {
+      starting.current = false;
+    },
   });
+  function startOnce() {
+    if (starting.current) return;
+    starting.current = true;
+    onStarting();
+    status.resolve(START_KEY);
+    start.mutate({});
+  }
   const failure = start.isError ? toApiError(start.error) : null;
   useEffect(() => () => status.resolve(START_KEY), [status]);
   useEffect(() => {
@@ -84,15 +104,22 @@ function StartSession() {
         ref={button}
         type="button"
         disabled={start.isPending}
-        onClick={() => {
-          status.resolve(START_KEY);
-          start.mutate({});
-        }}
+        onClick={startOnce}
         className={PRIMARY_BUTTON}
       >
         新しい会話を始める
       </button>
-      {failure?.kind === "problem" && <ErrorMessage error={failure} />}
+      {failure?.kind === "problem" && (
+        <Banner
+          message="会話を始められませんでした。"
+          requestId={failure.requestId}
+          action={{
+            label: "もう一度",
+            onClick: startOnce,
+            disabled: start.isPending,
+          }}
+        />
+      )}
     </div>
   );
 }
