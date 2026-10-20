@@ -123,7 +123,7 @@ describe("HomeScreen", () => {
     expect(posts).toBe(1);
   });
 
-  it("shows the error display under the button when starting fails", async () => {
+  it("shows a Japanese failure and a retry under the start button", async () => {
     const user = userEvent.setup();
     server.use(
       http.post("/api/sessions", () =>
@@ -146,8 +146,9 @@ describe("HomeScreen", () => {
     await user.click(start);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Something went wrong on our side. Try again.");
-    expect(alert).toHaveTextContent("Request ID: request-500");
+    expect(alert).toHaveTextContent("会話を始められませんでした。");
+    expect(alert).toHaveTextContent("リクエストID: request-500");
+    expect(within(alert).getByRole("button", { name: "もう一度" })).toBeEnabled();
     expect(router.state.location.pathname).toBe("/");
     expect(start).toBeEnabled();
   });

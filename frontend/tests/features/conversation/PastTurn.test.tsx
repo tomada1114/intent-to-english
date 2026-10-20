@@ -140,7 +140,9 @@ describe("ConversationScreen past turn (REQ-009)", () => {
     await user.click(screen.getByRole("button", { name: "会話を終える" }));
     await user.click(screen.getByRole("button", { name: "終える" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "会話を終えられませんでした。",
+    );
     expect(
       screen.getByRole("button", { name: "今のターンに戻る" }),
     ).toBeInTheDocument();

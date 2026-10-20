@@ -15,7 +15,6 @@ import {
 import type { Action, SessionResponse } from "../../api/generated/types.gen";
 import { Banner } from "../../lib/Banner";
 import { settleAfterMinimum, useDelayedLoading } from "../../lib/delayed-loading";
-import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatStart } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
 import { type ApiError, toApiError } from "../../lib/problem-details";
@@ -719,7 +718,17 @@ export function ConversationScreen({
   const coachErrors = (
     <>
       {failureBanner("coach")}
-      {endError !== null && <ErrorMessage error={endError} />}
+      {endError?.kind === "problem" && (
+        <Banner
+          message="会話を終えられませんでした。"
+          requestId={endError.requestId}
+          action={{
+            label: "もう一度",
+            onClick: () => void endSession(),
+            disabled: end.isPending,
+          }}
+        />
+      )}
     </>
   );
 

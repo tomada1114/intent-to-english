@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,6 +141,40 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     code: "action_cancelled",
     request_id: "req-1",
   };
+
+  it("shows a Japanese end failure and lets the learner retry", async () => {
+    let ends = 0;
+    const served = serveSession(intent, () => {
+      ends += 1;
+      return ends === 1
+        ? HttpResponse.json<ProblemDetails>(
+            {
+              type: "about:blank",
+              title: "Internal Server Error",
+              status: 500,
+              detail: "Internal Server Error",
+              code: "internal_error",
+              request_id: "end-500",
+            },
+            { status: 500 },
+          )
+        : ended;
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSession(intent);
+    await confirm(user);
+    await user.click(screen.getByRole("button", { name: "終える" }));
+    const banner = await screen.findByRole("alert");
+    expect(banner).toHaveTextContent("会話を終えられませんでした。");
+    expect(banner).toHaveTextContent("リクエストID: end-500");
+    expect(banner).not.toHaveAttribute("lang", "en");
+    await user.click(within(banner).getByRole("button", { name: "もう一度" }));
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(served.bodies).toEqual([
+      { action: "end", version: 1 },
+      { action: "end", version: 1 },
+    ]);
+  });
 
   it("keeps 会話を終える usable, posts end with the shown version, renders the ended view at once, and ignores the abandoned request's 409", async () => {
     const hold = deferred();

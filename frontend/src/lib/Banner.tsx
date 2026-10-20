@@ -14,9 +14,11 @@ export interface BannerAction {
 export function Banner({
   message,
   action,
+  requestId,
   className = "",
 }: {
   message: string;
+  requestId?: string | undefined;
   action?: BannerAction | undefined;
   className?: string;
 }) {
@@ -29,6 +31,9 @@ export function Banner({
         <span aria-hidden="true">⚠</span>
         <span className="min-w-0">{message}</span>
       </p>
+      {requestId !== undefined && (
+        <p className="w-full break-all text-xs">リクエストID: {requestId}</p>
+      )}
       {action !== undefined && (
         <button
           type="button"

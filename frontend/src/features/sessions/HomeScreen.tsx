@@ -6,8 +6,8 @@ import {
   listSessionsInfiniteOptions,
 } from "../../api/generated/@tanstack/react-query.gen";
 import type { SessionSummaryResponse } from "../../api/generated/types.gen";
+import { Banner } from "../../lib/Banner";
 import { useDelayedLoading } from "../../lib/delayed-loading";
-import { ErrorMessage } from "../../lib/ErrorMessage";
 import { formatCount, formatStart } from "../../lib/format";
 import { toApiError } from "../../lib/problem-details";
 import { useServerStatus } from "../../lib/ServerStatus";
@@ -92,7 +92,17 @@ function StartSession() {
       >
         新しい会話を始める
       </button>
-      {failure?.kind === "problem" && <ErrorMessage error={failure} />}
+      {failure?.kind === "problem" && (
+        <Banner
+          message="会話を始められませんでした。"
+          requestId={failure.requestId}
+          action={{
+            label: "もう一度",
+            onClick: () => start.mutate({}),
+            disabled: start.isPending,
+          }}
+        />
+      )}
     </div>
   );
 }
