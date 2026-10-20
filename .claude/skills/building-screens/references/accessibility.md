@@ -30,7 +30,7 @@ item through Testing Library's role and name queries (`writing-tests`), with the
 
 ## Announcements
 
-- **An error is announced:** it renders with `role="alert"`. `ErrorMessage` does this,
+- **An error is announced:** it renders with `role="alert"`. `Banner` does this,
   and so does a field message next to its input. The input gets `aria-invalid` and
   `aria-describedby` pointing at the message.
 - **A status message is announced:** a `role="status"` region (with `aria-atomic`) stays
