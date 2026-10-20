@@ -976,6 +976,43 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
 });
 
 describe("ConversationScreen retry waiting focus", () => {
+  it("keeps end confirmation focus when an in-flight request becomes stale", async () => {
+    const hold = deferred();
+    const served = serveSession(english, async () => {
+      await hold.promise;
+      return answer(409, "stale_session");
+    });
+    const user = userEvent.setup();
+    renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await waitFor(() => expect(served.bodies).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: "会話を終える" }));
+    const back = screen.getByRole("button", { name: "戻る" });
+    expect(back).toHaveFocus();
+    hold.release();
+    await pane("コーチ").findByText(STALE);
+    expect(back).toHaveFocus();
+  });
+
+  it.each([
+    { name: "open", initial: opening },
+    { name: "partner_reply", initial: partnerTurn },
+  ])("keeps a failed $name focused in the Partner pane", async ({ initial }) => {
+    stubMatchMedia(true);
+    const hold = deferred();
+    const served = serveSession(initial, async () => {
+      await hold.promise;
+      return answer(504, "model_timeout");
+    });
+    renderSession(initial);
+    await waitFor(() => expect(served.bodies).toHaveLength(1));
+    const heading = pane("会話").getByRole("heading", { level: 2 });
+    await waitFor(() => expect(heading).toHaveFocus());
+    hold.release();
+    await pane("会話").findByRole("alert");
+    expect(heading).toHaveFocus();
+  });
+
   it("keeps focus on the end confirmation when the in-flight request fails", async () => {
     const hold = deferred();
     const served = serveSession(english, async () => {

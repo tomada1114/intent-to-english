@@ -403,6 +403,23 @@ export function ConversationScreen({
     }
   }
 
+  function canRestoreRequestFocus() {
+    const active = document.activeElement;
+    const disabled =
+      (active instanceof HTMLButtonElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLInputElement) &&
+      active.disabled;
+    // Preserve any still-enabled control the learner selected during the wait.
+    return (
+      active === null ||
+      active === document.body ||
+      active === coachHeadingRef.current ||
+      active === partnerHeadingRef.current ||
+      disabled
+    );
+  }
+
   async function fail(sent: Attempt, error: ApiError) {
     const code = error.kind === "problem" ? error.code : undefined;
     if (code === "action_cancelled") {
@@ -420,7 +437,7 @@ export function ConversationScreen({
     }
     if (code !== undefined && STALE_CODES.has(code)) {
       await readAgain();
-      focusAfterPast.current = "composer";
+      if (canRestoreRequestFocus()) focusAfterPast.current = "composer";
       setOutcome({ kind: "stale" });
       return;
     }
@@ -444,20 +461,9 @@ export function ConversationScreen({
       error.status === 422 && field !== null
         ? fieldMessage(error, field === "gap" ? "gap" : "text")
         : undefined;
-    const active = document.activeElement;
-    const disabled =
-      (active instanceof HTMLButtonElement ||
-        active instanceof HTMLTextAreaElement ||
-        active instanceof HTMLInputElement) &&
-      active.disabled;
-    // The learner can be using the still-enabled end confirmation while the
-    // request runs. Only reclaim a lost or screen-owned waiting focus.
-    const restore =
-      active === null ||
-      active === document.body ||
-      active === coachHeadingRef.current ||
-      active === partnerHeadingRef.current ||
-      disabled;
+    const partnerFailure =
+      sent.input.action === "open" || sent.input.action === "partner_reply";
+    const restore = canRestoreRequestFocus() && !partnerFailure;
     focusAfterPast.current =
       restore && field !== "question" ? (field === "gap" ? "gap" : "composer") : null;
     setOutcome(
