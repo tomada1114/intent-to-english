@@ -46,6 +46,8 @@ import {
 import {
   type ActionInput,
   type Control,
+  hasMatchingSubmission,
+  hasRecordedInput,
   lineBeingAnswered,
   paneFor,
   previousTurnLine,
@@ -103,6 +105,8 @@ interface Attempt {
   input: ActionInput;
   /** The version the action answers, which a cancel names. */
   version: number;
+  /** Last timeline entry before this send, excluding older identical input. */
+  afterSeq: number;
   /** [中止] was pressed and its 204 has not arrived yet. */
   cancelling: boolean;
 }
@@ -215,20 +219,24 @@ export function ConversationScreen({
   // A later read can prove that a request whose response was lost did land.
   // Drop its retry before it can resend old input at the newer stage.
   useEffect(() => {
-    if (unanswered === null || view.version <= unanswered.version) return;
+    if (unanswered === null) return;
+    const advanced = view.version > unanswered.version;
+    if (!advanced && !hasMatchingSubmission(view.last_submission, unanswered.input))
+      return;
     const input = unanswered.input;
     setUnanswered(null);
     status.resolve(UNANSWERED.action);
-    if (COMPOSER_ACTIONS.has(input.action) && "text" in input) {
+    const consumed = hasRecordedInput(view, input, unanswered.afterSeq);
+    if (consumed && COMPOSER_ACTIONS.has(input.action) && "text" in input) {
       // The learner may have edited the now-enabled field since the failure.
       setText((current) => (current === input.text ? "" : current));
     }
-    if (input.action === "hint") {
+    if (consumed && input.action === "hint") {
       setGap((current) => (current === input.gap ? "" : current));
       if (gap === input.gap) setHintOpen(false);
     }
     focusOnResult.current = view.version;
-  }, [unanswered, view.version, status, gap]);
+  }, [unanswered, view, status, gap]);
 
   /** Whether the request `id` is still the one being waited for. */
   function waitingFor(id: number) {
@@ -291,6 +299,7 @@ export function ConversationScreen({
       id: attempts.current,
       input,
       version: view.version,
+      afterSeq: view.entries.at(-1)?.seq ?? 0,
       cancelling: false,
     };
     setAttempt(sent);
@@ -478,21 +487,34 @@ export function ConversationScreen({
   // interrupted, another tab's) puts its text back too, unless the learner has
   // typed since. A pending one this tab waited for that completes is a result
   // like this tab's own: its text is cleared and the composer takes focus.
-  const watched = useRef({ key: storedKey, version: view.version, pending: stored });
+  const watched = useRef({
+    key: storedKey,
+    version: view.version,
+    pending: stored,
+    afterSeq: view.entries.at(-1)?.seq ?? 0,
+  });
   const followStored = useEffectEvent(() => {
     const before = watched.current;
-    watched.current = { key: storedKey, version: view.version, pending: stored };
+    watched.current = {
+      key: storedKey,
+      version: view.version,
+      pending: stored,
+      afterSeq: view.entries.at(-1)?.seq ?? 0,
+    };
     if (before.key === storedKey) return;
     const completed =
       before.pending?.state === "pending" &&
       view.last_submission === null &&
       view.version > before.version;
     if (completed && before.pending !== null) {
-      const done = before.pending.action;
-      if (COMPOSER_ACTIONS.has(done)) setText("");
-      if (done === "hint") {
-        setGap("");
-        setHintOpen(false);
+      const input = toActionInput(before.pending);
+      if (hasRecordedInput(view, input, before.afterSeq)) {
+        if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
+          setText((current) => (current === input.text ? "" : current));
+        if (input.action === "hint") {
+          setGap((current) => (current === input.gap ? "" : current));
+          if (gap === input.gap) setHintOpen(false);
+        }
       }
       focusOnResult.current = view.version;
       return;

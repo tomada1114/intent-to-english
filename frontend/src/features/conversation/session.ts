@@ -128,6 +128,72 @@ export function toActionInput(submission: LastSubmissionResponse): ActionInput {
   return { action: submission.action, ...submission.input } as ActionInput;
 }
 
+/** A stored request proves receipt without implying successful consumption. */
+export function hasMatchingSubmission(
+  submission: LastSubmissionResponse | null,
+  input: ActionInput,
+): boolean {
+  if (submission === null) return false;
+  const received = Object.entries(toActionInput(submission));
+  const sent = Object.entries(input);
+  return (
+    received.length === sent.length &&
+    sent.every(([key, value]) =>
+      received.some(
+        ([otherKey, otherValue]) => key === otherKey && value === otherValue,
+      ),
+    )
+  );
+}
+
+/** Only a new persisted entry can prove that a specific draft was consumed. */
+export function hasRecordedInput(
+  view: SessionView,
+  input: ActionInput,
+  afterSeq: number,
+): boolean {
+  return view.entries.some((item) => {
+    if (item.seq <= afterSeq) return false;
+    switch (input.action) {
+      case "intent":
+        return (
+          item.kind === "intent" &&
+          !item.payload.is_replacement &&
+          item.payload.text === input.text
+        );
+      case "rewrite_intent":
+        return (
+          item.kind === "intent" &&
+          item.payload.is_replacement &&
+          item.payload.text === input.text
+        );
+      case "english":
+      case "english_direct":
+        return (
+          item.kind === "english" &&
+          item.payload.is_direct === (input.action === "english_direct") &&
+          item.payload.text === input.text
+        );
+      case "retry":
+        return item.kind === "retry" && item.payload.sentence === input.text;
+      case "typed_copy":
+        return item.kind === "typed_copy" && item.payload.text === input.text;
+      case "hint":
+        return (
+          item.kind === "hint_request" &&
+          item.payload.gap === input.gap &&
+          item.payload.partial_english === input.partial_english
+        );
+      case "ask":
+        return item.kind === "question" && item.payload.text === input.text;
+      case "practice_again":
+        return item.kind === "practice" && item.payload.sentence === input.text;
+      default:
+        return false;
+    }
+  });
+}
+
 /** What a stored input puts back in the composer and the hint box, if anything. */
 export function restoredFields(input: ActionInputResponse): {
   text?: string;

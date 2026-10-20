@@ -384,6 +384,101 @@ describe("ConversationScreen with no response (REQ-006)", () => {
 });
 
 describe("ConversationScreen unanswered action reconciliation", () => {
+  it("keeps unsent English when another tab's hint advances the version", async () => {
+    const served = serveSession(english, () => HttpResponse.error());
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await screen.findByText(UNREACHABLE);
+    served.set(
+      sessionView({
+        ...english,
+        version: 3,
+        entries: [
+          ...english.entries,
+          entry("hint_request", { gap: "久しぶり", partial_english: "I watched" }),
+          entry("gap_hint", { hint: "in a while を使えます" }),
+        ],
+      }),
+    );
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+      "I watched a movie",
+    );
+    expect(served.bodies).toHaveLength(1);
+  });
+
+  it("resolves the network retry when a matching submission is observed pending", async () => {
+    const served = serveSession(english, () => HttpResponse.error());
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await screen.findByText(UNREACHABLE);
+    served.set({
+      ...english,
+      last_submission: {
+        action: "english",
+        input: { text: "I watched a movie" },
+        state: "pending",
+        failure_code: null,
+      },
+    });
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+      "I watched a movie",
+    );
+    expect(served.bodies).toHaveLength(1);
+  });
+
+  it("keeps an edited draft through observing pending and then completed", async () => {
+    const served = serveSession(english, () => HttpResponse.error());
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await screen.findByText(UNREACHABLE);
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
+    await user.clear(field);
+    await user.type(field, "A newer draft");
+    served.set({
+      ...english,
+      last_submission: {
+        action: "english",
+        input: { text: "I watched a movie" },
+        state: "pending",
+        failure_code: null,
+      },
+    });
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() => expect(field).toBeDisabled());
+    served.set(retry);
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() => expect(field).toBeEnabled());
+    expect(field).toHaveValue("A newer draft");
+    expect(served.bodies).toHaveLength(1);
+  });
+
   it("keeps a newer draft when the unanswered action is confirmed by a read", async () => {
     const served = serveSession(english, () => HttpResponse.error());
     const user = userEvent.setup();
