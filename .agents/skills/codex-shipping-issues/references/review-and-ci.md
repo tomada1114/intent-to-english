@@ -19,7 +19,8 @@ review rounds** per PR:
 | 2 and 3 (reviews of correction heads) | accepted `P0`, `P1` and `P2` findings | accepted `P3`: a reported follow-up candidate |
 
 After pushing round 3's corrections, do not wait for a fourth review; land on local
-verification and current-head CI. Never request a review to fill a round. This does
+verification and current-head CI once known required findings are addressed. Never
+request a review to fill a round. The wait cap does not permit merging a known bug. This does
 not remove repository-required approvals, checks or unresolved correctness decisions.
 
 ## Wait for the opening review
@@ -100,9 +101,13 @@ next round. If none starts within that grace, the latest completed review stands
 land on local verification and current-head CI. Observe this alongside CI; CI takes about
 3 minutes, so the grace adds at most about 2 minutes.
 
-If a review appears after round 3's corrections, do not wait for its completion and
-do not start a fourth correction round. Triage any `P0` or `P1` finding it has
-already posted: an accepted one blocks landing and is reported for the owner.
+If a review appears after round 3's corrections, do not wait for its completion or
+begin another review-wait cycle. Triage findings already posted, fix accepted
+in-scope `P0`–`P2` findings, inspect the corrections and repeat affected local checks
+and current-head CI. Record the late finding separately from the three observed
+rounds; never claim that an unwaited review was clean. An unresolved correctness
+finding or owner decision still blocks landing. Continue authorized corrections
+without asking the owner to approve the same implementation scope again.
 
 ## Verify CI on the current head
 
