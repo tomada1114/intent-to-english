@@ -41,11 +41,20 @@ function repliesLabel(count: number): string {
  * newest in-progress session, and the newest-first list of past sessions.
  */
 export function HomeScreen() {
+  const heading = useRef<HTMLHeadingElement>(null);
   return (
     <div className="mx-auto w-full max-w-[880px] space-y-8 px-4 py-8">
       <div className="space-y-6">
-        <h1 className="text-2xl leading-[1.35] font-bold">{TAGLINE}</h1>
-        <StartSession />
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className={`text-2xl leading-[1.35] font-bold ${FOCUS_RING}`}
+        >
+          {TAGLINE}
+        </h1>
+        <StartSession
+          onStarting={() => heading.current?.focus({ preventScroll: true })}
+        />
       </div>
       <SessionList />
     </div>
@@ -53,7 +62,7 @@ export function HomeScreen() {
 }
 
 /** 「新しい会話を始める」: focused on load, usable at once, and opens S2 on success. */
-function StartSession() {
+function StartSession({ onStarting }: { onStarting: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const button = useRef<HTMLButtonElement>(null);
@@ -78,6 +87,7 @@ function StartSession() {
   function startOnce() {
     if (starting.current) return;
     starting.current = true;
+    onStarting();
     status.resolve(START_KEY);
     start.mutate({});
   }

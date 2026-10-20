@@ -190,6 +190,39 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     ]);
   });
 
+  it("keeps focus on the Coach heading through a failed end retry", async () => {
+    const hold = deferred();
+    let ends = 0;
+    serveSession(intent, async () => {
+      ends += 1;
+      if (ends > 1) await hold.promise;
+      return HttpResponse.json<ProblemDetails>(
+        {
+          type: "about:blank",
+          status: 500,
+          title: "Server error",
+          code: "internal_error",
+          request_id: "end-focus",
+          detail: "Failed",
+        },
+        { status: 500 },
+      );
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSession(intent);
+    await confirm(user);
+    await user.click(screen.getByRole("button", { name: "終える" }));
+    await user.click(await screen.findByRole("button", { name: "もう一度" }));
+    const heading = within(screen.getByRole("region", { name: "コーチ" })).getByRole(
+      "heading",
+      { level: 2 },
+    );
+    expect(heading).toHaveFocus();
+    hold.release();
+    await screen.findByRole("button", { name: "もう一度" });
+    expect(heading).toHaveFocus();
+  });
+
   it("shows a Japanese end failure and lets the learner retry", async () => {
     let ends = 0;
     const served = serveSession(intent, () => {

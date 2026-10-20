@@ -421,6 +421,10 @@ export function ConversationScreen({
   async function endSession() {
     if (ending.current) return;
     ending.current = true;
+    if (endError !== null)
+      (backToTurnRef.current ?? coachHeadingRef.current)?.focus({
+        preventScroll: true,
+      });
     setEndError(null);
     status.resolve(UNANSWERED.end);
     try {

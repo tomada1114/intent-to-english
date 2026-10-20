@@ -93,6 +93,37 @@ function sessionLinks() {
 }
 
 describe("HomeScreen", () => {
+  it("keeps focus on the heading through a failed start retry", async () => {
+    const hold = deferred();
+    let posts = 0;
+    server.use(
+      http.post("/api/sessions", async () => {
+        posts += 1;
+        if (posts > 1) await hold.promise;
+        return HttpResponse.json<ProblemDetails>(
+          {
+            type: "about:blank",
+            status: 500,
+            title: "Server error",
+            code: "internal_error",
+            request_id: "start-focus",
+            detail: "Failed",
+          },
+          { status: 500 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderHome();
+    await user.click(await screen.findByRole("button", { name: "新しい会話を始める" }));
+    await user.click(await screen.findByRole("button", { name: "もう一度" }));
+    const heading = screen.getByRole("heading", { level: 1, name: TAGLINE });
+    expect(heading).toHaveFocus();
+    hold.release();
+    await screen.findByRole("button", { name: "もう一度" });
+    expect(heading).toHaveFocus();
+  });
+
   it("starts only once when the failed-start retry is activated twice in one render", async () => {
     let posts = 0;
     const pending = deferred();
