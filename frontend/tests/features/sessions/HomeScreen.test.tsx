@@ -6,7 +6,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -93,6 +93,73 @@ function sessionLinks() {
 }
 
 describe("HomeScreen", () => {
+  it("keeps focus on the heading through a failed start retry", async () => {
+    const hold = deferred();
+    let posts = 0;
+    server.use(
+      http.post("/api/sessions", async () => {
+        posts += 1;
+        if (posts > 1) await hold.promise;
+        return HttpResponse.json<ProblemDetails>(
+          {
+            type: "about:blank",
+            status: 500,
+            title: "Server error",
+            code: "internal_error",
+            request_id: "start-focus",
+            detail: "Failed",
+          },
+          { status: 500 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderHome();
+    await user.click(await screen.findByRole("button", { name: "新しい会話を始める" }));
+    await user.click(await screen.findByRole("button", { name: "もう一度" }));
+    const heading = screen.getByRole("heading", { level: 1, name: TAGLINE });
+    expect(heading).toHaveFocus();
+    hold.release();
+    await screen.findByRole("button", { name: "もう一度" });
+    expect(heading).toHaveFocus();
+  });
+
+  it("starts only once when the failed-start retry is activated twice in one render", async () => {
+    let posts = 0;
+    const pending = deferred();
+    server.use(
+      http.post("/api/sessions", async (): Promise<Response> => {
+        posts += 1;
+        if (posts === 1)
+          return HttpResponse.json<ProblemDetails>(
+            {
+              type: "about:blank",
+              status: 500,
+              title: "Server error",
+              code: "internal_error",
+              detail: "Failed",
+              request_id: "start-retry",
+            },
+            { status: 500 },
+          );
+        await pending.promise;
+        return HttpResponse.json<SessionResponse>(sessionView(), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderHome();
+    await user.click(await screen.findByRole("button", { name: "新しい会話を始める" }));
+    const retry = await screen.findByRole("button", { name: "もう一度" });
+    act(() => {
+      fireEvent.click(retry);
+      fireEvent.click(retry);
+    });
+    await waitFor(() => expect(posts).toBeGreaterThan(1));
+    pending.release();
+    await screen.findByText("S2 stand-in");
+    expect(posts).toBe(2);
+  });
+
   it("shows the tagline as the page heading and focuses the start button", async () => {
     renderHome();
 
@@ -123,7 +190,7 @@ describe("HomeScreen", () => {
     expect(posts).toBe(1);
   });
 
-  it("shows the error display under the button when starting fails", async () => {
+  it("shows a Japanese failure and a retry under the start button", async () => {
     const user = userEvent.setup();
     server.use(
       http.post("/api/sessions", () =>
@@ -146,8 +213,9 @@ describe("HomeScreen", () => {
     await user.click(start);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Something went wrong on our side. Try again.");
-    expect(alert).toHaveTextContent("Request ID: request-500");
+    expect(alert).toHaveTextContent("会話を始められませんでした。");
+    expect(alert).toHaveTextContent("リクエストID: request-500");
+    expect(within(alert).getByRole("button", { name: "もう一度" })).toBeEnabled();
     expect(router.state.location.pathname).toBe("/");
     expect(start).toBeEnabled();
   });
