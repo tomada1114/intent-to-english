@@ -347,7 +347,7 @@ export function ConversationScreen({
 
   async function send(input: ActionInput) {
     if (attemptRef.current !== null) return false;
-    receivedAttempt.current = null;
+    receivedAttempt.current = unanswered;
     attempts.current += 1;
     const sent: Attempt = {
       id: attempts.current,

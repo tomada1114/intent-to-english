@@ -386,6 +386,45 @@ describe("ConversationScreen with no response (REQ-006)", () => {
 });
 
 describe("ConversationScreen unanswered action reconciliation", () => {
+  it("retains the raw receipt when a retry discovers its original action pending", async () => {
+    const served = serveSession(
+      english,
+      firstThen(
+        () => HttpResponse.error(),
+        () => {
+          served.set({
+            ...english,
+            last_submission: {
+              action: "english",
+              input: { text: "I watched a movie" },
+              state: "pending",
+              failure_code: null,
+            },
+          });
+          return answer(409, "action_in_progress");
+        },
+      ),
+    );
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "  I watched a movie  ");
+    const banner = (await screen.findByText(UNREACHABLE)).closest(
+      '[role="alert"]',
+    ) as HTMLElement;
+    await user.click(within(banner).getByRole("button", { name: "再試行" }));
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
+    await waitFor(() => expect(field).toBeDisabled());
+    served.set(retry);
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() => expect(field).toBeEnabled());
+    expect(field).toHaveValue("");
+    expect(served.bodies).toHaveLength(2);
+  });
+
   it("keeps a newer English draft when retrying the earlier lost request succeeds", async () => {
     serveSession(
       english,
