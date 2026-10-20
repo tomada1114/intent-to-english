@@ -64,8 +64,9 @@ Run `just verify`, the non-mutating gate whose steps AGENTS.md's Quick Reference
 *committed* tree is green — `just check` runs `fmt` first and proves nothing about what
 was committed.
 
-- **A code, assertion, lint, type or coverage failure stops the PR.** Fix it on the
-  branch, or report it. Fix formatting with `just fmt`, commit with `smart-commit`,
+- **Every verification failure stops the PR unless the demonstrated host restriction
+  below explains it.** Fix it on the branch, or report it. Fix formatting with
+  `just fmt`, commit with `smart-commit`,
   then run the gate again. Never weaken a gate to make it pass (AGENTS.md's
   "Security and human approval").
 - **A demonstrated host restriction may move verification to CI.** A denied process
