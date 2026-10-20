@@ -882,6 +882,11 @@ export function ConversationScreen({
   const answering = lineBeingAnswered(view);
   const previous = previousTurnLine(view);
   const allowed = new Set(view.allowed_actions);
+  const canRewrite = allowed.has("rewrite_intent");
+  const showRewrite = rewriting && canRewrite;
+  useEffect(() => {
+    if (!canRewrite) setRewriting(false);
+  }, [canRewrite]);
   const currentIntent = view.entries.findLast(
     (item) => item.turn_index === view.turn_index && item.kind === "intent",
   );
@@ -916,7 +921,7 @@ export function ConversationScreen({
     setPracticeOpen(false);
     focusAfterPast.current = "composer";
   }
-  const rewriteControl = allowed.has("rewrite_intent") ? (
+  const rewriteControl = canRewrite ? (
     <button
       type="button"
       disabled={busy}
@@ -1167,7 +1172,7 @@ export function ConversationScreen({
             やめる
           </button>
         </div>
-      ) : rewriting ? (
+      ) : showRewrite ? (
         <div className="space-y-2">
           <Composer
             textareaRef={composerRef}
@@ -1209,7 +1214,7 @@ export function ConversationScreen({
           />
         )
       )}
-      {showHint && !rewriting && !practicing && (
+      {showHint && !showRewrite && !practicing && (
         <HintRequest
           inputRef={gapRef}
           value={gap}
@@ -1220,7 +1225,7 @@ export function ConversationScreen({
           onSubmit={() => void send({ action: "hint", gap, partial_english: text })}
         />
       )}
-      {!busy && !rewriting && !practicing && ui.controls.length > 0 && (
+      {!busy && !showRewrite && !practicing && ui.controls.length > 0 && (
         <fieldset
           ref={controlsRef}
           aria-label="操作"

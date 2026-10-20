@@ -107,6 +107,24 @@ describe("in-session restate control", () => {
 });
 
 describe("in-session rewrite control", () => {
+  it("closes rewrite mode when another tab finishes the turn", async () => {
+    const served = serveSession(english);
+    const { queryClient } = renderSession(english);
+    const user = userEvent.setup();
+    await press(user, "日本語を書き直す");
+    await user.type(screen.getByRole("textbox", { name: "あなたの日本語" }), "別の文");
+    served.set(checkIn);
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "あなたの日本語" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "もう一度練習" })).toBeEnabled();
+  });
+
   it("keeps both earlier rewrites collapsed and exposes only the latest rewrite control", async () => {
     const twice = sessionView({
       ...english,
