@@ -29,7 +29,9 @@ test("S1 restores the loaded second page and scroll position after a session", a
   expect(before).toBeGreaterThan(0);
   await last.click();
   await expect(page.getByRole("textbox", { name: "あなたの日本語" })).toBeEnabled();
-  await page.getByRole("link", { name: /会話一覧/ }).click();
+  const back = page.getByRole("link", { name: "← 一覧" });
+  await expect(back).toHaveAttribute("href", "/");
+  await back.click();
   await expect(list.getByRole("listitem")).toHaveCount(loaded);
   await expect(last).toBeInViewport();
   await expect
