@@ -64,7 +64,7 @@ The interactive API docs are at <http://127.0.0.1:8000/docs>.
 | `GET /api/sessions/{id}` | 200 with the complete session view; 404 `session_not_found` when unknown |
 | `POST /api/sessions/{id}/actions` | 200 with the new view; a body discriminated by `action`, with `version` and that action's fields |
 | `POST /api/sessions/{id}/cancel` `{"version": 0}` | 204 whether or not that version has pending work; 404 for an unknown session; a missing version is 422 |
-| `GET /api/meta` | 200 with the container's selected `model_mode`; currently `{"model_mode": "fixed"}` |
+| `GET /api/meta` | 200 with the container's selected `model_mode`; `{"model_mode": "fixed"}` or `{"model_mode": "openrouter"}` |
 
 A session's `id` is a UUID (version 7) the application generates, so ids sort in
 creation order. A session row holds its `id`, `started_at`, `status`,
@@ -136,14 +136,23 @@ unprefixed keys other than the declared provider-key alias are ignored.
 | `INTENT_TO_ENGLISH_CORS_ORIGINS` | empty (CORS disabled) | Comma-separated HTTP(S) origins, e.g. `http://localhost:5173,https://app.example.com`. Spaces and empty items are removed, hosts use lowercase/punycode, default ports are removed, and duplicates kept once. Paths, queries, fragments, user info, invalid ports, trailing slashes, wildcards, and origins without an HTTP(S) scheme are rejected at startup. JSON requests from listed origins are allowed without credentials. |
 | `INTENT_TO_ENGLISH_DATABASE_URL` | unset (`just dev`: `sqlite+aiosqlite:///./var/dev.db`) | Unset (or empty) keeps sessions in memory, so they vanish when the process exits. `sqlite+aiosqlite:///<path>` stores them in a SQLite file at `<path>`, relative to the working directory (an absolute path adds a fourth slash: `sqlite+aiosqlite:////var/lib/intent-to-english.db`). `postgresql+asyncpg://<user>:<password>@<host>/<database>` names a PostgreSQL database; include the optional `postgres` extra in workspace commands (`uv run --locked --directory backend --extra postgres ...`) or install the built app with that extra. Anything else is rejected at startup, naming the fix: a URL without the async driver (`sqlite:` or `postgresql:` alone), an in-memory SQLite target (including `:memory:` with options and native URI memory mode), an empty target, and a directory target ending in `/`, even when query options follow. File options are preserved; migrations and the app use separate engine/process lifetimes, so in-memory SQL cannot retain the separately migrated schema. |
 | `OPENROUTER_API_KEY` | unset | Unprefixed secret; unset or whitespace-only means no key. It is omitted from settings repr and never returned by the API. |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. Composition currently uses fixed responses in both modes, including when a key is set. |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. `auto` with a key selects OpenRouter for both roles; `fixed` always uses offline responses. |
 | `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | The configured Coach model id; empty keeps the default, whitespace-only is rejected. |
 | `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | The configured Partner model id; empty keeps the default, whitespace-only is rejected. |
 
-Both roles currently use the offline adapters. The live composition branch is a
-separate implementation; `GET /api/meta` reports the selected mode. Every browser-test
-process explicitly selects fixed mode with an empty key and the default model ids,
-and removes inherited application settings and provider-key aliases first.
+To use live models, set `OPENROUTER_API_KEY` in the process environment or in the
+local, gitignored `backend/.env`, and leave `INTENT_TO_ENGLISH_MODEL_MODE=auto`.
+Set `INTENT_TO_ENGLISH_MODEL_MODE=fixed` to force offline responses even with a key.
+The header reports the selected mode. Configure the spending limit and privacy settings
+in the owner's OpenRouter account; the application imposes no cost cap.
+
+Session data stays in the local SQLite database except for the text sent to OpenRouter
+and its upstream model provider for each call. The owner's OpenRouter privacy settings
+determine whether a provider may log or train on that text. The Partner receives only
+finished English; the Coach also receives the Japanese intent and relevant learning context.
+
+Every browser-test process explicitly selects fixed mode with an empty key and the
+default model ids, and removes inherited application settings and provider-key aliases first.
 
 The development servers read a second set of variables from the process
 environment. They are not `Settings` fields, so they never go in `backend/.env`,
@@ -210,8 +219,7 @@ under `backend/migrations/` (the `persisting-data` skill).
 ## Evaluation
 
 The owner runs `just backend eval` to evaluate the configured models; it bills.
-The command currently refuses in every mode until the live composition branch is
-implemented. It refuses before any call or write when the selected mode is fixed,
+It refuses before any call or write when the selected mode is fixed,
 when either target report already exists, or when the summary markers are invalid.
 To verify refusal without billing, explicitly override both variables:
 
