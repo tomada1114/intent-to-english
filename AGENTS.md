@@ -171,6 +171,9 @@ re-spelling the denied operation.
 
 `just check` runs `fmt` first, so it never proves the *committed* tree green;
 `just verify` mutates nothing and is the gate for a PR or a completion claim.
+When the host prevents a check from executing, `create-pr` defines the documented
+route to current-head CI evidence. It never permits skipping hooks or claiming a
+local pass.
 
 ## Validating a change
 

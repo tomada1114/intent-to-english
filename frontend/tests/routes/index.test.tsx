@@ -127,4 +127,26 @@ describe("/", () => {
 
     expect(router.options.context.queryClient).toBe(queryClient);
   });
+
+  it("restores S1 by pathname through return links while other pages keep their history key", () => {
+    const router = createAppRouter(createQueryClient());
+    const location = router.state.location;
+    const key = router.options.getScrollRestorationKey;
+    for (const historyKey of ["first-home-visit", "return-link-visit"]) {
+      expect(
+        key?.({
+          ...location,
+          pathname: "/",
+          state: { ...location.state, __TSR_key: historyKey },
+        }),
+      ).toBe("/");
+    }
+    expect(
+      key?.({
+        ...location,
+        pathname: "/sessions/one",
+        state: { ...location.state, __TSR_key: "session-visit" },
+      }),
+    ).toBe("session-visit");
+  });
 });

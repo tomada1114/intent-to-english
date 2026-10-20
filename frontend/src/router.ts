@@ -18,6 +18,9 @@ export function createAppRouter(queryClient: QueryClient, options?: AppRouterOpt
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // Return links create a new history entry; S1 retains one shared position.
+    getScrollRestorationKey: (location) =>
+      location.pathname === "/" ? "/" : location.state.__TSR_key || location.href,
     ...options,
   });
 }
