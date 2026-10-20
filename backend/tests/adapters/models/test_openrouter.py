@@ -8,7 +8,6 @@ from decimal import Decimal
 import httpx2
 import pytest
 from openai import AsyncOpenAI
-from pydantic import SecretStr
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models import override_allow_model_requests
 from pydantic_ai.models.function import FunctionModel
@@ -17,12 +16,12 @@ from pydantic_ai.usage import RequestUsage
 from intent_to_english.adapters.models import openrouter, prompts
 from intent_to_english.adapters.models.openrouter import (
     OpenRouterPartnerModel,
-    build_openrouter_partner,
+    build_openrouter_models,
 )
 from intent_to_english.api.app import APP_TITLE
 from intent_to_english.composition import ResourceClosers
+from intent_to_english.core import coaching, partner
 from intent_to_english.core import models as m
-from intent_to_english.core import partner
 from intent_to_english.core.errors import (
     ModelRateLimitedError,
     ModelTimeoutError,
@@ -39,6 +38,22 @@ REQUESTS = [
     ),
     ("restate", partner.RestateRequest((), "How is your day?", m.RestateMode.SHORTER)),
 ]
+
+
+async def test_coach_acknowledge_returns_the_core_value_with_usage():
+    def answer(messages, info):
+        return ModelResponse(
+            [TextPart('{"line":"いいですね!","build_hint":null}')],
+            usage=RequestUsage(input_tokens=12, output_tokens=8),
+        )
+
+    adapter = openrouter.OpenRouterCoachModel("coach", FunctionModel(answer))
+
+    result = await adapter.acknowledge(coaching.AcknowledgeRequest("散歩した", ()))
+
+    assert isinstance(result, m.Parsed)
+    assert result.output == coaching.Acknowledgment("いいですね!")
+    assert result.usage.input_tokens == 12
 
 
 @pytest.mark.parametrize(
@@ -115,6 +130,7 @@ class Wire:
     case: str = "ok"
     requests: list[httpx2.Request] = field(default_factory=list)
     adapter: OpenRouterPartnerModel | None = None
+    coach: openrouter.OpenRouterCoachModel | None = None
     client: AsyncOpenAI | None = None
     options: dict[str, object] = field(default_factory=dict)
 
@@ -183,9 +199,9 @@ async def wire(monkeypatch):
     monkeypatch.setenv("OPENROUTER_APP_URL", "https://hostile.invalid")
     resources = ResourceClosers()
     ticks = iter((2.0, 2.25))
-    state.adapter = build_openrouter_partner(
-        SecretStr("explicit-key"),
-        "anthropic/claude-haiku-5.5",
+    state.adapter, state.coach = build_openrouter_models(
+        "explicit-key",
+        ("anthropic/claude-haiku-5.5", "anthropic/claude-sonnet-5.5"),
         resources,
         app_title=APP_TITLE,
         monotonic=lambda: next(ticks),
@@ -328,3 +344,286 @@ async def test_unexpected_programming_error_propagates():
 
     with pytest.raises(RuntimeError, match="unexpected adapter bug"):
         await adapter.open(partner.OpenRequest(None))
+
+
+COACH_FEEDBACK = coaching.Feedback("意図は伝わっています")
+COACH_CASES = [
+    (
+        "acknowledge",
+        coaching.AcknowledgeRequest("散歩した", ()),
+        {"line": "いいですね!", "build_hint": None},
+        coaching.Acknowledgment("いいですね!"),
+    ),
+    (
+        "gap_hint",
+        coaching.GapHintRequest("散歩した", "散歩", "I", (), ()),
+        {"hint": "walk が使えます。"},
+        coaching.GapHint("walk が使えます。"),
+    ),
+    (
+        "feedback",
+        coaching.FeedbackRequest("散歩した", "I walked.", None, (), ()),
+        {"kind": "feedback", "feedback": {"first_line": "意図は伝わっています"}},
+        COACH_FEEDBACK,
+    ),
+    (
+        "feedback",
+        coaching.FeedbackRequest(None, "I want to leave in Canada.", None, (), ()),
+        {
+            "kind": "reading_question",
+            "word": "leave",
+            "readings": ["leave", "live"],
+        },
+        coaching.ReadingQuestion("leave", ("leave", "live")),
+    ),
+    (
+        "check_retry",
+        coaching.CheckRetryRequest(None, COACH_FEEDBACK, "I walked.", 1, ()),
+        {
+            "result": {
+                "kind": "accepted",
+                "line": "伝わりました。",
+                "readings_noted": [{"written": "starting", "read_as": "studying"}],
+            }
+        },
+        coaching.RetryAccepted(
+            "伝わりました。", (coaching.ReadingNote("starting", "studying"),)
+        ),
+    ),
+    (
+        "check_retry",
+        coaching.CheckRetryRequest(None, COACH_FEEDBACK, "I walk.", 1, ()),
+        {"result": {"kind": "blank_off", "blanks": [1], "hint": "過去形です。"}},
+        coaching.BlankOff((1,), "過去形です。"),
+    ),
+    (
+        "check_retry",
+        coaching.CheckRetryRequest(None, COACH_FEEDBACK, "I walk.", 2, ()),
+        {
+            "result": {
+                "kind": "piece_given",
+                "pieces": [{"number": 1, "text": "walked"}],
+                "line": "この表現で伝わります。",
+            }
+        },
+        coaching.PieceGiven((coaching.Piece(1, "walked"),), "この表現で伝わります。"),
+    ),
+    (
+        "show_answer",
+        coaching.ShowAnswerRequest(m.Stage.ENGLISH, "散歩した", None, None, ()),
+        {"example": "I walked."},
+        coaching.Answer("I walked."),
+    ),
+    (
+        "answer_question",
+        coaching.AnswerQuestionRequest(
+            "過去形は?", m.Stage.ENGLISH, "散歩した", None, None, ()
+        ),
+        {"text": "walked です。"},
+        coaching.CoachAnswer("walked です。"),
+    ),
+    (
+        "wrap_up",
+        coaching.WrapUpRequest((COACH_FEEDBACK,), ()),
+        {"items": [{"phrase": "walk", "note": "散歩の話で使いました。"}]},
+        coaching.WrapUp((coaching.WrapUpItem("walk", "散歩の話で使いました。"),)),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("task", "task_request", "payload", "expected"),
+    COACH_CASES,
+    ids=[f"{case[0]}-{i}" for i, case in enumerate(COACH_CASES)],
+)
+@pytest.mark.parametrize("invalid", [False, True], ids=["valid", "invalid"])
+async def test_coach_tasks_convert_and_preserve_prompts_and_usage(
+    task, task_request, payload, expected, invalid
+):
+    calls = []
+
+    def answer(messages, info):
+        calls.append((messages, info))
+        return ModelResponse(
+            [TextPart("{}" if invalid else json.dumps(payload))],
+            usage=RequestUsage(input_tokens=9, output_tokens=7),
+            provider_details={"cost": 0.002},
+        )
+
+    adapter = openrouter.OpenRouterCoachModel(
+        "coach-id", FunctionModel(answer), lambda: 1.0
+    )
+    repair = m.Repair((m.Violation(m.CheckId.SCHEMA, "Repair marker"),))
+    result = await getattr(adapter, task)(task_request, repair)
+    assert result.usage == m.Usage("openrouter", "coach-id", 9, 7, Decimal("0.002"), 0)
+    assert len(calls) == 1
+    messages, info = calls[0]
+    rendered = getattr(prompts, f"render_{task}")(task_request, repair)
+    assert messages[0].instructions == rendered.instructions
+    assert messages[0].parts[-1].content == rendered.user_prompt
+    assert "Repair marker" in rendered.instructions
+    assert info.model_request_parameters.function_tools == []
+    assert info.model_request_parameters.output_object.json_schema["type"] == "object"
+    assert isinstance(result, m.ParseFailure) if invalid else result.output == expected
+
+
+@pytest.mark.parametrize(
+    "readings",
+    [["leave"], ["leave", "live", "love"], ["leave", "leave"]],
+    ids=["one", "three", "duplicate"],
+)
+async def test_coach_reading_question_rejects_invalid_options_with_usage(readings):
+    def answer(messages, info):
+        return ModelResponse(
+            [
+                TextPart(
+                    json.dumps(
+                        {
+                            "kind": "reading_question",
+                            "word": "leave",
+                            "readings": readings,
+                        }
+                    )
+                )
+            ],
+            usage=RequestUsage(input_tokens=2, output_tokens=3),
+        )
+
+    adapter = openrouter.OpenRouterCoachModel("coach", FunctionModel(answer))
+    result = await adapter.feedback(
+        coaching.FeedbackRequest(None, "I want to leave.", None, (), ())
+    )
+    assert isinstance(result, m.ParseFailure)
+    assert result.usage.output_tokens == 3
+
+
+@pytest.mark.parametrize(
+    ("case", "error_type"),
+    [
+        ("timeout", ModelTimeoutError),
+        ("connection", ModelUnavailableError),
+        ("429", ModelRateLimitedError),
+        ("500", ModelUnavailableError),
+        ("error_without_status", ModelUnavailableError),
+        ("error_with_status", ModelRateLimitedError),
+    ],
+    ids=["timeout", "connection", "429", "500", "200-no-status", "200-status"],
+)
+async def test_coach_provider_errors_use_the_same_safe_mapping(
+    wire, case, error_type, caplog
+):
+    state, _ = wire
+    state.case = case
+    with (
+        override_allow_model_requests(True),
+        pytest.raises(error_type, match="Model") as caught,
+    ):
+        await state.coach.acknowledge(coaching.AcknowledgeRequest("散歩した", ()))
+    assert caught.value.model == "anthropic/claude-sonnet-5.5"
+    assert caught.value.latency_ms == 250
+    assert "PRIVATE-PROVIDER-TEXT" not in str(caught.value)
+    assert "PRIVATE-PROVIDER-TEXT" not in caplog.text
+    assert len(state.requests) == 1
+
+
+async def test_coach_preserves_content_failure_for_the_core_repair():
+    def answer(messages, info):
+        return ModelResponse([TextPart('{"line":"いいですね","build_hint":"Use I"}')])
+
+    adapter = openrouter.OpenRouterCoachModel("coach", FunctionModel(answer))
+    task_request = coaching.AcknowledgeRequest("散歩", ())
+    result = await adapter.acknowledge(task_request)
+    assert isinstance(result, m.Parsed)
+    assert (
+        coaching.check_acknowledgment(task_request, result.output)[0].check
+        is m.CheckId.BUILD_HINT_LATIN
+    )
+
+
+async def test_coach_feedback_preserves_fixes_and_interpreted_slips():
+    payload = {
+        "kind": "feedback",
+        "feedback": {
+            "first_line": "意図は伝わっています",
+            "fixes": [
+                {
+                    "number": 1,
+                    "original": "walk",
+                    "replacement": "walked",
+                    "reason": "過去の話です",
+                    "tag": "miss",
+                }
+            ],
+            "sentence": "I walk.",
+            "template": "I (①) ____.",
+            "request_line": "文全体を言い直してください。",
+            "readings_noted": [{"written": "starting", "read_as": "studying"}],
+        },
+    }
+
+    def answer(messages, info):
+        return ModelResponse([TextPart(json.dumps(payload))])
+
+    result = await openrouter.OpenRouterCoachModel(
+        "coach", FunctionModel(answer)
+    ).feedback(coaching.FeedbackRequest("散歩した", "I walk.", None, (), ()))
+    assert isinstance(result, m.Parsed)
+    assert result.output == coaching.Feedback(
+        "意図は伝わっています",
+        (coaching.Fix(1, "walk", "walked", "過去の話です", m.FixTag.MISS),),
+        "I walk.",
+        "I (①) ____.",
+        "文全体を言い直してください。",
+        (coaching.ReadingNote("starting", "studying"),),
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"kind": "feedback"},
+        {
+            "kind": "feedback",
+            "feedback": {"first_line": "確認"},
+            "word": "leave",
+            "readings": ["leave", "live"],
+        },
+        {
+            "kind": "reading_question",
+            "word": "leave",
+            "readings": ["leave", "live"],
+            "feedback": {"first_line": "確認"},
+        },
+        {
+            "kind": "feedback",
+            "feedback": {
+                "first_line": "確認",
+                "fixes": [
+                    {
+                        "number": 0,
+                        "original": None,
+                        "replacement": "walk",
+                        "reason": "確認",
+                        "tag": "miss",
+                    }
+                ],
+                "sentence": "I",
+                "template": "(①) ____",
+                "request_line": "確認",
+            },
+        },
+    ],
+    ids=["missing-payload", "mixed-feedback", "mixed-question", "invalid-fix"],
+)
+async def test_coach_feedback_rejects_inconsistent_core_payloads(payload):
+    def answer(messages, info):
+        return ModelResponse(
+            [TextPart(json.dumps(payload))],
+            usage=RequestUsage(input_tokens=3, output_tokens=4),
+        )
+
+    result = await openrouter.OpenRouterCoachModel(
+        "coach", FunctionModel(answer)
+    ).feedback(coaching.FeedbackRequest(None, "I walk.", None, (), ()))
+    assert isinstance(result, m.ParseFailure)
+    assert result.usage.input_tokens == 3
