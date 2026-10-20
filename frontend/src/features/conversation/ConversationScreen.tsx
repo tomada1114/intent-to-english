@@ -343,7 +343,21 @@ export function ConversationScreen({
           : null;
     const message =
       error.status === 422 && field !== null ? fieldMessage(error, field) : undefined;
-    focusAfterPast.current = field === "gap" ? "gap" : "composer";
+    const active = document.activeElement;
+    const disabled =
+      (active instanceof HTMLButtonElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLInputElement) &&
+      active.disabled;
+    // The learner can be using the still-enabled end confirmation while the
+    // request runs. Only reclaim a lost or screen-owned waiting focus.
+    const restore =
+      active === null ||
+      active === document.body ||
+      active === coachHeadingRef.current ||
+      active === partnerHeadingRef.current ||
+      disabled;
+    focusAfterPast.current = restore ? (field === "gap" ? "gap" : "composer") : null;
     setOutcome(
       field !== null && message !== undefined
         ? { kind: "invalid", field, message }

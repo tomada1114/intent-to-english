@@ -608,6 +608,25 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
 });
 
 describe("ConversationScreen retry waiting focus", () => {
+  it("keeps focus on the end confirmation when the in-flight request fails", async () => {
+    const hold = deferred();
+    const served = serveSession(english, async () => {
+      await hold.promise;
+      return answer(504, "model_timeout");
+    });
+    const user = userEvent.setup();
+    renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await waitFor(() => expect(served.bodies).toHaveLength(1));
+    await user.click(screen.getByRole("button", { name: "会話を終える" }));
+    const back = screen.getByRole("button", { name: "戻る" });
+    expect(back).toHaveFocus();
+    hold.release();
+    await pane("コーチ").findByRole("alert");
+    expect(screen.getByText("終えて振り返りを作りますか？")).toBeInTheDocument();
+    expect(back).toHaveFocus();
+  });
+
   it("returns a rejected hint to its gap field", async () => {
     serveSession(english, () => answer(422, "invalid_input"));
     const user = userEvent.setup();
