@@ -227,9 +227,10 @@ export function ConversationScreen({
   const [unanswered, setUnanswered] = useState<Attempt | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   /** Where focus goes once the next render is shown, as a control goes away. */
-  const focusAfterPast = useRef<"back" | "composer" | "again" | null>(null);
+  const focusAfterPast = useRef<"back" | "composer" | "gap" | "again" | null>(null);
   const againRef = useRef<HTMLButtonElement>(null);
   const coachHeadingRef = useRef<HTMLHeadingElement>(null);
+  const partnerHeadingRef = useRef<HTMLHeadingElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const gapRef = useRef<HTMLInputElement>(null);
   const controlsRef = useRef<HTMLFieldSetElement>(null);
@@ -410,6 +411,7 @@ export function ConversationScreen({
     }
     if (code !== undefined && STALE_CODES.has(code)) {
       await readAgain();
+      focusAfterPast.current = "composer";
       setOutcome({ kind: "stale" });
       return;
     }
@@ -433,6 +435,8 @@ export function ConversationScreen({
       error.status === 422 && field !== null
         ? fieldMessage(error, field === "gap" ? "gap" : "text")
         : undefined;
+    focusAfterPast.current =
+      field === "gap" ? "gap" : field === "question" ? null : "composer";
     setOutcome(
       field !== null && message !== undefined
         ? { kind: "invalid", field, message }
@@ -647,6 +651,29 @@ export function ConversationScreen({
         ? `stored:${storedRound}:${storedKey}`
         : null;
   const lineShown = useDelayedLoading(busy) && busy;
+  useEffect(() => {
+    if (!busy) return;
+    let cancelled = false;
+    // Restoring a side editor can replace the focused input in the same
+    // commit. Let that replacement finish before dispatching focus/blur.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const active = document.activeElement;
+      const disabled =
+        (active instanceof HTMLButtonElement ||
+          active instanceof HTMLTextAreaElement ||
+          active instanceof HTMLInputElement) &&
+        active.disabled;
+      if (active !== document.body && !disabled) return;
+      // The other mobile pane is hidden even while its request is running.
+      const visiblePane = wide ? waitingPane : tab === "coach" ? "coach" : "partner";
+      const heading = visiblePane === "partner" ? partnerHeadingRef : coachHeadingRef;
+      heading.current?.focus({ preventScroll: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [busy, waitingPane, wide, tab]);
   // Nothing left to cancel: a cancel that got no response needs no 再試行.
   useEffect(() => {
     if (!busy) status.resolve(UNANSWERED.cancel);
@@ -710,6 +737,7 @@ export function ConversationScreen({
     focusAfterPast.current = null;
     if (target === "back") backToTurnRef.current?.focus();
     if (target === "again") againRef.current?.focus();
+    if (target === "gap") gapRef.current?.focus();
     if (target !== "composer") return;
     // The composer, else the stage's first control, else the pane's heading.
     const composer = composerRef.current;
@@ -875,7 +903,11 @@ export function ConversationScreen({
 
   const conversationPane = (
     <>
-      <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
+      <h2
+        ref={partnerHeadingRef}
+        tabIndex={-1}
+        className={`text-[13px] font-bold tracking-[0.04em] text-ink-muted ${FOCUS_RING}`}
+      >
         会話（Partner が聞いている英語）
       </h2>
       <ConversationTimeline
@@ -946,7 +978,11 @@ export function ConversationScreen({
   const coachPane =
     pastTurn !== null && !ended ? (
       <>
-        <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
+        <h2
+          ref={coachHeadingRef}
+          tabIndex={-1}
+          className={`text-[13px] font-bold tracking-[0.04em] text-ink-muted ${FOCUS_RING}`}
+        >
           コーチ · ターン {pastTurn}
         </h2>
         <button

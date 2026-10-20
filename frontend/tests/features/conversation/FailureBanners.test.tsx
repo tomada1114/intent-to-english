@@ -10,11 +10,13 @@ import type {
 import { sessionQueryOptions } from "../../../src/features/conversation";
 import {
   type ActionBody,
+  deferred,
   entry,
   renderSession,
   SESSION_ID,
   serveSession,
   sessionView,
+  stubMatchMedia,
 } from "../../msw/helpers";
 
 const STALE = "別の画面でこの会話が進みました。最新の状態を読み込みました。";
@@ -868,6 +870,31 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     ]);
   });
 
+  it("keeps waiting focus in the selected Coach pane on mobile during an automatic Partner reply", async () => {
+    stubMatchMedia(false);
+    const hold = deferred();
+    const served = serveSession(partnerTurn, async () => {
+      await hold.promise;
+      return turnTwo;
+    });
+    renderSession(partnerTurn);
+    await waitFor(() =>
+      expect(served.bodies.map((body) => body.action)).toEqual(["partner_reply"]),
+    );
+    expect(screen.getByRole("tab", { name: "コーチ" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const heading = within(screen.getByRole("tabpanel", { name: "コーチ" })).getByRole(
+      "heading",
+      { level: 2 },
+    );
+    expect(heading).toBeVisible();
+    expect(heading).toHaveFocus();
+    hold.release();
+    await screen.findByRole("textbox", { name: "あなたの日本語" });
+  });
+
   it.each([
     { action: "open" as const, view: opening, result: intent },
     { action: "partner_reply" as const, view: partnerTurn, result: turnTwo },
@@ -907,4 +934,84 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     );
     expect(pane("会話").getAllByRole("button", { name: "もう一度" })).toHaveLength(1);
   });
+});
+
+describe("ConversationScreen retry waiting focus", () => {
+  it("returns a rejected hint to its gap field", async () => {
+    serveSession(english, () => answer(422, "invalid_input"));
+    const user = userEvent.setup();
+    renderSession(english);
+    await user.click(screen.getByRole("button", { name: "ヒント" }));
+    const gap = screen.getByRole("textbox", { name: "分からないところ" });
+    await user.type(gap, "久しぶり");
+    await user.keyboard("{Enter}");
+    await screen.findByRole("alert");
+    await waitFor(() => expect(gap).toHaveFocus());
+  });
+
+  it("keeps a mounted past-turn heading focused while retrying", async () => {
+    const hold = deferred();
+    let calls = 0;
+    serveSession(turnTwo, async () => {
+      calls += 1;
+      if (calls === 1) return answer(504, "model_timeout");
+      await hold.promise;
+      return { ...turnTwo, version: 6 };
+    });
+    const user = userEvent.setup();
+    renderSession(turnTwo);
+    await user.type(
+      screen.getByRole("textbox", { name: "あなたの日本語" }),
+      "猫が好き",
+    );
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+    await pane("コーチ").findByRole("alert");
+    await user.click(pane("会話").getByRole("button", { name: "I watched a movie" }));
+    const alert = pane("コーチ").getByRole("alert");
+    await user.click(within(alert).getByRole("button", { name: "もう一度" }));
+    expect(pane("コーチ").getByRole("heading", { level: 2 })).toHaveFocus();
+    hold.release();
+    await waitFor(() => expect(alert).not.toBeInTheDocument());
+  });
+
+  it.each([
+    {
+      name: "coach",
+      initial: english,
+      result: retry,
+      paneName: "コーチ" as const,
+      start: (user: ReturnType<typeof userEvent.setup>) =>
+        sendEnglish(user, "I watched a movie"),
+    },
+    {
+      name: "partner",
+      initial: partnerTurn,
+      result: turnTwo,
+      paneName: "会話" as const,
+      start: async () => {},
+    },
+  ])(
+    "keeps focus in the $name pane while a retried request runs",
+    async ({ initial, result, paneName, start }) => {
+      const hold = deferred();
+      let calls = 0;
+      serveSession(initial, async () => {
+        calls += 1;
+        if (calls === 1) return answer(504, "model_timeout");
+        await hold.promise;
+        return result;
+      });
+      const user = userEvent.setup();
+      renderSession(initial);
+      await start(user);
+      const banner = await pane(paneName).findByRole("alert");
+      await user.click(within(banner).getByRole("button", { name: "もう一度" }));
+      const heading = pane(paneName).getByRole("heading", { level: 2 });
+      expect(heading).toHaveFocus();
+      expect(document.activeElement).not.toBe(document.body);
+      hold.release();
+      await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
+      expect(screen.getByRole("textbox")).toHaveFocus();
+    },
+  );
 });

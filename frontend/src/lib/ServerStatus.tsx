@@ -100,7 +100,7 @@ export function useServerStatus(): ServerStatus {
  * 「アプリのサーバーに接続できません。…」 with [再試行], directly under the
  * header while any request is unanswered; [再試行] sends each one again.
  */
-export function ServerUnreachableBanner() {
+export function ServerUnreachableBanner({ onRetry }: { onRetry?: () => void } = {}) {
   const retries = useContext(RetriesContext);
   const status = useServerStatus();
   if (retries.size === 0) return null;
@@ -111,6 +111,7 @@ export function ServerUnreachableBanner() {
       action={{
         label: "再試行",
         onClick: () => {
+          onRetry?.();
           for (const [key, retry] of retries) {
             status.resolve(key);
             retry();

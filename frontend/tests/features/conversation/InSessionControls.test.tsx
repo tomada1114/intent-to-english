@@ -475,6 +475,99 @@ it.each(
   },
 );
 
+it.each(
+  (["ask", "rewrite_intent", "practice_again"] as const).flatMap((action) =>
+    [false, true].map((edited) => ({ action, edited })),
+  ),
+)(
+  "settles a confirmed lost $action while preserving an edited draft: $edited",
+  async ({ action, edited }) => {
+    const view = action === "practice_again" ? checkIn : english;
+    const served = serveSession(view, () => HttpResponse.error());
+    const { queryClient } = renderSession(view);
+    const user = userEvent.setup();
+    const control =
+      action === "ask"
+        ? /コーチに質問/
+        : action === "rewrite_intent"
+          ? "日本語を書き直す"
+          : "もう一度練習";
+    const label =
+      action === "ask"
+        ? "質問"
+        : action === "rewrite_intent"
+          ? "あなたの日本語"
+          : "もう一度練習";
+    await press(user, control);
+    const field = screen.getByRole("textbox", { name: label });
+    await user.clear(field);
+    await user.type(field, "  Original side  ");
+    await user.click(
+      screen.getByRole("button", { name: action === "ask" ? "質問する" : /送信/ }),
+    );
+    await screen.findByText(
+      "アプリのサーバーに接続できません。起動しているか確認してください。",
+    );
+    if (edited) {
+      await user.clear(field);
+      await user.type(field, "Original side");
+    }
+    served.set({
+      ...view,
+      last_submission: {
+        action,
+        input: { text: "Original side" },
+        state: "pending",
+        failure_code: null,
+      },
+    });
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() => expect(field).toBeDisabled());
+    const recorded =
+      action === "ask"
+        ? [
+            entry("question", { text: "Original side" }),
+            entry("coach_answer", { text: "確認できました。" }),
+          ]
+        : action === "rewrite_intent"
+          ? [
+              entry("intent", { text: "Original side", is_replacement: true }),
+              entry("acknowledgment", { line: "確認できました。", build_hint: null }),
+            ]
+          : [
+              entry("practice", { sentence: "Original side", turn_index: 1 }),
+              entry("practice_result", {
+                turn_index: 1,
+                result: { line: "確認できました。", readings_noted: [] },
+              }),
+            ];
+    served.set(
+      sessionView({
+        ...view,
+        version: view.version + 1,
+        entries: [...view.entries, ...recorded],
+      }),
+    );
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    if (edited) {
+      await waitFor(() => expect(field).toBeEnabled());
+      expect(field).toHaveValue("Original side");
+    } else {
+      await waitFor(() =>
+        expect(screen.queryByRole("textbox", { name: label })).not.toBeInTheDocument(),
+      );
+    }
+  },
+);
+
 it.each(["ask", "rewrite_intent", "practice_again"] as const)(
   "preserves a newer local %s draft when another submission is observed",
   async (action) => {
