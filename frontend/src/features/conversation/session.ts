@@ -250,13 +250,18 @@ const LEARNER_REPLIES: ReadonlySet<Entry["kind"]> = new Set(["intent", "english"
  * and the learner has not replied in the current turn yet.
  */
 export function previousTurnLine(view: SessionView): string | null {
-  if (view.stage !== "intent") return null;
-  if (currentTurnEntries(view).some((item) => LEARNER_REPLIES.has(item.kind))) {
+  if (view.stage !== "intent" && view.stage !== "check_in") return null;
+  if (
+    view.stage === "intent" &&
+    currentTurnEntries(view).some((item) => LEARNER_REPLIES.has(item.kind))
+  ) {
     return null;
   }
   const done = view.entries.findLast(
     (item): item is EntryOf<"turn_done"> =>
-      item.kind === "turn_done" && item.turn_index === view.turn_index - 1,
+      item.kind === "turn_done" &&
+      item.turn_index ===
+        (view.stage === "check_in" ? view.turn_index : view.turn_index - 1),
   );
   if (done?.payload.end === "accepted") return "前のターン: 言い直しできました";
   if (done?.payload.end === "skipped") return "前のターン: スキップしました";

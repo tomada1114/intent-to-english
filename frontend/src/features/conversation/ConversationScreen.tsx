@@ -31,6 +31,7 @@ import {
   QUIET_BUTTON,
   SECONDARY_BUTTON,
 } from "../../lib/ui";
+import { CoachQuestion } from "./CoachQuestion";
 import { Composer } from "./Composer";
 import { EndSession } from "./EndSession";
 import { ConversationTimeline, TurnTimeline } from "./entries";
@@ -115,7 +116,11 @@ interface Attempt {
 /** How the last action this tab sent (or cancelled) ended, while it matters. */
 type Outcome =
   | { kind: "failed"; input: ActionInput; code: string | undefined }
-  | { kind: "invalid"; field: "text" | "gap"; message: string }
+  | {
+      kind: "invalid";
+      field: "text" | "gap" | "question" | "rewrite" | "practice";
+      message: string;
+    }
   | { kind: "cancelled"; action: Action }
   | { kind: "stale" };
 
@@ -145,7 +150,10 @@ function failureLine(pane: "partner" | "coach", code: string | null | undefined)
  */
 function restoredFrom(view: SessionView): { text?: string; gap?: string } {
   const stored = view.last_submission;
-  return stored === null ? {} : restoredFields(stored.input);
+  return stored === null ||
+    ["ask", "rewrite_intent", "practice_again"].includes(stored.action)
+    ? {}
+    : restoredFields(stored.input);
 }
 
 /**
@@ -185,6 +193,33 @@ export function ConversationScreen({
   );
   const [hintOpen, setHintOpen] = useState(() => restoredFrom(view).gap !== undefined);
   const [howToOpen, setHowToOpen] = useState(true);
+  const [rewriting, setRewriting] = useState(
+    view.last_submission?.action === "rewrite_intent",
+  );
+  const [rewriteText, setRewriteText] = useState(() =>
+    view.last_submission?.action === "rewrite_intent" &&
+    "text" in view.last_submission.input
+      ? view.last_submission.input.text
+      : "",
+  );
+  const [practiceOpen, setPracticeOpen] = useState(
+    view.last_submission?.action === "practice_again",
+  );
+  const [practiceText, setPracticeText] = useState(() =>
+    view.last_submission?.action === "practice_again" &&
+    "text" in view.last_submission.input
+      ? view.last_submission.input.text
+      : "",
+  );
+  const [questionOpen, setQuestionOpen] = useState(
+    view.last_submission?.action === "ask",
+  );
+  const [questionText, setQuestionText] = useState(() =>
+    view.last_submission?.action === "ask" && "text" in view.last_submission.input
+      ? view.last_submission.input.text
+      : "",
+  );
+
   /** A past turn the learner selected on the left, shown read-only on the right. */
   const [pastTurn, setPastTurn] = useState<number | null>(null);
   const [attempt, setAttemptState] = useState<Attempt | null>(null);
@@ -226,6 +261,9 @@ export function ConversationScreen({
   const stored = view.last_submission;
   const storedKey =
     stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
+  const settleSideAfterRead = useEffectEvent((input: ActionInput) =>
+    settleSideInput(input),
+  );
 
   // A later read can prove that a request whose response was lost did land.
   // Drop its retry before it can resend old input at the newer stage.
@@ -252,6 +290,7 @@ export function ConversationScreen({
       setGap((current) => (current === input.gap ? "" : current));
       if (gap === input.gap) setHintOpen(false);
     }
+    if (consumed) settleSideAfterRead(input);
     focusOnResult.current = view.version;
   }, [unanswered, view, status, gap, storedKey]);
 
@@ -307,7 +346,7 @@ export function ConversationScreen({
   });
 
   async function send(input: ActionInput) {
-    if (attemptRef.current !== null) return;
+    if (attemptRef.current !== null) return false;
     receivedAttempt.current = unanswered;
     attempts.current += 1;
     const sent: Attempt = {
@@ -334,10 +373,10 @@ export function ConversationScreen({
       );
     } catch (error) {
       if (waitingFor(sent.id)) await fail(sent, toApiError(error));
-      return;
+      return false;
     }
     // Cancelled, or superseded by `end`: the answer is discarded.
-    if (!waitingFor(sent.id)) return;
+    if (!waitingFor(sent.id)) return false;
     setAttempt(null);
     if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
       setText((current) => (current === input.text ? "" : current));
@@ -345,8 +384,23 @@ export function ConversationScreen({
       setGap((current) => (current === input.gap ? "" : current));
       if (gap === input.gap) setHintOpen(false);
     }
+    settleSideInput(input);
     focusOnResult.current = next.version;
     await writeView(next);
+    return true;
+  }
+
+  function settleSideInput(input: ActionInput) {
+    if (input.action === "rewrite_intent" && rewriteText === input.text)
+      setRewriting(false);
+    if (input.action === "practice_again" && practiceText === input.text) {
+      setPracticeOpen(false);
+      setPracticeText("");
+    }
+    if (input.action === "ask" && questionText === input.text) {
+      setQuestionText("");
+      setQuestionOpen(false);
+    }
   }
 
   function canRestoreRequestFocus() {
@@ -392,17 +446,26 @@ export function ConversationScreen({
       return;
     }
     const field =
-      sent.input.action === "hint"
-        ? "gap"
-        : COMPOSER_ACTIONS.has(sent.input.action)
-          ? "text"
-          : null;
+      sent.input.action === "ask"
+        ? "question"
+        : sent.input.action === "rewrite_intent"
+          ? "rewrite"
+          : sent.input.action === "practice_again"
+            ? "practice"
+            : sent.input.action === "hint"
+              ? "gap"
+              : COMPOSER_ACTIONS.has(sent.input.action)
+                ? "text"
+                : null;
     const message =
-      error.status === 422 && field !== null ? fieldMessage(error, field) : undefined;
+      error.status === 422 && field !== null
+        ? fieldMessage(error, field === "gap" ? "gap" : "text")
+        : undefined;
     const partnerFailure =
       sent.input.action === "open" || sent.input.action === "partner_reply";
     const restore = canRestoreRequestFocus() && !partnerFailure;
-    focusAfterPast.current = restore ? (field === "gap" ? "gap" : "composer") : null;
+    focusAfterPast.current =
+      restore && field !== "question" ? (field === "gap" ? "gap" : "composer") : null;
     setOutcome(
       field !== null && message !== undefined
         ? { kind: "invalid", field, message }
@@ -458,7 +521,11 @@ export function ConversationScreen({
     focusAfterCancel();
     setSettledKey(storedKey);
     const fields = restoredFields(pending.input);
-    if (fields.text !== undefined) setText(fields.text);
+    if (fields.text !== undefined) {
+      if (pending.action === "rewrite_intent") setRewriteText(fields.text);
+      else if (pending.action === "practice_again") setPracticeText(fields.text);
+      else if (COMPOSER_ACTIONS.has(pending.action)) setText(fields.text);
+    }
     if (fields.gap !== undefined) {
       setGap(fields.gap);
       setHintOpen(true);
@@ -559,6 +626,7 @@ export function ConversationScreen({
           setGap((current) => (current === input.gap ? "" : current));
           if (gap === input.gap) setHintOpen(false);
         }
+        settleSideInput(input);
         focusOnResult.current = view.version;
       }
     }
@@ -582,9 +650,27 @@ export function ConversationScreen({
           setGap((current) => (current === input.gap ? "" : current));
           if (gap === input.gap) setHintOpen(false);
         }
+        settleSideInput(input);
       }
       focusOnResult.current = view.version;
       return;
+    }
+    if (storedLive !== null && "text" in storedLive.input) {
+      const restored = storedLive.input.text;
+      if (storedLive.action === "ask") {
+        setQuestionText((current) => (current === "" ? restored : current));
+        setQuestionOpen(true);
+      }
+      if (storedLive.action === "rewrite_intent") {
+        setRewriteText((current) => (current === "" ? restored : current));
+        setRewriting(true);
+        setPracticeOpen(false);
+      }
+      if (storedLive.action === "practice_again") {
+        setPracticeText((current) => (current === "" ? restored : current));
+        setPracticeOpen(true);
+        setRewriting(false);
+      }
     }
     const fields = restoredFrom(view);
     if (fields.text !== undefined) {
@@ -614,17 +700,26 @@ export function ConversationScreen({
   const lineShown = useDelayedLoading(busy) && busy;
   useEffect(() => {
     if (!busy) return;
-    const active = document.activeElement;
-    const disabled =
-      (active instanceof HTMLButtonElement ||
-        active instanceof HTMLTextAreaElement ||
-        active instanceof HTMLInputElement) &&
-      active.disabled;
-    if (active !== document.body && !disabled) return;
-    // The other mobile pane is hidden even while its request is running.
-    const visiblePane = wide ? waitingPane : tab === "coach" ? "coach" : "partner";
-    const heading = visiblePane === "partner" ? partnerHeadingRef : coachHeadingRef;
-    heading.current?.focus({ preventScroll: true });
+    let cancelled = false;
+    // Restoring a side editor can replace the focused input in the same
+    // commit. Let that replacement finish before dispatching focus/blur.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const active = document.activeElement;
+      const disabled =
+        (active instanceof HTMLButtonElement ||
+          active instanceof HTMLTextAreaElement ||
+          active instanceof HTMLInputElement) &&
+        active.disabled;
+      if (active !== document.body && !disabled) return;
+      // The other mobile pane is hidden even while its request is running.
+      const visiblePane = wide ? waitingPane : tab === "coach" ? "coach" : "partner";
+      const heading = visiblePane === "partner" ? partnerHeadingRef : coachHeadingRef;
+      heading.current?.focus({ preventScroll: true });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [busy, waitingPane, wide, tab]);
   // Nothing left to cancel: a cancel that got no response needs no 再試行.
   useEffect(() => {
@@ -800,6 +895,61 @@ export function ConversationScreen({
   const startLabel = formatStart(view.started_at);
   const answering = lineBeingAnswered(view);
   const previous = previousTurnLine(view);
+  const allowed = new Set(view.allowed_actions);
+  const canRewrite = allowed.has("rewrite_intent");
+  const showRewrite = rewriting && canRewrite;
+  useEffect(() => {
+    if (!canRewrite) setRewriting(false);
+  }, [canRewrite]);
+  const currentIntent = view.entries.findLast(
+    (item) => item.turn_index === view.turn_index && item.kind === "intent",
+  );
+  const practiceTurn =
+    view.stage === "check_in" ? view.turn_index : view.turn_index - 1;
+  const practiceFeedback = view.entries.findLast(
+    (item) => item.turn_index === practiceTurn && item.kind === "feedback",
+  );
+  const canPractice =
+    allowed.has("practice_again") &&
+    practiceFeedback?.kind === "feedback" &&
+    practiceFeedback.payload.feedback.template !== null;
+  const practicing = practiceOpen && canPractice;
+  useEffect(() => {
+    if (!canPractice) setPracticeOpen(false);
+  }, [canPractice]);
+  // The server records this practice under its target, the previous turn.
+  // Keep the new result visible beside the current turn without changing it.
+  const previousPractice =
+    practiceTurn < view.turn_index && answering !== null
+      ? view.entries.filter(
+          (item) =>
+            item.turn_index === practiceTurn &&
+            item.seq > answering.seq &&
+            (item.kind === "practice" || item.kind === "practice_result"),
+        )
+      : [];
+  function startRewrite() {
+    if (currentIntent?.kind !== "intent") return;
+    setRewriteText(currentIntent.payload.text);
+    setRewriting(true);
+    setPracticeOpen(false);
+    focusAfterPast.current = "composer";
+  }
+  const rewriteControl = canRewrite ? (
+    <button
+      type="button"
+      disabled={busy}
+      className={QUIET_BUTTON}
+      onClick={startRewrite}
+    >
+      日本語を書き直す
+    </button>
+  ) : undefined;
+  const sideError = (field: "question" | "rewrite" | "practice") =>
+    outcome?.kind === "invalid" && outcome.field === field
+      ? outcome.message
+      : undefined;
+
   const nextLine =
     waitingPane === "coach"
       ? null
@@ -820,6 +970,28 @@ export function ConversationScreen({
         entries={view.entries}
         {...(ended ? {} : { onSelectTurn: showPastTurn })}
       />
+      {allowed.has("restate") && (
+        <div className="flex items-center gap-2 text-sm text-ink-muted">
+          <span>言い換え:</span>
+          <button
+            type="button"
+            className={QUIET_BUTTON}
+            disabled={busy}
+            onClick={() => void send({ action: "restate", mode: "shorter" })}
+          >
+            短く
+          </button>
+          <span aria-hidden="true">｜</span>
+          <button
+            type="button"
+            className={QUIET_BUTTON}
+            disabled={busy}
+            onClick={() => void send({ action: "restate", mode: "simpler" })}
+          >
+            簡単に
+          </button>
+        </div>
+      )}
       <div role="status" className="text-ink-muted">
         {waitingPane === "partner" && lineShown && (
           <p className={ENTER}>{longWait ? LONG_WAIT : PARTNER_WAITING}</p>
@@ -921,12 +1093,52 @@ export function ConversationScreen({
             )}
           </div>
         )}
-        {previous !== null && <p className="text-sm text-ink-muted">{previous}</p>}
+        {(previous !== null || canPractice) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {previous !== null && <p className="text-sm text-ink-muted">{previous}</p>}
+            {canPractice && (
+              <button
+                type="button"
+                disabled={busy}
+                className={QUIET_BUTTON}
+                onClick={() => {
+                  setPracticeOpen(true);
+                  setRewriting(false);
+                  focusAfterPast.current = "composer";
+                }}
+              >
+                もう一度練習
+              </button>
+            )}
+          </div>
+        )}
+        {previousPractice.length > 0 && (
+          <section aria-label="前のターンの練習" className="space-y-2">
+            <h3 className="text-xs font-bold">前のターンの練習</h3>
+            <TurnTimeline
+              timeline={previousPractice}
+              turn={practiceTurn}
+              fresh={arrival.ids}
+            />
+          </section>
+        )}
         <TurnTimeline
           timeline={view.entries}
           turn={view.turn_index}
           fresh={arrival.ids}
+          intentControl={rewriteControl}
         />
+        {allowed.has("ask") && (
+          <CoachQuestion
+            disabled={busy}
+            error={sideError("question")}
+            open={questionOpen}
+            onOpenChange={setQuestionOpen}
+            text={questionText}
+            onTextChange={setQuestionText}
+            onSend={(question) => send({ action: "ask", text: question })}
+          />
+        )}
         {coachErrors}
       </>
     );
@@ -946,23 +1158,77 @@ export function ConversationScreen({
         )}
       </div>
       {cancelButton("coach")}
-      {ui.composer !== null && (
-        <Composer
-          textareaRef={composerRef}
-          label={ui.composer.label}
-          placeholder={ui.composer.placeholder}
-          lang={ui.composer.lang}
-          value={text}
-          onChange={setText}
-          disabled={busy || ui.composer.waiting}
-          error={composerError}
-          onSend={() => {
-            const composer = ui.composer;
-            if (composer !== null) void send({ action: composer.action, text });
-          }}
-        />
+      {practiceOpen && canPractice && practiceFeedback?.kind === "feedback" ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold">穴埋め</p>
+          <p lang="en" className={COACH_ENGLISH}>
+            {practiceFeedback.payload.feedback.template}
+          </p>
+          <Composer
+            textareaRef={composerRef}
+            label="もう一度練習"
+            lang="en"
+            value={practiceText}
+            onChange={setPracticeText}
+            disabled={busy}
+            error={sideError("practice")}
+            onSend={() => void send({ action: "practice_again", text: practiceText })}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            className={QUIET_BUTTON}
+            onClick={() => {
+              setPracticeOpen(false);
+              focusAfterPast.current = "composer";
+            }}
+          >
+            やめる
+          </button>
+        </div>
+      ) : showRewrite ? (
+        <div className="space-y-2">
+          <Composer
+            textareaRef={composerRef}
+            label="あなたの日本語"
+            lang="ja"
+            value={rewriteText}
+            onChange={setRewriteText}
+            disabled={busy}
+            error={sideError("rewrite")}
+            onSend={() => void send({ action: "rewrite_intent", text: rewriteText })}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            className={QUIET_BUTTON}
+            onClick={() => {
+              setRewriting(false);
+              focusAfterPast.current = "composer";
+            }}
+          >
+            やめる
+          </button>
+        </div>
+      ) : (
+        ui.composer !== null && (
+          <Composer
+            textareaRef={composerRef}
+            label={ui.composer.label}
+            placeholder={ui.composer.placeholder}
+            lang={ui.composer.lang}
+            value={text}
+            onChange={setText}
+            disabled={busy || ui.composer.waiting}
+            error={composerError}
+            onSend={() => {
+              const composer = ui.composer;
+              if (composer !== null) void send({ action: composer.action, text });
+            }}
+          />
+        )
       )}
-      {showHint && (
+      {showHint && !showRewrite && !practicing && (
         <HintRequest
           inputRef={gapRef}
           value={gap}
@@ -973,7 +1239,7 @@ export function ConversationScreen({
           onSubmit={() => void send({ action: "hint", gap, partial_english: text })}
         />
       )}
-      {!busy && ui.controls.length > 0 && (
+      {!busy && !showRewrite && !practicing && ui.controls.length > 0 && (
         <fieldset
           ref={controlsRef}
           aria-label="操作"

@@ -289,7 +289,7 @@ describe("ConversationScreen panes (REQ-002)", () => {
     expect(left.queryByText("いいね")).not.toBeInTheDocument();
   });
 
-  it("shows only the current turn's entries on the right, replaced intents flat", () => {
+  it("shows only the current turn's entries on the right, with old intents collapsed", () => {
     serveSession(second);
     renderSession(second);
 
@@ -302,7 +302,7 @@ describe("ConversationScreen panes (REQ-002)", () => {
       (row) => row.textContent,
     );
     expect(rows).toEqual([
-      "あなたの日本語いいね",
+      "書き直す前のやりとりあなたの日本語いいね",
       "あなたの日本語いいね、どこを歩いた？",
       "💡 いいですね！",
       "質問walk は名詞ですか",
