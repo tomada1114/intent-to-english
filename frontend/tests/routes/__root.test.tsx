@@ -13,7 +13,13 @@ import type {
 } from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
-import { SESSION_ID, serveSession, sessionView } from "../msw/helpers";
+import {
+  deferred,
+  SESSION_ID,
+  serveSession,
+  sessionRow,
+  sessionView,
+} from "../msw/helpers";
 import { server } from "../msw/server";
 
 const BADGE = "固定応答モード";
@@ -199,6 +205,83 @@ describe("the root layout", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  it.each(["none", "running", "failed"] as const)(
+    "retries the failed forward page with its stored cursor during background refetch: %s",
+    async (backgroundRefetch) => {
+      useMeta("openrouter");
+      const first = Array.from({ length: 20 }, (_, index) =>
+        sessionRow({
+          id: `0199c1f0-0000-7000-8000-${String(index).padStart(12, "0")}`,
+          status: "ended",
+          opener: `Stored opener ${index}`,
+        }),
+      );
+      const last = sessionRow({
+        id: "0199c1f0-0000-7000-8000-999999999999",
+        status: "ended",
+        opener: "Twenty-first opener",
+      });
+      const cursors: (string | null)[] = [];
+      let reachable = false;
+      const gate = deferred();
+      let headRequests = 0;
+      server.use(
+        http.get("/api/sessions", async ({ request }) => {
+          const cursor = new URL(request.url).searchParams.get("cursor");
+          cursors.push(cursor);
+          if (cursor === null) {
+            headRequests += 1;
+            if (backgroundRefetch === "running" && headRequests > 1) await gate.promise;
+            if (backgroundRefetch === "failed" && headRequests > 1 && !reachable)
+              return HttpResponse.error();
+            return HttpResponse.json<SessionPageResponse>({
+              items: first,
+              next_cursor: "stored-next-cursor",
+            });
+          }
+          return reachable
+            ? HttpResponse.json<SessionPageResponse>({
+                items: [last],
+                next_cursor: null,
+              })
+            : HttpResponse.error();
+        }),
+      );
+      const user = userEvent.setup();
+      const router = renderAt("/");
+      await user.click(await screen.findByRole("button", { name: "さらに表示" }));
+      const alert = (
+        await screen.findByText(UNREACHABLE, {}, { timeout: 3000 })
+      ).closest('[role="alert"]') as HTMLElement;
+      expect(screen.getAllByRole("alert")).toEqual([alert]);
+      if (backgroundRefetch !== "none") {
+        const refetch = router.options.context.queryClient.refetchQueries({
+          queryKey: [{ _id: "listSessions" }],
+        });
+        if (backgroundRefetch === "failed") await refetch;
+        else await waitFor(() => expect(headRequests).toBe(2));
+      }
+      reachable = true;
+
+      await user.click(within(alert).getByRole("button", { name: "再試行" }));
+      gate.release();
+
+      expect(await screen.findByText("Twenty-first opener")).toBeInTheDocument();
+      expect(cursors).toEqual([
+        null,
+        "stored-next-cursor",
+        "stored-next-cursor",
+        ...(backgroundRefetch === "running"
+          ? [null]
+          : backgroundRefetch === "failed"
+            ? [null, null]
+            : []),
+        "stored-next-cursor",
+      ]);
+      expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+    },
+  );
 
   it("shows the server-unreachable banner on S4 when the header's own request gets no response", async () => {
     server.use(http.get("/api/meta", () => HttpResponse.error()));
