@@ -57,6 +57,7 @@ function StartSession() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const button = useRef<HTMLButtonElement>(null);
+  const starting = useRef(false);
   const status = useServerStatus();
   const start = useMutation({
     ...createSessionMutation(),
@@ -67,10 +68,19 @@ function StartSession() {
     // No response at all is the layout's banner, whose 再試行 starts it again.
     onError: (error) => {
       if (toApiError(error).kind === "unknown") {
-        status.report(START_KEY, () => start.mutate({}));
+        status.report(START_KEY, startOnce);
       }
     },
+    onSettled: () => {
+      starting.current = false;
+    },
   });
+  function startOnce() {
+    if (starting.current) return;
+    starting.current = true;
+    status.resolve(START_KEY);
+    start.mutate({});
+  }
   const failure = start.isError ? toApiError(start.error) : null;
   useEffect(() => () => status.resolve(START_KEY), [status]);
   useEffect(() => {
@@ -84,10 +94,7 @@ function StartSession() {
         ref={button}
         type="button"
         disabled={start.isPending}
-        onClick={() => {
-          status.resolve(START_KEY);
-          start.mutate({});
-        }}
+        onClick={startOnce}
         className={PRIMARY_BUTTON}
       >
         新しい会話を始める
@@ -98,7 +105,7 @@ function StartSession() {
           requestId={failure.requestId}
           action={{
             label: "もう一度",
-            onClick: () => start.mutate({}),
+            onClick: startOnce,
             disabled: start.isPending,
           }}
         />
