@@ -74,7 +74,10 @@ export function ServerStatusProvider({ children }: { children: ReactNode }) {
             const fetchMeta = query.state.fetchMeta;
             status.report(key, () => {
               void query
-                .fetch(undefined, fetchMeta === null ? undefined : { meta: fetchMeta })
+                .fetch(undefined, {
+                  cancelRefetch: true,
+                  ...(fetchMeta === null ? {} : { meta: fetchMeta }),
+                })
                 .catch(() => {
                   // The cache listener reports the next failure through this banner.
                 });
