@@ -172,7 +172,11 @@ export function ConversationScreen({
   // A failed or interrupted submission's text comes back in the composer.
   const [text, setText] = useState(() => restoredFrom(view).text ?? "");
   const [gap, setGap] = useState(() => restoredFrom(view).gap ?? "");
-  const [directTurn, setDirectTurn] = useState<number | null>(null);
+  const [directTurn, setDirectTurn] = useState<number | null>(() =>
+    view.stage === "intent" && view.last_submission?.action === "english_direct"
+      ? view.turn_index
+      : null,
+  );
   const [hintOpen, setHintOpen] = useState(() => restoredFrom(view).gap !== undefined);
   const [howToOpen, setHowToOpen] = useState(true);
   /** A past turn the learner selected on the left, shown read-only on the right. */
