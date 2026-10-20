@@ -7,8 +7,10 @@ from http import HTTPStatus
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from intent_to_english.api.app import create_app
+from intent_to_english.settings import Settings
 
 
 @pytest.mark.parametrize("mode", ["fixed", "openrouter"])
@@ -18,3 +20,12 @@ def test_meta_reads_the_supplied_container_mode(make_container, mode):
         response = client.get("/api/meta")
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"model_mode": mode}
+
+
+def test_meta_with_auto_and_key_selects_openrouter_without_model_requests():
+    with TestClient(
+        create_app(Settings(OPENROUTER_API_KEY=SecretStr("dummy-key")))
+    ) as client:
+        response = client.get("/api/meta")
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"model_mode": "openrouter"}
