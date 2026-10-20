@@ -126,42 +126,81 @@ export function TurnTimeline({
   timeline,
   turn,
   fresh = new Set<string>(),
+  intentControl,
 }: {
   timeline: readonly Entry[];
   turn: number;
   fresh?: ReadonlySet<string>;
+  intentControl?: ReactNode;
 }) {
   const entries = timeline.filter(
     (item) => item.turn_index === turn && item.kind !== "partner_line",
   );
+  const latestIntent = entries.findLast((item) => item.kind === "intent");
+  const groups: Entry[][] = [[]];
+  for (const item of entries) {
+    if (item.kind === "intent" && item.payload.is_replacement && groups.at(-1)?.length)
+      groups.push([]);
+    groups.at(-1)?.push(item);
+  }
+  const renderEntry = (item: Entry) => (
+    <CoachEntry
+      key={item.id}
+      entry={item}
+      timeline={timeline}
+      intentControl={item.id === latestIntent?.id ? intentControl : undefined}
+      celebrate={
+        item.kind === "feedback" &&
+        entries
+          .slice(entries.indexOf(item) + 1)
+          .some(
+            (later) =>
+              later.kind === "retry_result" &&
+              fresh.has(later.id) &&
+              isAccepted(later.payload.result),
+          )
+      }
+    />
+  );
   return (
     <ol aria-label={`ターン ${turn}`} className="space-y-3">
-      {entries.map((item, index) => (
-        <CoachEntry
-          key={item.id}
-          entry={item}
-          timeline={timeline}
-          celebrate={
-            item.kind === "feedback" &&
-            entries
-              .slice(index + 1)
-              .some(
-                (later) =>
-                  later.kind === "retry_result" &&
-                  fresh.has(later.id) &&
-                  isAccepted(later.payload.result),
-              )
-          }
-        />
-      ))}
+      {groups.map((group, index) =>
+        index === groups.length - 1 ? (
+          group.map(renderEntry)
+        ) : (
+          <li key={group[0]?.id}>
+            <details className="space-y-2">
+              <summary
+                className={`cursor-pointer text-sm text-ink-muted ${FOCUS_RING}`}
+              >
+                書き直す前のやりとり
+              </summary>
+              <ol className="space-y-3 transition-opacity duration-200 starting:opacity-0 motion-reduce:transition-none">
+                {group.map(renderEntry)}
+              </ol>
+            </details>
+          </li>
+        ),
+      )}
     </ol>
   );
 }
 
-function Learner({ label, children }: { label: string; children: ReactNode }) {
+function Learner({
+  label,
+  children,
+  action,
+}: {
+  label: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <li className={`space-y-1 border-l-2 border-line-strong pl-3 ${ENTER}`}>
-      <p className={LABEL}>{label}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className={LABEL}>{label}</p>
+        {action}
+      </div>
       {children}
     </li>
   );
@@ -229,10 +268,12 @@ export function CoachEntry({
   entry,
   timeline,
   celebrate = false,
+  intentControl,
 }: {
   entry: Entry;
   timeline: readonly Entry[];
   celebrate?: boolean;
+  intentControl?: ReactNode;
 }) {
   switch (entry.kind) {
     case "partner_line":
@@ -244,7 +285,7 @@ export function CoachEntry({
       );
     case "intent":
       return (
-        <Learner label="あなたの日本語">
+        <Learner label="あなたの日本語" action={intentControl}>
           <p className="whitespace-pre-wrap">{entry.payload.text}</p>
         </Learner>
       );

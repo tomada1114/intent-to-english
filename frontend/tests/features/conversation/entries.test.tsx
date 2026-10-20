@@ -131,7 +131,7 @@ describe("TurnTimeline", () => {
     render(<TurnTimeline timeline={entries} turn={1} />);
 
     expect(rows("ターン 1")).toEqual([
-      "あなたの日本語映画を見た",
+      "書き直す前のやりとりあなたの日本語映画を見た",
       "あなたの日本語久しぶりに映画を見た",
       "💡 いいですね！組み立てのヒント: 「久しぶりに」は言い換えると組み立てやすいです",
       "分からないところ久しぶり途中までの英語I watched",
