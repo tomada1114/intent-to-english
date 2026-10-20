@@ -23,11 +23,13 @@ function SessionRoute() {
   const { sessionId } = Route.useParams();
   const query = useQuery(sessionQueryOptions(sessionId));
   const currentStatus = query.data?.status;
-  const previousStatus = useRef(currentStatus);
-  const fromConversation = previousStatus.current === "in_progress";
+  const previous = useRef({ sessionId, status: currentStatus });
+  const fromConversation =
+    previous.current.sessionId === sessionId &&
+    previous.current.status === "in_progress";
   useEffect(() => {
-    previousStatus.current = currentStatus;
-  }, [currentStatus]);
+    previous.current = { sessionId, status: currentStatus };
+  }, [currentStatus, sessionId]);
   const backLink = (
     <Link to="/" className={BACK_LINK}>
       ← <span className="max-lg:hidden">会話</span>一覧
