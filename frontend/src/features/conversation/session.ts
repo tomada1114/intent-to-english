@@ -128,6 +128,19 @@ export function toActionInput(submission: LastSubmissionResponse): ActionInput {
   return { action: submission.action, ...submission.input } as ActionInput;
 }
 
+/** Match the server's trimmed values without changing the learner's raw draft. */
+function canonicalInput(input: ActionInput): ActionInput {
+  if ("text" in input) return { ...input, text: input.text.trim() };
+  if (input.action === "hint")
+    return {
+      ...input,
+      gap: input.gap.trim(),
+      partial_english: (input.partial_english ?? "").trim(),
+    };
+  if (input.action === "reading") return { ...input, reading: input.reading.trim() };
+  return input;
+}
+
 /** A stored request proves receipt without implying successful consumption. */
 export function hasMatchingSubmission(
   submission: LastSubmissionResponse | null,
@@ -135,7 +148,7 @@ export function hasMatchingSubmission(
 ): boolean {
   if (submission === null) return false;
   const received = Object.entries(toActionInput(submission));
-  const sent = Object.entries(input);
+  const sent = Object.entries(canonicalInput(input));
   return (
     received.length === sent.length &&
     sent.every(([key, value]) =>
@@ -149,9 +162,10 @@ export function hasMatchingSubmission(
 /** Only a new persisted entry can prove that a specific draft was consumed. */
 export function hasRecordedInput(
   view: SessionView,
-  input: ActionInput,
+  rawInput: ActionInput,
   afterSeq: number,
 ): boolean {
+  const input = canonicalInput(rawInput);
   return view.entries.some((item) => {
     if (item.seq <= afterSeq) return false;
     switch (input.action) {

@@ -215,6 +215,7 @@ export function ConversationScreen({
   // arrive before React renders the disabled state, and a cancelled or
   // superseded request's late answer must find it gone.
   const attemptRef = useRef<Attempt | null>(null);
+  const receivedAttempt = useRef<Attempt | null>(null);
   const attempts = useRef(0);
   const autoSent = useRef<number | null>(null);
   /** The version of a result that should take focus once it is shown. */
@@ -237,6 +238,8 @@ export function ConversationScreen({
     )
       return;
     const input = unanswered.input;
+    if (!advanced && view.last_submission?.state === "pending")
+      receivedAttempt.current = unanswered;
     setUnanswered(null);
     status.resolve(UNANSWERED.action);
     const consumed = hasRecordedInput(view, input, unanswered.afterSeq);
@@ -304,6 +307,7 @@ export function ConversationScreen({
 
   async function send(input: ActionInput) {
     if (attemptRef.current !== null) return;
+    receivedAttempt.current = null;
     attempts.current += 1;
     const sent: Attempt = {
       id: attempts.current,
@@ -334,10 +338,11 @@ export function ConversationScreen({
     // Cancelled, or superseded by `end`: the answer is discarded.
     if (!waitingFor(sent.id)) return;
     setAttempt(null);
-    if (COMPOSER_ACTIONS.has(input.action)) setText("");
+    if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
+      setText((current) => (current === input.text ? "" : current));
     if (input.action === "hint") {
-      setGap("");
-      setHintOpen(false);
+      setGap((current) => (current === input.gap ? "" : current));
+      if (gap === input.gap) setHintOpen(false);
     }
     focusOnResult.current = next.version;
     await writeView(next);
@@ -518,7 +523,14 @@ export function ConversationScreen({
       view.last_submission === null &&
       view.version > before.version;
     if (completed && before.pending !== null) {
-      const input = toActionInput(before.pending);
+      const received = receivedAttempt.current;
+      const input =
+        received !== null &&
+        received.version === before.version &&
+        hasMatchingSubmission(before.pending, received.input)
+          ? received.input
+          : toActionInput(before.pending);
+      receivedAttempt.current = null;
       if (hasRecordedInput(view, input, before.afterSeq)) {
         if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
           setText((current) => (current === input.text ? "" : current));
