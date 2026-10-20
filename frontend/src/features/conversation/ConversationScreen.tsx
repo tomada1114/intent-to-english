@@ -210,6 +210,7 @@ export function ConversationScreen({
   const attemptRef = useRef<Attempt | null>(null);
   const attempts = useRef(0);
   const autoSent = useRef<number | null>(null);
+  const ending = useRef(false);
   /** The version of a result that should take focus once it is shown. */
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
@@ -418,6 +419,8 @@ export function ConversationScreen({
   }
 
   async function endSession() {
+    if (ending.current) return;
+    ending.current = true;
     setEndError(null);
     status.resolve(UNANSWERED.end);
     try {
@@ -442,6 +445,8 @@ export function ConversationScreen({
       } else {
         setEndError(error);
       }
+    } finally {
+      ending.current = false;
     }
   }
 

@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,6 +148,47 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     code: "action_cancelled",
     request_id: "req-1",
   };
+
+  it("sends one end when the failure retry is activated twice before rendering", async () => {
+    const hold = deferred();
+    let ends = 0;
+    const served = serveSession(intent, async (): Promise<Response> => {
+      ends += 1;
+      if (ends === 1) {
+        return HttpResponse.json<ProblemDetails>(
+          {
+            type: "about:blank",
+            title: "Internal Server Error",
+            status: 500,
+            detail: "Internal Server Error",
+            code: "internal_error",
+            request_id: "end-500",
+          },
+          { status: 500 },
+        );
+      }
+      await hold.promise;
+      return HttpResponse.json(ended);
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSession(intent);
+    await confirm(user);
+    await user.click(screen.getByRole("button", { name: "終える" }));
+    const banner = await screen.findByRole("alert");
+    const again = within(banner).getByRole("button", { name: "もう一度" });
+
+    act(() => {
+      fireEvent.click(again);
+      fireEvent.click(again);
+    });
+    await waitFor(() => expect(served.bodies).toHaveLength(2));
+    hold.release();
+    await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
+    expect(served.bodies).toEqual([
+      { action: "end", version: 1 },
+      { action: "end", version: 1 },
+    ]);
+  });
 
   it("shows a Japanese end failure and lets the learner retry", async () => {
     let ends = 0;
