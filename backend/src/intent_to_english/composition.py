@@ -18,6 +18,7 @@ from anyio.lowlevel import checkpoint_if_cancelled
 
 from intent_to_english.adapters.memory import InMemorySessionRepository
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
+from intent_to_english.adapters.models.openrouter import build_openrouter_models
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.core.services import ConversationService
@@ -206,7 +207,7 @@ def build_container(
     """
     resources = ResourceClosers()
     session_repository = _build_repository(settings, resources)
-    models = ModelPorts(FixedPartnerModel(), FixedCoachModel())
+    models, model_mode = _build_models(settings, resources)
     conversations = ConversationService(
         session_repository,
         models.partner,
@@ -215,11 +216,10 @@ def build_container(
         new_id,
         boot_id if boot_id is not None else uuid.uuid7(),
     )
-    # The live composition branch belongs to #28; a key never activates billing here.
     return Container(
         conversations=conversations,
         models=models,
-        model_mode="fixed",
+        model_mode=model_mode,
         _resources=resources,
     )
 
@@ -240,3 +240,18 @@ def _build_repository(
     engine = make_engine(settings.database_url)
     resources.push_async_callback(engine.dispose)
     return SqlSessionRepository(engine)
+
+
+def _build_models(
+    settings: Settings, resources: ResourceClosers
+) -> tuple[ModelPorts, Literal["fixed", "openrouter"]]:
+    """Unwrap the key only at the composition boundary, after selecting live mode."""
+    if settings.model_mode == "fixed" or settings.openrouter_api_key is None:
+        return ModelPorts(FixedPartnerModel(), FixedCoachModel()), "fixed"
+    partner, coach = build_openrouter_models(
+        settings.openrouter_api_key.get_secret_value(),
+        (settings.partner_model, settings.coach_model),
+        resources,
+        app_title="Intent to English",
+    )
+    return ModelPorts(partner, coach), "openrouter"
