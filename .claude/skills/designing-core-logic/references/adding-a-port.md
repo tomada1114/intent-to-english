@@ -40,7 +40,7 @@ def build_container(
 ) -> Container:
     resources = ResourceClosers()
     session_repository = _build_repository(settings, resources)
-    models = ModelPorts(FixedPartnerModel(), FixedCoachModel())
+    models, model_mode = _build_models(settings, resources)
     conversations = ConversationService(
         session_repository,
         models.partner,
@@ -49,11 +49,10 @@ def build_container(
         new_id,
         boot_id if boot_id is not None else uuid.uuid7(),
     )
-    # The live composition branch belongs to #28; a key never activates billing here.
     return Container(
         conversations=conversations,
         models=models,
-        model_mode="fixed",
+        model_mode=model_mode,
         _resources=resources,
     )
 ```

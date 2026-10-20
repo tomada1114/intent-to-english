@@ -12,11 +12,13 @@ from pathlib import Path
 import anyio
 import pytest
 from alembic import command
+from openai import AsyncOpenAI
 from pydantic import SecretStr
 from sqlalchemy import event
 
 from intent_to_english import composition
 from intent_to_english.adapters.memory import InMemorySessionRepository
+from intent_to_english.adapters.models import openrouter
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
@@ -108,11 +110,15 @@ async def test_build_container_default_settings_uses_an_independent_memory_store
     assert await second.conversations.list_page() == Page(items=(), next_cursor=None)
 
 
-@pytest.mark.parametrize("mode", ["auto", "fixed"])
+@pytest.mark.parametrize(
+    ("mode", "key"),
+    [("auto", None), ("auto", "  "), ("fixed", "dummy-key")],
+    ids=["no-key", "blank-key", "fixed-with-key"],
+)
 async def test_build_container_wires_independent_fixed_conversations(
-    make_container, mode
+    make_container, mode, key
 ):
-    settings = Settings(model_mode=mode, OPENROUTER_API_KEY=SecretStr("dummy-key"))
+    settings = Settings(model_mode=mode, OPENROUTER_API_KEY=key)
     first = make_container(settings)
     second = make_container(settings)
     view = await first.conversations.start()
@@ -740,3 +746,42 @@ async def test_container_registration_after_ownership_transfer_rejected(make_con
         resources.push_async_callback(_record, [], "late")
 
     await container.aclose()
+
+
+async def test_auto_mode_with_key_builds_both_live_ports_and_closes_one_client(
+    monkeypatch,
+):
+    clients = []
+    closed = []
+
+    def make_client(**kwargs):
+        client = AsyncOpenAI(**kwargs)
+        clients.append(client)
+        close = client.close
+
+        async def record_close():
+            closed.append(client)
+            await close()
+
+        monkeypatch.setattr(client, "close", record_close)
+        return client
+
+    monkeypatch.setattr(openrouter, "AsyncOpenAI", make_client)
+    settings = Settings(
+        OPENROUTER_API_KEY=SecretStr("dummy-key"),
+        partner_model="anthropic/partner-id",
+        coach_model="anthropic/coach-id",
+    )
+    container = build_container(settings)
+    try:
+        assert container.model_mode == "openrouter"
+        assert isinstance(container.models.partner, openrouter.OpenRouterPartnerModel)
+        assert isinstance(container.models.coach, openrouter.OpenRouterCoachModel)
+        assert len(clients) == 1
+        assert not clients[0].is_closed()
+        await container.aclose()
+        await container.aclose()
+        assert closed == clients
+    finally:
+        for client in clients:
+            await client.close()

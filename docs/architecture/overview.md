@@ -272,14 +272,17 @@ behind the same ports. The app turns off what would hide calls from the core:
 - **Usage per request.** Tokens come from each `ModelResponse.usage`; the provider-reported
   cost from `ModelResponse.provider_details["cost"]`.
 
-The Partner's `open`, `reply` and `restate` agents are built once over one model.
+The Partner's three and Coach's seven task agents are built once over their role models.
+Both models share one provider and one client with one registered close callback.
 The client builder registers its close callback with `ResourceClosers`, uses the
 explicit key and `X-OpenRouter-Title` app name, and supplies no provider credentials
 or attribution arguments that could pick up shell values. The per-agent
 `instrument = False` overrides global instrumentation. A 60-second scope also bounds
 the complete run, not only SDK socket waits. Parse failures retain response usage,
-while provider failures carry only safe core errors and latency. The Coach and live
-composition branch remain #28's scope; every configured mode still runs fixed.
+while provider failures carry only safe core errors and latency. Coach feedback uses one
+top-level JSON object with a `kind` discriminator and exactly
+one matching feedback or reading-question payload. Retry results use a discriminated
+payload inside a top-level object too, so every task supports native structured output.
 
 Rejected: calling OpenRouter with httpx2 directly — no new package and full control, but the
 request, the schema, parsing, retries, and error mapping would all be hand-written, and Bedrock
@@ -401,17 +404,19 @@ replacement, using the boot id and cutoff to recognize it (§ Core flows).
 | Setting | Default | Effect |
 |---|---|---|
 | `OPENROUTER_API_KEY` | unset | the OpenRouter key, unprefixed (the name OpenRouter documents), read through a validation alias as a secret; unset or blank runs the fixed-response mode |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` and `fixed` currently select the fixed adapters; `fixed` explicitly pins the browser test to offline responses |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` with a key selects OpenRouter for both roles; `fixed` explicitly pins offline responses |
 | `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | the Coach's OpenRouter model id |
 | `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | the Partner's OpenRouter model id |
 
-The composition root selects both fixed adapters in every mode and exposes that
-selection through `Container.model_mode`. The provider-key alias is a `SecretStr`,
+The composition root selects both OpenRouter adapters when auto mode has a key,
+otherwise both fixed adapters, and exposes the selection through `Container.model_mode`.
+Only composition unwraps the secret for the shared-client builder. The provider-key alias
+is a `SecretStr`,
 omitted from settings repr; a blank key is none. Empty model ids keep their defaults,
 while whitespace-only ids fail at startup naming their variables. One boot id is made
 per container build, independently of entity ids. With SQL selected, the two repository
 ports share one lazy engine and one disposal callback. This keeps the full HTTP flow
-usable without a key while the live composition branch remains #28's separate scope.
+usable without a key and lets fixed mode prevent billing even with one set.
 `Container.models` holds those same role ports in a frozen `ModelPorts` value. The
 evaluation uses the same container and selected mode with memory storage explicitly
 selected, so it shares model choice and owned cleanup without opening a database.
@@ -484,7 +489,7 @@ grader or candidate checks (§3.11).
 shared task runner and one repair, observes each actual return without another call,
 and holds attempt records only in memory. A provider error is recorded and the next
 case still runs. Fixed mode refuses before calls or writes, naming the key and mode
-variables; until #28 every configured mode therefore refuses. Both report paths and
+variables. Auto mode with a key runs the selected OpenRouter roles. Both report paths and
 exactly one ordered README marker pair are checked before calls. Existing reports
 are never overwritten; exclusive writes also guard against a concurrent writer.
 Publication stages the README and replaces it only after both reports close
