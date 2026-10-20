@@ -190,7 +190,7 @@ export function ConversationScreen({
   const [unanswered, setUnanswered] = useState(false);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   /** Where focus goes once the next render is shown, as a control goes away. */
-  const focusAfterPast = useRef<"back" | "composer" | "again" | null>(null);
+  const focusAfterPast = useRef<"back" | "composer" | "gap" | "again" | null>(null);
   const againRef = useRef<HTMLButtonElement>(null);
   const coachHeadingRef = useRef<HTMLHeadingElement>(null);
   const partnerHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -339,7 +339,7 @@ export function ConversationScreen({
           : null;
     const message =
       error.status === 422 && field !== null ? fieldMessage(error, field) : undefined;
-    focusAfterPast.current = "composer";
+    focusAfterPast.current = field === "gap" ? "gap" : "composer";
     setOutcome(
       field !== null && message !== undefined
         ? { kind: "invalid", field, message }
@@ -583,6 +583,7 @@ export function ConversationScreen({
     focusAfterPast.current = null;
     if (target === "back") backToTurnRef.current?.focus();
     if (target === "again") againRef.current?.focus();
+    if (target === "gap") gapRef.current?.focus();
     if (target !== "composer") return;
     // The composer, else the stage's first control, else the pane's heading.
     const composer = composerRef.current;
@@ -745,7 +746,11 @@ export function ConversationScreen({
   const coachPane =
     pastTurn !== null && !ended ? (
       <>
-        <h2 className="text-[13px] font-bold tracking-[0.04em] text-ink-muted">
+        <h2
+          ref={coachHeadingRef}
+          tabIndex={-1}
+          className={`text-[13px] font-bold tracking-[0.04em] text-ink-muted ${FOCUS_RING}`}
+        >
           コーチ · ターン {pastTurn}
         </h2>
         <button

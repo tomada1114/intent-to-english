@@ -532,6 +532,43 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
 });
 
 describe("ConversationScreen retry waiting focus", () => {
+  it("returns a rejected hint to its gap field", async () => {
+    serveSession(english, () => answer(422, "invalid_input"));
+    const user = userEvent.setup();
+    renderSession(english);
+    await user.click(screen.getByRole("button", { name: "ヒント" }));
+    const gap = screen.getByRole("textbox", { name: "分からないところ" });
+    await user.type(gap, "久しぶり");
+    await user.keyboard("{Enter}");
+    await screen.findByRole("alert");
+    await waitFor(() => expect(gap).toHaveFocus());
+  });
+
+  it("keeps a mounted past-turn heading focused while retrying", async () => {
+    const hold = deferred();
+    let calls = 0;
+    serveSession(turnTwo, async () => {
+      calls += 1;
+      if (calls === 1) return answer(504, "model_timeout");
+      await hold.promise;
+      return { ...turnTwo, version: 6 };
+    });
+    const user = userEvent.setup();
+    renderSession(turnTwo);
+    await user.type(
+      screen.getByRole("textbox", { name: "あなたの日本語" }),
+      "猫が好き",
+    );
+    await user.keyboard("{Meta>}{Enter}{/Meta}");
+    await pane("コーチ").findByRole("alert");
+    await user.click(pane("会話").getByRole("button", { name: "I watched a movie" }));
+    const alert = pane("コーチ").getByRole("alert");
+    await user.click(within(alert).getByRole("button", { name: "もう一度" }));
+    expect(pane("コーチ").getByRole("heading", { level: 2 })).toHaveFocus();
+    hold.release();
+    await waitFor(() => expect(alert).not.toBeInTheDocument());
+  });
+
   it.each([
     {
       name: "coach",
