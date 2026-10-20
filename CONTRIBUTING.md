@@ -55,8 +55,11 @@ just fmt
 # Lint + type check
 just lint
 
-# Run tests
+# Run local tests (process integration is separate)
 just test
+
+# Optional locally: process groups, signal forwarding and cleanup; mandatory in CI
+just test-process
 
 # Run only the backend's tests, with its coverage floor (`just --list backend` lists the rest)
 just backend test
@@ -82,6 +85,13 @@ just verify
 recipe (`just verify` runs the recipes its own line in the `justfile` names),
 and a `backend::` or `frontend::` recipe's commands from that area's `justfile`
 inside its directory.
+
+`just verify` does not run the `process_integration` tests for the development and
+E2E recipes. They require process inspection and signals, which restricted local
+hosts may deny. CI's required `Coverage` job runs both the ordinary root tests and
+`just test-process`'s command on every PR; a process test failure blocks merge.
+Use the optional command locally when working on those recipes. Test assertions,
+timeouts, coverage floors and the recipes' actual cleanup behavior are unchanged.
 
 ## Worktrees
 

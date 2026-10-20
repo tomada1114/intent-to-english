@@ -115,9 +115,13 @@ lint: backend::lint frontend::lint e2e-lint
 # backend::test runs the app's suite with the 80% branch-coverage floor over
 # backend/src; frontend::test runs Vitest with its 80% floor over frontend/src;
 # this line runs the root suite (the harness and the scripts' tests).
-# Run tests in parallel with coverage (the backend's and the frontend's first)
+# Run local tests with coverage; process lifecycle integration runs separately
 test: backend::test frontend::test
-    uv run --locked pytest -n auto
+    uv run --locked pytest -n auto -m 'not process_integration'
+
+# Optional locally, required in CI: real process groups, signals and cleanup
+test-process:
+    uv run --locked pytest -n auto -m process_integration
 
 # The API (`just backend dev`, http://127.0.0.1:${INTENT_TO_ENGLISH_API_PORT:-8000}) and
 # the screen (`just frontend dev`, http://localhost:${VITE_PORT:-5173}, which
@@ -319,7 +323,7 @@ lock:
 check: fmt lint test
 
 # `lint` and `test` already run the frontend's lint and tests; frontend::build
-# adds the production build, last.
+# adds the production build, last. CI also requires `test-process` and `e2e`.
 # Non-mutating local PR gate (fail-fast: cheap gates before the suite)
 verify: lock-check agents-check check-harness contract-check lint test-skills test frontend::build
 

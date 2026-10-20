@@ -236,6 +236,9 @@ disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "process_integration: real process groups, signals and cleanup; required in CI, optional locally",
+]
 addopts = [
     "--import-mode=importlib",
     "--strict-markers",

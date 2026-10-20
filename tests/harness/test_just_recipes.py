@@ -1353,6 +1353,7 @@ CI_RECIPES = {
     "lint": "Lint & Type Check",
     "test-skills": "Lint & Type Check",
     "test": "Coverage",
+    "test-process": "Coverage",
     "backend::lint": "Lint & Type Check",
     "backend::test": "Coverage",
 }
@@ -1538,6 +1539,9 @@ test-skills:
 
 test: backend::test
     uv run --locked pytest
+
+test-process:
+    uv run --locked pytest -m process_integration
 """
 
 CI_BACKEND_JUSTFILE = """\
@@ -1567,6 +1571,7 @@ jobs:
     name: Coverage
     steps:
       - run: uv run --locked pytest
+      - run: uv run --locked pytest -m process_integration
       - working-directory: ./backend/
         run: uv run --locked pytest --cov
 """
@@ -1589,16 +1594,35 @@ def test_ci_recipe_findings_module_steps_in_module_directory_pass(
     assert ci_recipe_findings(_ci_root(tmp_path, CI_WORKFLOW)) == []
 
 
+def test_ci_recipe_findings_process_tests_missing_is_rejected(tmp_path: Path) -> None:
+    root = _ci_root(
+        tmp_path,
+        CI_WORKFLOW.replace(
+            "      - run: uv run --locked pytest -m process_integration\n", ""
+        ),
+    )
+
+    assert ci_recipe_findings(root) == [
+        (
+            "Coverage: missing test-process command: "
+            "uv run --locked pytest -m process_integration"
+        )
+    ]
+
+
 def test_ci_recipe_findings_job_default_directory_counts(tmp_path: Path) -> None:
     workflow = CI_WORKFLOW.replace(
         "    name: Coverage\n    steps:\n"
         "      - run: uv run --locked pytest\n"
+        "      - run: uv run --locked pytest -m process_integration\n"
         "      - working-directory: ./backend/\n"
         "        run: uv run --locked pytest --cov\n",
         "    name: Coverage\n"
         "    defaults:\n      run:\n        working-directory: backend\n"
         "    steps:\n"
         "      - working-directory: .\n        run: uv run --locked pytest\n"
+        "      - working-directory: .\n"
+        "        run: uv run --locked pytest -m process_integration\n"
         "      - run: uv run --locked pytest --cov\n",
     )
 

@@ -35,6 +35,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+pytestmark = pytest.mark.process_integration
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
@@ -47,7 +49,7 @@ JUST = "{{ quote(just_executable()) }}"
 READY_TIMEOUT = 10.0
 EXIT_TIMEOUT = 20.0
 # The stubborn-server test's recipe spends its full 10 s SIGTERM grace before
-# SIGKILL; on a loaded machine (load averages of 20-100 under `just verify`)
+# SIGKILL; on a loaded machine (load averages of 20-100 under test runs)
 # its exit also waits on slow `ps` polls, so 20 s timed out while 60 s is only a
 # ceiling: a passing run returns as soon as the recipe exits.
 STUBBORN_EXIT_TIMEOUT = 60.0

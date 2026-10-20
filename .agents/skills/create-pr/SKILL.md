@@ -64,6 +64,10 @@ Run `just verify`, the non-mutating gate whose steps AGENTS.md's Quick Reference
 *committed* tree is green — `just check` runs `fmt` first and proves nothing about what
 was committed.
 
+The local gate intentionally excludes process integration. Its optional local
+command and mandatory CI coverage are defined by `placing-tests`; not running
+that separate suite locally is not a failed gate or a host-restriction exception.
+
 - **Every verification failure stops the PR unless the demonstrated host restriction
   below explains it.** Fix it on the branch, or report it. Fix formatting with
   `just fmt`, commit with `smart-commit`,

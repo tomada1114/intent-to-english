@@ -111,6 +111,10 @@ without asking the owner to approve the same implementation scope again.
 
 ## Verify CI on the current head
 
+The local gate excludes process integration (`placing-tests`). Before landing,
+require the `Coverage` job to execute and pass its process selection as well as
+the ordinary tests; a local pass alone does not supply that CI-only evidence.
+
 When `create-pr`'s host-restriction route was used, match each blocked local check to
 the unchanged CI job and its successful result on this head. Record local failure
 and remote success separately. A job missing the relevant test or acceptance does
