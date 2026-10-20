@@ -386,6 +386,32 @@ describe("ConversationScreen with no response (REQ-006)", () => {
 });
 
 describe("ConversationScreen unanswered action reconciliation", () => {
+  it.each(["stale_session", "action_in_progress"])(
+    "clears a consumed raw draft when retry gets %s without a pending snapshot",
+    async (code) => {
+      const served = serveSession(
+        english,
+        firstThen(
+          () => HttpResponse.error(),
+          () => {
+            served.set(retry);
+            return answer(409, code);
+          },
+        ),
+      );
+      const user = userEvent.setup();
+      renderSession(english);
+      await sendEnglish(user, "  I watched a movie  ");
+      const banner = (await screen.findByText(UNREACHABLE)).closest(
+        '[role="alert"]',
+      ) as HTMLElement;
+      await user.click(within(banner).getByRole("button", { name: "再試行" }));
+      await screen.findByPlaceholderText("穴を埋めた英文全体を");
+      expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue("");
+      expect(served.bodies).toHaveLength(2);
+    },
+  );
+
   it("retains the raw receipt when a retry discovers its original action pending", async () => {
     const served = serveSession(
       english,

@@ -615,13 +615,26 @@ export function ConversationScreen({
       pending: stored,
       afterSeq: view.entries.at(-1)?.seq ?? 0,
     };
+    const received = receivedAttempt.current;
+    if (received !== null && view.version > received.version) {
+      receivedAttempt.current = null;
+      const input = received.input;
+      if (hasRecordedInput(view, input, received.afterSeq)) {
+        if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
+          setText((current) => (current === input.text ? "" : current));
+        if (input.action === "hint") {
+          setGap((current) => (current === input.gap ? "" : current));
+          if (gap === input.gap) setHintOpen(false);
+        }
+        focusOnResult.current = view.version;
+      }
+    }
     if (before.key === storedKey) return;
     const completed =
       before.pending?.state === "pending" &&
       view.last_submission === null &&
       view.version > before.version;
     if (completed && before.pending !== null) {
-      const received = receivedAttempt.current;
       const input =
         received !== null &&
         received.version === before.version &&
