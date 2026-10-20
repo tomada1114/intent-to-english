@@ -626,6 +626,7 @@ export function ConversationScreen({
           setGap((current) => (current === input.gap ? "" : current));
           if (gap === input.gap) setHintOpen(false);
         }
+        settleSideInput(input);
         focusOnResult.current = view.version;
       }
     }

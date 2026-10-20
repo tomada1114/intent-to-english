@@ -210,6 +210,59 @@ describe("in-session rewrite control", () => {
 });
 
 describe("in-session Coach question", () => {
+  it.each([false, true])(
+    "settles a question retry without pending, retaining a newer draft: %s",
+    async (edited) => {
+      let calls = 0;
+      const served = serveSession(english, () => {
+        calls += 1;
+        if (calls === 1) return HttpResponse.error();
+        served.set({
+          ...english,
+          version: 3,
+          entries: [
+            ...english.entries,
+            entry("question", { text: "Original question" }),
+            entry("coach_answer", { text: "確認できました。" }),
+          ],
+        });
+        return HttpResponse.json<ProblemDetails>(
+          {
+            type: "about:blank",
+            status: 409,
+            title: "Stale session",
+            code: "stale_session",
+            detail: "Refresh",
+            request_id: "question-stale",
+          },
+          { status: 409 },
+        );
+      });
+      renderSession(english);
+      const user = userEvent.setup();
+      await press(user, /コーチに質問/);
+      const field = screen.getByRole("textbox", { name: "質問" });
+      await user.type(field, "  Original question  ");
+      await user.click(screen.getByRole("button", { name: "質問する" }));
+      await screen.findByText(
+        "アプリのサーバーに接続できません。起動しているか確認してください。",
+      );
+      if (edited) {
+        await user.clear(field);
+        await user.type(field, "A newer question");
+      }
+      await user.click(screen.getByRole("button", { name: "再試行" }));
+      await screen.findByText("確認できました。");
+      if (edited)
+        expect(screen.getByRole("textbox", { name: "質問" })).toHaveValue(
+          "A newer question",
+        );
+      else
+        expect(screen.queryByRole("textbox", { name: "質問" })).not.toBeInTheDocument();
+      expect(served.bodies).toHaveLength(2);
+    },
+  );
+
   it("returns to the first control when check-in has no main composer", async () => {
     const served = serveSession(checkIn, () =>
       sessionView({
