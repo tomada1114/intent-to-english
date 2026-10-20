@@ -1,6 +1,6 @@
 import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { createRootRouteWithContext, Link, Outlet } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { getMetaOptions } from "../api/generated/@tanstack/react-query.gen";
 import { HeaderSlot, HeaderSlotProvider } from "../lib/HeaderItems";
 import { ServerStatusProvider, ServerUnreachableBanner } from "../lib/ServerStatus";
@@ -20,6 +20,7 @@ const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 function RootLayout() {
+  const main = useRef<HTMLElement>(null);
   return (
     <ServerStatusProvider>
       <HeaderSlotProvider>
@@ -38,8 +39,14 @@ function RootLayout() {
             <FixedModeBadge />
           </header>
           {/* A request with no response, on any screen: directly under the header. */}
-          <ServerUnreachableBanner />
-          <main className="flex min-h-0 flex-1 flex-col">
+          <ServerUnreachableBanner
+            onRetry={() => main.current?.focus({ preventScroll: true })}
+          />
+          <main
+            ref={main}
+            tabIndex={-1}
+            className={`flex min-h-0 flex-1 flex-col ${FOCUS_RING}`}
+          >
             <Outlet />
           </main>
         </div>

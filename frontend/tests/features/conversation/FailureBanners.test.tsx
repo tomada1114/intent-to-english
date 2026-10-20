@@ -10,6 +10,7 @@ import type {
 import { sessionQueryOptions } from "../../../src/features/conversation";
 import {
   type ActionBody,
+  deferred,
   entry,
   renderSession,
   SESSION_ID,
@@ -528,4 +529,47 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     );
     expect(pane("会話").getAllByRole("button", { name: "もう一度" })).toHaveLength(1);
   });
+});
+
+describe("ConversationScreen retry waiting focus", () => {
+  it.each([
+    {
+      name: "coach",
+      initial: english,
+      result: retry,
+      paneName: "コーチ" as const,
+      start: (user: ReturnType<typeof userEvent.setup>) =>
+        sendEnglish(user, "I watched a movie"),
+    },
+    {
+      name: "partner",
+      initial: partnerTurn,
+      result: turnTwo,
+      paneName: "会話" as const,
+      start: async () => {},
+    },
+  ])(
+    "keeps focus in the $name pane while a retried request runs",
+    async ({ initial, result, paneName, start }) => {
+      const hold = deferred();
+      let calls = 0;
+      serveSession(initial, async () => {
+        calls += 1;
+        if (calls === 1) return answer(504, "model_timeout");
+        await hold.promise;
+        return result;
+      });
+      const user = userEvent.setup();
+      renderSession(initial);
+      await start(user);
+      const banner = await pane(paneName).findByRole("alert");
+      await user.click(within(banner).getByRole("button", { name: "もう一度" }));
+      const heading = pane(paneName).getByRole("heading", { level: 2 });
+      expect(heading).toHaveFocus();
+      expect(document.activeElement).not.toBe(document.body);
+      hold.release();
+      await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
+      expect(screen.getByRole("textbox")).toHaveFocus();
+    },
+  );
 });
