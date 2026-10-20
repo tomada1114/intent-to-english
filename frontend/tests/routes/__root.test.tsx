@@ -388,3 +388,29 @@ describe("the root layout", () => {
     expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
   });
 });
+
+it("keeps retry waiting focus on the main region while a root retry runs", async () => {
+  useMeta("openrouter");
+  const hold = deferred();
+  let retrying = false;
+  server.use(
+    http.get("/api/sessions", async () => {
+      if (!retrying) return HttpResponse.error();
+      await hold.promise;
+      return HttpResponse.json<SessionPageResponse>({ items: [], next_cursor: null });
+    }),
+  );
+  const user = userEvent.setup();
+  renderAt("/");
+  const again = await screen.findByRole(
+    "button",
+    { name: "再試行" },
+    { timeout: 3000 },
+  );
+  retrying = true;
+  await user.click(again);
+  expect(screen.getByRole("main")).toHaveFocus();
+  expect(document.activeElement).not.toBe(document.body);
+  hold.release();
+  await screen.findByText("まだ会話はありません。最初の会話を始めましょう。");
+});
