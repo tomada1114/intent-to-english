@@ -24,13 +24,16 @@ item through Testing Library's role and name queries (`writing-tests`), with the
   body. Pick an element that still exists after the removal and give it
   `tabIndex={-1}` when it is not focusable by itself. When the end confirmation's
   `終える` and `戻る` go away, `EndSession` focuses its `会話を終える` button again.
+  When S2 becomes S3 on the same URL, the transcript takes focus at its visible
+  `ターンごとのやりとり` heading. Opening an already ended session does not force
+  this transition focus.
 - **Focus returns to the input after a successful submit** that clears it, so the next
   entry can be typed at once. The conversation screen refocuses its composer after a result.
 - **Every interactive element shows a visible focus style** (`focus-visible:` utilities).
 
 ## Announcements
 
-- **An error is announced:** it renders with `role="alert"`. `ErrorMessage` does this,
+- **An error is announced:** it renders with `role="alert"`. `Banner` does this,
   and so does a field message next to its input. The input gets `aria-invalid` and
   `aria-describedby` pointing at the message.
 - **A status message is announced:** a `role="status"` region (with `aria-atomic`) stays

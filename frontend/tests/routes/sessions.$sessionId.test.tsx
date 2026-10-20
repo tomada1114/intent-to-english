@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import type {
@@ -10,7 +11,13 @@ import type {
 } from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
-import { deferred, entry, SESSION_ID, sessionView } from "../msw/helpers";
+import {
+  deferred,
+  entry,
+  SESSION_ID,
+  sessionView,
+  stubMatchMedia,
+} from "../msw/helpers";
 import { server } from "../msw/server";
 
 const view = sessionView({
@@ -50,6 +57,42 @@ function renderAt(path: string) {
 }
 
 describe("/sessions/$sessionId", () => {
+  it.each([true, false])(
+    "hands focus to the transcript after an end retry with wide layout: %s",
+    async (wide) => {
+      stubMatchMedia(wide);
+      let current = view;
+      let ends = 0;
+      server.use(
+        http.get(`/api/sessions/${SESSION_ID}`, () => HttpResponse.json(current)),
+        http.post(`/api/sessions/${SESSION_ID}/actions`, () => {
+          ends += 1;
+          if (ends === 1)
+            return HttpResponse.json(problem(500, "internal_error"), { status: 500 });
+          current = sessionView({
+            ...view,
+            status: "ended",
+            stage: "ended",
+            version: view.version + 1,
+            allowed_actions: [],
+            wrap_up: { items: [] },
+          });
+          return HttpResponse.json(current);
+        }),
+      );
+      const user = userEvent.setup();
+      renderAt(`/sessions/${SESSION_ID}`);
+      await user.click(await screen.findByRole("button", { name: "会話を終える" }));
+      await user.click(screen.getByRole("button", { name: "終える" }));
+      await user.click(await screen.findByRole("button", { name: "もう一度" }));
+      const heading = await screen.findByRole("heading", {
+        name: "ターンごとのやりとり",
+      });
+      await waitFor(() => expect(heading).toHaveFocus());
+      expect(heading).toBeVisible();
+    },
+  );
+
   it("shows skeletons while the session loads, then the conversation", async () => {
     const gate = deferred();
     server.use(

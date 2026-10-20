@@ -126,9 +126,11 @@ cloud run is never a clean review. Preserve required approvals and checks.
 
 After each correction push, wait briefly for a review of the new head. A review that
 starts is the next round: fix its accepted `P0`–`P2` findings and report accepted
-`P3` ones as follow-up candidates. Handle at most three rounds, never request a
+`P3` ones as follow-up candidates. Wait for at most three rounds, never request a
 review, repeat affected checks and `just verify`, push normally and wait for
-current-head CI. This is the owner's review-round policy; it does not claim the final
+current-head CI. After the wait cap, triage findings already posted and fix accepted
+in-scope `P0`–`P2` findings without beginning another review wait. The cap limits
+review waiting, not corrections to known bugs. This does not claim the final
 head received cloud review. The local fallback uses the same finding criteria and
 round cap. Repository-required approvals remain separate and cannot be bypassed.
 
