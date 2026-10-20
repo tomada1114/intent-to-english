@@ -13,7 +13,7 @@ import type {
 } from "../../src/api/generated/types.gen";
 import { createQueryClient } from "../../src/lib/query-client";
 import { createAppRouter } from "../../src/router";
-import { SESSION_ID, serveSession, sessionView } from "../msw/helpers";
+import { SESSION_ID, serveSession, sessionRow, sessionView } from "../msw/helpers";
 import { server } from "../msw/server";
 
 const BADGE = "固定応答モード";
@@ -198,6 +198,57 @@ describe("the root layout", () => {
         "アプリのサーバーに接続できません。起動しているか確認してください。",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("retries the failed forward page with its stored cursor from the root banner", async () => {
+    useMeta("openrouter");
+    const first = Array.from({ length: 20 }, (_, index) =>
+      sessionRow({
+        id: `0199c1f0-0000-7000-8000-${String(index).padStart(12, "0")}`,
+        status: "ended",
+        opener: `Stored opener ${index}`,
+      }),
+    );
+    const last = sessionRow({
+      id: "0199c1f0-0000-7000-8000-999999999999",
+      status: "ended",
+      opener: "Twenty-first opener",
+    });
+    const cursors: (string | null)[] = [];
+    let reachable = false;
+    server.use(
+      http.get("/api/sessions", ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get("cursor");
+        cursors.push(cursor);
+        if (cursor === null)
+          return HttpResponse.json<SessionPageResponse>({
+            items: first,
+            next_cursor: "stored-next-cursor",
+          });
+        return reachable
+          ? HttpResponse.json<SessionPageResponse>({ items: [last], next_cursor: null })
+          : HttpResponse.error();
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt("/");
+    await user.click(await screen.findByRole("button", { name: "さらに表示" }));
+    const alert = (await screen.findByText(UNREACHABLE, {}, { timeout: 3000 })).closest(
+      '[role="alert"]',
+    ) as HTMLElement;
+    expect(screen.getAllByRole("alert")).toEqual([alert]);
+    reachable = true;
+
+    await user.click(within(alert).getByRole("button", { name: "再試行" }));
+
+    expect(await screen.findByText("Twenty-first opener")).toBeInTheDocument();
+    expect(cursors).toEqual([
+      null,
+      "stored-next-cursor",
+      "stored-next-cursor",
+      "stored-next-cursor",
+    ]);
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
   });
 
   it("shows the server-unreachable banner on S4 when the header's own request gets no response", async () => {

@@ -69,11 +69,15 @@ export function ServerStatusProvider({ children }: { children: ReactNode }) {
           status.resolve(key);
         } else if (action.type === "error" && !isCancelledError(action.error)) {
           if (toApiError(action.error).kind === "unknown") {
+            // Infinite queries record whether this was a forward page fetch.
+            // Retain it: a normal refetch only reloads the pages already cached.
+            const fetchMeta = query.state.fetchMeta;
             status.report(key, () => {
-              void queryClient.refetchQueries({
-                queryKey: query.queryKey,
-                exact: true,
-              });
+              void query
+                .fetch(undefined, fetchMeta === null ? undefined : { meta: fetchMeta })
+                .catch(() => {
+                  // The cache listener reports the next failure through this banner.
+                });
             });
           } else {
             // Problem Details: the server answered, whatever it said.
