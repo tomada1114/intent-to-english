@@ -521,9 +521,11 @@ export function ConversationScreen({
         active instanceof HTMLInputElement) &&
       active.disabled;
     if (active !== document.body && !disabled) return;
-    const heading = waitingPane === "partner" ? partnerHeadingRef : coachHeadingRef;
+    // The other mobile pane is hidden even while its request is running.
+    const visiblePane = wide ? waitingPane : tab === "coach" ? "coach" : "partner";
+    const heading = visiblePane === "partner" ? partnerHeadingRef : coachHeadingRef;
     heading.current?.focus({ preventScroll: true });
-  }, [busy, waitingPane]);
+  }, [busy, waitingPane, wide, tab]);
   // Nothing left to cancel: a cancel that got no response needs no 再試行.
   useEffect(() => {
     if (!busy) status.resolve(UNANSWERED.cancel);

@@ -16,6 +16,7 @@ import {
   SESSION_ID,
   serveSession,
   sessionView,
+  stubMatchMedia,
 } from "../../msw/helpers";
 
 const STALE = "別の画面でこの会話が進みました。最新の状態を読み込みました。";
@@ -538,6 +539,31 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     expect(served.bodies).toEqual([
       { action: "intent", text: "久しぶりに映画を見た", version: 1 },
     ]);
+  });
+
+  it("keeps waiting focus in the selected Coach pane on mobile during an automatic Partner reply", async () => {
+    stubMatchMedia(false);
+    const hold = deferred();
+    const served = serveSession(partnerTurn, async () => {
+      await hold.promise;
+      return turnTwo;
+    });
+    renderSession(partnerTurn);
+    await waitFor(() =>
+      expect(served.bodies.map((body) => body.action)).toEqual(["partner_reply"]),
+    );
+    expect(screen.getByRole("tab", { name: "コーチ" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const heading = within(screen.getByRole("tabpanel", { name: "コーチ" })).getByRole(
+      "heading",
+      { level: 2 },
+    );
+    expect(heading).toBeVisible();
+    expect(heading).toHaveFocus();
+    hold.release();
+    await screen.findByRole("textbox", { name: "あなたの日本語" });
   });
 
   it.each([
