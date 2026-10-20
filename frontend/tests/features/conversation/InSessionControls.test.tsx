@@ -297,6 +297,7 @@ describe("in-session Coach question", () => {
       "aria-invalid",
       "true",
     );
+    expect(screen.getByRole("textbox", { name: "質問" })).toHaveFocus();
   });
 });
 
@@ -402,3 +403,59 @@ it("hides every in-session control when its action is absent", () => {
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   }
 });
+
+it.each(["ask", "rewrite_intent", "practice_again"] as const)(
+  "keeps a newer side draft after retrying the earlier %s request",
+  async (action) => {
+    const view = action === "practice_again" ? checkIn : english;
+    let first = true;
+    serveSession(view, () => {
+      if (first) {
+        first = false;
+        return HttpResponse.json<ProblemDetails>(
+          {
+            type: "about:blank",
+            status: 503,
+            title: "Model unavailable",
+            code: "model_unavailable",
+            detail: "Unavailable",
+            request_id: "side-retry",
+          },
+          { status: 503 },
+        );
+      }
+      return sessionView({
+        ...view,
+        version: view.version + 1,
+        entries: [...view.entries, entry("coach_answer", { text: "受け取りました。" })],
+      });
+    });
+    const user = userEvent.setup();
+    renderSession(view);
+    const control =
+      action === "ask"
+        ? /コーチに質問/
+        : action === "rewrite_intent"
+          ? "日本語を書き直す"
+          : "もう一度練習";
+    const label =
+      action === "ask"
+        ? "質問"
+        : action === "rewrite_intent"
+          ? "あなたの日本語"
+          : "もう一度練習";
+    await press(user, control);
+    const field = screen.getByRole("textbox", { name: label });
+    await user.clear(field);
+    await user.type(field, "Original draft");
+    await user.click(
+      screen.getByRole("button", { name: action === "ask" ? "質問する" : /送信/ }),
+    );
+    await screen.findByRole("button", { name: "もう一度" });
+    await user.clear(field);
+    await user.type(field, "New draft");
+    await user.click(screen.getByRole("button", { name: "もう一度" }));
+    await screen.findByText("受け取りました。");
+    expect(screen.getByRole("textbox", { name: label })).toHaveValue("New draft");
+  },
+);

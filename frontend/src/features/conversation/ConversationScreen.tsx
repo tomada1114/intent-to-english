@@ -202,7 +202,7 @@ export function ConversationScreen({
       ? view.last_submission.input.text
       : "",
   );
-  const [questionReset, setQuestionReset] = useState(0);
+  const [questionReset, setQuestionReset] = useState({ round: 0, text: "" });
 
   /** A past turn the learner selected on the left, shown read-only on the right. */
   const [pastTurn, setPastTurn] = useState<number | null>(null);
@@ -329,19 +329,21 @@ export function ConversationScreen({
       setGap("");
       setHintOpen(false);
     }
-    settleSideInput(input.action);
+    settleSideInput(input);
     focusOnResult.current = next.version;
     await writeView(next);
     return true;
   }
 
-  function settleSideInput(action: Action) {
-    if (action === "rewrite_intent") setRewriting(false);
-    if (action === "practice_again") {
+  function settleSideInput(input: ActionInput) {
+    if (input.action === "rewrite_intent" && rewriteText === input.text)
+      setRewriting(false);
+    if (input.action === "practice_again" && practiceText === input.text) {
       setPracticeOpen(false);
       setPracticeText("");
     }
-    if (action === "ask") setQuestionReset((round) => round + 1);
+    if (input.action === "ask")
+      setQuestionReset((current) => ({ round: current.round + 1, text: input.text }));
   }
 
   async function fail(sent: Attempt, error: ApiError) {
@@ -527,7 +529,7 @@ export function ConversationScreen({
         setGap("");
         setHintOpen(false);
       }
-      settleSideInput(done);
+      settleSideInput(toActionInput(before.pending));
       focusOnResult.current = view.version;
       return;
     }
@@ -919,7 +921,8 @@ export function ConversationScreen({
           <CoachQuestion
             disabled={busy}
             error={sideError("question")}
-            resetKey={questionReset}
+            resetKey={questionReset.round}
+            resetText={questionReset.text}
             initialValue={
               view.last_submission?.action === "ask" &&
               "text" in view.last_submission.input

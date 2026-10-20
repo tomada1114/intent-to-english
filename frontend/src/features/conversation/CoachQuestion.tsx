@@ -9,12 +9,14 @@ export function CoachQuestion({
   error,
   onSend,
   resetKey,
+  resetText,
   initialValue = "",
 }: {
   disabled: boolean;
   error: string | undefined;
   onSend: (text: string) => Promise<boolean>;
   resetKey: number;
+  resetText: string;
   initialValue?: string;
 }) {
   const id = useId();
@@ -30,11 +32,15 @@ export function CoachQuestion({
     if (open) input.current?.focus();
   }, [open]);
   useEffect(() => {
+    if (error !== undefined && !disabled) input.current?.focus();
+  }, [error, disabled]);
+  useEffect(() => {
     if (previousReset.current === resetKey) return;
     previousReset.current = resetKey;
+    if (text !== resetText) return;
     setText("");
     setOpen(false);
-  }, [resetKey]);
+  }, [resetKey, resetText, text]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
