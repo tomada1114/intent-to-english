@@ -80,10 +80,13 @@ const PANE_HEADING = "text-[13px] font-bold tracking-[0.04em] text-ink-muted";
 export function TranscriptScreen({
   view,
   backLink,
+  focusOnMount = false,
 }: {
   view: SessionView;
   /** The header's 「← 会話一覧」, which the route supplies as a router link. */
   backLink?: ReactNode;
+  /** The route just replaced the active conversation on this same URL. */
+  focusOnMount?: boolean;
 }) {
   const queryClient = useQueryClient();
   const sessionKey = sessionQueryOptions(view.id).queryKey;
@@ -92,6 +95,10 @@ export function TranscriptScreen({
   const [tab, setTab] = useState<Tab>("coach");
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const rowRefs = useRef(new Map<number, HTMLButtonElement>());
+  const turnsHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusOnMount) turnsHeading.current?.focus({ preventScroll: true });
+  }, [focusOnMount]);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({
     conversation: null,
     coach: null,
@@ -255,7 +262,12 @@ export function TranscriptScreen({
         aria-labelledby={`${ids}-turns`}
         className="space-y-2 border-t border-line pt-3 first:border-t-0 first:pt-0"
       >
-        <h2 id={`${ids}-turns`} className={PANE_HEADING}>
+        <h2
+          ref={turnsHeading}
+          id={`${ids}-turns`}
+          tabIndex={-1}
+          className={`${PANE_HEADING} ${FOCUS_RING}`}
+        >
           ターンごとのやりとり
         </h2>
         <ul className="space-y-1">

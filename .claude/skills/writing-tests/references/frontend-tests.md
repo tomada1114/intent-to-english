@@ -29,7 +29,7 @@ Query by what a user perceives, in Testing Library's priority order: `getByRole`
 - A query by role and name is also a check of the accessible name:
   `getByRole("form", { name: "ヒントのお願い" })` fails when the form's
   `aria-label` is missing.
-- `getByRole("alert")` finds an error from `ErrorMessage` or a field message;
+- `getByRole("alert")` finds an error from `Banner` or a field message;
   `getByRole("status")` finds a live status region.
 - `queryBy...` only to assert that something is absent
   (`expect(screen.queryByRole("alert")).not.toBeInTheDocument()`).

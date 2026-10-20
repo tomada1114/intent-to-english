@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import {
   ConversationLoadError,
   ConversationScreen,
@@ -21,6 +22,12 @@ const BACK_LINK =
 function SessionRoute() {
   const { sessionId } = Route.useParams();
   const query = useQuery(sessionQueryOptions(sessionId));
+  const currentStatus = query.data?.status;
+  const previousStatus = useRef(currentStatus);
+  const fromConversation = previousStatus.current === "in_progress";
+  useEffect(() => {
+    previousStatus.current = currentStatus;
+  }, [currentStatus]);
   const backLink = (
     <Link to="/" className={BACK_LINK}>
       ← <span className="max-lg:hidden">会話</span>一覧
@@ -42,7 +49,12 @@ function SessionRoute() {
   if (query.data !== undefined) {
     // An ended session is S3 on the same URL; ending on S2 switches in place.
     return query.data.status === "ended" ? (
-      <TranscriptScreen key={sessionId} view={query.data} backLink={backLink} />
+      <TranscriptScreen
+        key={sessionId}
+        view={query.data}
+        backLink={backLink}
+        focusOnMount={fromConversation}
+      />
     ) : (
       <ConversationScreen
         key={sessionId}
