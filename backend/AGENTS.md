@@ -58,16 +58,16 @@ backend/
   (`designing-core-logic`).
 - The container supplies the ConversationService. Its SQL session repository owns
   one lazy engine and disposal callback; without a database URL the store is in
-  memory. Both model roles currently use the fixed adapters in
-  every configured mode, and meta reads that selected mode from the container.
+  memory. In auto mode with a key both model roles use OpenRouter over one owned client;
+  otherwise both use fixed responses. Meta reads that selection from the container.
 - `Container.models` holds the same two model ports the conversation service uses.
   Evaluation calls those ports through the shared task runner, with memory storage
   and the same owned cleanup. It neither opens nor writes an application database.
 - `call_log.py` invokes a SQL-only reader and the pure `core/call_log.py` summary.
   The reader owns a separate read-only engine and disposes it on the same loop;
   this entry point constructs no service or model (`persisting-data`).
-- The OpenRouter Partner adapter has three retry-free PydanticAI task agents and
-  an explicitly owned client, but is not selected by composition until #28. Model
+- The OpenRouter adapters have three Partner and seven Coach task agents, all retry-free,
+  over one explicitly owned client. Native JSON schemas keep feedback a top-level object. Model
   SDK imports stay under `adapters/models/`; the suite blocks real model requests.
 - Domain errors derive from `core.errors.AppError`; the API maps them in one
   place (`api/app.py`), per `designing-errors`.

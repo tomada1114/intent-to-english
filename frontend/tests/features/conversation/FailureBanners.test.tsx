@@ -618,6 +618,56 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     ]);
   });
 
+  it("restores interrupted direct English in English mode and resends english_direct", async () => {
+    const view = withLast(
+      intent,
+      "english_direct",
+      "interrupted",
+      { text: "I watched a movie" },
+      "interrupted",
+    );
+    const served = serveSession(view, () => retry);
+    const user = userEvent.setup();
+    renderSession(view);
+
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
+    expect(field).toHaveAttribute("lang", "en");
+    expect(field).toHaveValue("I watched a movie");
+    expect(
+      screen.queryByRole("textbox", { name: "あなたの日本語" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /送信/ }));
+
+    await screen.findByPlaceholderText("穴を埋めた英文全体を");
+    expect(served.bodies).toEqual([
+      { action: "english_direct", text: "I watched a movie", version: 1 },
+    ]);
+  });
+
+  it.each(["failed", "pending"] as const)(
+    "restores a %s direct-English submission with the English field",
+    (state) => {
+      const view: SessionResponse = {
+        ...intent,
+        last_submission: {
+          action: "english_direct",
+          input: { text: "I watched a movie" },
+          state,
+          failure_code: state === "failed" ? "model_timeout" : null,
+        },
+      };
+      serveSession(view);
+      renderSession(view);
+      expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+        "I watched a movie",
+      );
+      expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveAttribute(
+        "lang",
+        "en",
+      );
+    },
+  );
+
   it("pre-fills the composer with an interrupted intent and offers 送信 with no banner", async () => {
     const view = withLast(
       intent,
