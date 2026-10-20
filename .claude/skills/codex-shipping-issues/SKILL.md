@@ -98,6 +98,8 @@ owner decision or a PR already implementing the same issue. **REQUIRED:**
 Read the subject-specific local skills named by `AGENTS.md`. Keep the change within
 this issue. Run the narrowest relevant checks, additional prose/workflow checks and
 `just verify`. Diagnose failures without weakening gates or hiding unrelated failures.
+For a demonstrated host restriction, use `create-pr`'s documented CI verification
+route, record the missing local evidence and keep its current-head CI requirement.
 Inspect the entire diff against the acceptance map. Record base/head/diff identity,
 commands, results and limitations. Routine self-review is separate from the review
 gate below.
