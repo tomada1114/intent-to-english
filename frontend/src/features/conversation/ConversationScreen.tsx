@@ -107,6 +107,8 @@ interface Attempt {
   version: number;
   /** Last timeline entry before this send, excluding older identical input. */
   afterSeq: number;
+  /** The stored record before this send cannot prove this request arrived. */
+  storedKey: string | null;
   /** [中止] was pressed and its 204 has not arrived yet. */
   cancelling: boolean;
 }
@@ -219,13 +221,20 @@ export function ConversationScreen({
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
   const latestVersion = useRef(view.version);
+  const stored = view.last_submission;
+  const storedKey =
+    stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
 
   // A later read can prove that a request whose response was lost did land.
   // Drop its retry before it can resend old input at the newer stage.
   useEffect(() => {
     if (unanswered === null) return;
     const advanced = view.version > unanswered.version;
-    if (!advanced && !hasMatchingSubmission(view.last_submission, unanswered.input))
+    if (
+      !advanced &&
+      (storedKey === unanswered.storedKey ||
+        !hasMatchingSubmission(view.last_submission, unanswered.input))
+    )
       return;
     const input = unanswered.input;
     setUnanswered(null);
@@ -240,7 +249,7 @@ export function ConversationScreen({
       if (gap === input.gap) setHintOpen(false);
     }
     focusOnResult.current = view.version;
-  }, [unanswered, view, status, gap]);
+  }, [unanswered, view, status, gap, storedKey]);
 
   /** Whether the request `id` is still the one being waited for. */
   function waitingFor(id: number) {
@@ -252,9 +261,6 @@ export function ConversationScreen({
     setAttemptState(next);
   }
 
-  const stored = view.last_submission;
-  const storedKey =
-    stored === null ? null : `${view.version}:${stored.action}:${stored.state}`;
   const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
   // The marker holds only while the view still shows that submission: a later
   // one with the same version, action, and state is another submission.
@@ -304,6 +310,7 @@ export function ConversationScreen({
       input,
       version: view.version,
       afterSeq: view.entries.at(-1)?.seq ?? 0,
+      storedKey,
       cancelling: false,
     };
     setAttempt(sent);

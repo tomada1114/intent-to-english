@@ -384,6 +384,59 @@ describe("ConversationScreen with no response (REQ-006)", () => {
 });
 
 describe("ConversationScreen unanswered action reconciliation", () => {
+  it.each([
+    {
+      state: "failed" as const,
+      action: "restate" as const,
+      view: intent,
+      input: { mode: "shorter" as const },
+    },
+    {
+      state: "interrupted" as const,
+      action: "english" as const,
+      view: english,
+      input: { text: "I watched a movie" },
+    },
+  ])(
+    "keeps the network retry when an unchanged $state $action predates this send",
+    async ({ state, action, view, input }) => {
+      const loaded: SessionResponse = {
+        ...view,
+        last_submission: {
+          action,
+          input,
+          state,
+          failure_code: state === "failed" ? "model_timeout" : "interrupted",
+        },
+      };
+      const served = serveSession(loaded, () => HttpResponse.error());
+      const user = userEvent.setup();
+      const { queryClient } = renderSession(loaded);
+      await user.click(
+        action === "restate"
+          ? pane("会話").getByRole("button", { name: "もう一度" })
+          : screen.getByRole("button", { name: /送信/ }),
+      );
+
+      const banner = (await screen.findByText(UNREACHABLE)).closest(
+        '[role="alert"]',
+      ) as HTMLElement;
+      await act(() =>
+        queryClient.invalidateQueries({
+          queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+        }),
+      );
+      expect(banner).toBeInTheDocument();
+      await user.click(within(banner).getByRole("button", { name: "再試行" }));
+      await waitFor(() => expect(served.bodies).toHaveLength(2));
+      expect(served.bodies).toEqual([
+        { action, ...input, version: view.version },
+        { action, ...input, version: view.version },
+      ]);
+      expect(await screen.findByText(UNREACHABLE)).toBeInTheDocument();
+    },
+  );
+
   it("keeps unsent English when another tab's hint advances the version", async () => {
     const served = serveSession(english, () => HttpResponse.error());
     const user = userEvent.setup();
