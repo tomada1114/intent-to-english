@@ -179,8 +179,8 @@ built in `build_container`; a new adapter choice is a branch in the function tha
 it, driven by a setting.
 
 The SQL repository owns one lazy engine and one disposal callback; without a database
-URL the memory adapter is used. The conversation service receives both fixed model roles
-in every mode until #28. One default `uuid.uuid7()` boot id per build is independent of
+URL the memory adapter is used. The conversation service receives both OpenRouter model roles in auto mode with a key,
+otherwise both fixed roles. The live roles share one owned client. One default `uuid.uuid7()` boot id per build is independent of
 entity ids, or injectable for interruption tests. The current wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
 `ModelPorts` holds the exact Partner and Coach instances used by the conversation
 service; evaluation shares them through `Container.models`, with storage disabled.
