@@ -383,6 +383,70 @@ describe("ConversationScreen with no response (REQ-006)", () => {
   });
 });
 
+describe("ConversationScreen unanswered action reconciliation", () => {
+  it("keeps a newer draft when the unanswered action is confirmed by a read", async () => {
+    const served = serveSession(english, () => HttpResponse.error());
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await screen.findByText(UNREACHABLE);
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
+    await user.clear(field);
+    await user.type(field, "A newer draft");
+    served.set(retry);
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument(),
+    );
+    expect(field).toHaveValue("A newer draft");
+    expect(served.bodies).toHaveLength(1);
+  });
+
+  it("keeps the retry and text when a read still has the sent version", async () => {
+    const served = serveSession(english, () => HttpResponse.error());
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await screen.findByText(UNREACHABLE);
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    expect(screen.getByText(UNREACHABLE)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+      "I watched a movie",
+    );
+    expect(served.bodies).toHaveLength(1);
+  });
+
+  it("clears a lost English response when a later read proves the attempt settled", async () => {
+    const served = serveSession(english, () => HttpResponse.error());
+    const user = userEvent.setup();
+    const { queryClient } = renderSession(english);
+    await sendEnglish(user, "I watched a movie");
+    await screen.findByText(UNREACHABLE);
+
+    served.set(retry);
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+
+    await screen.findByPlaceholderText("穴を埋めた英文全体を");
+    expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue("");
+    expect(served.bodies).toEqual([
+      { action: "english", text: "I watched a movie", version: 2 },
+    ]);
+  });
+});
+
 describe("ConversationScreen auto-sent action with no response (REQ-006)", () => {
   it("offers only the layout's 再試行 for an auto-sent partner_reply, no 「もう一度」 in the pane", async () => {
     const served = serveSession(

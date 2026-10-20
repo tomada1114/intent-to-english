@@ -187,7 +187,7 @@ export function ConversationScreen({
   const [storedRound, setStoredRound] = useState(0);
   const [cancellingStored, setCancellingStored] = useState<string | null>(null);
   /** The last action got no response: the layout's [再試行] is its way on. */
-  const [unanswered, setUnanswered] = useState(false);
+  const [unanswered, setUnanswered] = useState<Attempt | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   /** Where focus goes once the next render is shown, as a control goes away. */
   const focusAfterPast = useRef<"back" | "composer" | "again" | null>(null);
@@ -211,6 +211,24 @@ export function ConversationScreen({
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
   const latestVersion = useRef(view.version);
+
+  // A later read can prove that a request whose response was lost did land.
+  // Drop its retry before it can resend old input at the newer stage.
+  useEffect(() => {
+    if (unanswered === null || view.version <= unanswered.version) return;
+    const input = unanswered.input;
+    setUnanswered(null);
+    status.resolve(UNANSWERED.action);
+    if (COMPOSER_ACTIONS.has(input.action) && "text" in input) {
+      // The learner may have edited the now-enabled field since the failure.
+      setText((current) => (current === input.text ? "" : current));
+    }
+    if (input.action === "hint") {
+      setGap((current) => (current === input.gap ? "" : current));
+      if (gap === input.gap) setHintOpen(false);
+    }
+    focusOnResult.current = view.version;
+  }, [unanswered, view.version, status, gap]);
 
   /** Whether the request `id` is still the one being waited for. */
   function waitingFor(id: number) {
@@ -278,7 +296,7 @@ export function ConversationScreen({
     setAttempt(sent);
     setOutcome(null);
     setSettledKey(storedKey);
-    setUnanswered(false);
+    setUnanswered(null);
     status.resolve(UNANSWERED.action);
     let next: SessionResponse;
     try {
@@ -316,7 +334,7 @@ export function ConversationScreen({
     }
     setAttempt(null);
     if (error.kind === "unknown") {
-      setUnanswered(true);
+      setUnanswered(sent);
       status.report(UNANSWERED.action, () => void latest.current.send(sent.input));
       return;
     }
