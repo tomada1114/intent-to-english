@@ -10,24 +10,32 @@ export function CoachQuestion({
   onSend,
   resetKey,
   resetText,
-  initialValue = "",
+  storedDraft,
 }: {
   disabled: boolean;
   error: string | undefined;
   onSend: (text: string) => Promise<boolean>;
   resetKey: number;
   resetText: string;
-  initialValue?: string;
+  storedDraft?: { key: string; text: string };
 }) {
   const id = useId();
-  const [open, setOpen] = useState(initialValue !== "");
-  const [text, setText] = useState(initialValue);
+  const [open, setOpen] = useState(storedDraft !== undefined);
+  const [text, setText] = useState(storedDraft?.text ?? "");
   const button = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const previousReset = useRef(resetKey);
+  const previousStored = useRef(storedDraft?.key);
   const size = measure(text, 500);
   const invalid = size.over || error !== undefined;
   const canSend = !disabled && !size.blank && !size.over;
+  useEffect(() => {
+    const before = previousStored.current;
+    previousStored.current = storedDraft?.key;
+    if (storedDraft === undefined || storedDraft.key === before) return;
+    setText((current) => (current === "" ? storedDraft.text : current));
+    setOpen(true);
+  }, [storedDraft]);
   useEffect(() => {
     if (open) input.current?.focus();
   }, [open]);

@@ -6,7 +6,14 @@ import type {
   ProblemDetails,
   SessionResponse,
 } from "../../../src/api/generated/types.gen";
-import { entry, renderSession, serveSession, sessionView } from "../../msw/helpers";
+import { sessionQueryOptions } from "../../../src/features/conversation";
+import {
+  entry,
+  renderSession,
+  SESSION_ID,
+  serveSession,
+  sessionView,
+} from "../../msw/helpers";
 
 const opener = entry("partner_line", {
   text: "What are you studying these days?",
@@ -321,12 +328,17 @@ describe("in-session practice again", () => {
         entries: [
           ...nextTurn.entries,
           entry(
+            "practice",
+            { sentence: "Actually, I study English.", turn_index: 1 },
+            1,
+          ),
+          entry(
             "practice_result",
             {
               turn_index: 1,
               result: { line: "もう一度言えました。", readings_noted: [] },
             },
-            2,
+            1,
           ),
         ],
       }),
@@ -403,6 +415,107 @@ it("hides every in-session control when its action is absent", () => {
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   }
 });
+
+it.each(
+  (["ask", "rewrite_intent", "practice_again"] as const).flatMap((action) =>
+    (["pending", "failed", "interrupted"] as const).map((state) => ({ action, state })),
+  ),
+)(
+  "restores a newly observed $action draft in $state state",
+  async ({ action, state }) => {
+    const view = action === "practice_again" ? checkIn : english;
+    const served = serveSession(view);
+    const { queryClient } = renderSession(view);
+    const user = userEvent.setup();
+    if (action !== "practice_again")
+      await user.type(
+        screen.getByRole("textbox", { name: "あなたの英語" }),
+        "A main draft",
+      );
+    served.set({
+      ...view,
+      last_submission: {
+        action,
+        input: { text: "Stored side draft" },
+        state,
+        failure_code:
+          state === "pending"
+            ? null
+            : state === "interrupted"
+              ? "interrupted"
+              : "model_timeout",
+      },
+    });
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    const label =
+      action === "ask"
+        ? "質問"
+        : action === "rewrite_intent"
+          ? "あなたの日本語"
+          : "もう一度練習";
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: label })).toHaveValue(
+        "Stored side draft",
+      ),
+    );
+    if (action === "ask")
+      expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+        "A main draft",
+      );
+    if (action === "rewrite_intent" && state !== "pending") {
+      await user.click(screen.getByRole("button", { name: "やめる" }));
+      expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+        "A main draft",
+      );
+    }
+  },
+);
+
+it.each(["ask", "rewrite_intent", "practice_again"] as const)(
+  "preserves a newer local %s draft when another submission is observed",
+  async (action) => {
+    const view = action === "practice_again" ? checkIn : english;
+    const served = serveSession(view);
+    const { queryClient } = renderSession(view);
+    const user = userEvent.setup();
+    const control =
+      action === "ask"
+        ? /コーチに質問/
+        : action === "rewrite_intent"
+          ? "日本語を書き直す"
+          : "もう一度練習";
+    const label =
+      action === "ask"
+        ? "質問"
+        : action === "rewrite_intent"
+          ? "あなたの日本語"
+          : "もう一度練習";
+    await press(user, control);
+    const field = screen.getByRole("textbox", { name: label });
+    await user.clear(field);
+    await user.type(field, "A newer local draft");
+
+    served.set({
+      ...view,
+      last_submission: {
+        action,
+        input: { text: "Another tab's draft" },
+        state: "failed",
+        failure_code: "model_timeout",
+      },
+    });
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    expect(field).toHaveValue("A newer local draft");
+  },
+);
 
 it.each(["ask", "rewrite_intent", "practice_again"] as const)(
   "keeps a newer side draft after retrying the earlier %s request",

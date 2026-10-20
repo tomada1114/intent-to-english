@@ -252,7 +252,7 @@ export function ConversationScreen({
 
   const stored = view.last_submission;
   const storedKey =
-    stored === null ? null : `${view.version}:${stored.action}:${stored.state}`;
+    stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
   const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
   // The marker holds only while the view still shows that submission: a later
   // one with the same version, action, and state is another submission.
@@ -533,6 +533,19 @@ export function ConversationScreen({
       focusOnResult.current = view.version;
       return;
     }
+    if (storedLive !== null && "text" in storedLive.input) {
+      const restored = storedLive.input.text;
+      if (storedLive.action === "rewrite_intent") {
+        setRewriteText((current) => (current === "" ? restored : current));
+        setRewriting(true);
+        setPracticeOpen(false);
+      }
+      if (storedLive.action === "practice_again") {
+        setPracticeText((current) => (current === "" ? restored : current));
+        setPracticeOpen(true);
+        setRewriting(false);
+      }
+    }
     const fields = restoredFrom(view);
     if (fields.text !== undefined) {
       const restored = fields.text;
@@ -745,6 +758,17 @@ export function ConversationScreen({
     allowed.has("practice_again") &&
     practiceFeedback?.kind === "feedback" &&
     practiceFeedback.payload.feedback.template !== null;
+  // The server records this practice under its target, the previous turn.
+  // Keep the new result visible beside the current turn without changing it.
+  const previousPractice =
+    practiceTurn < view.turn_index && answering !== null
+      ? view.entries.filter(
+          (item) =>
+            item.turn_index === practiceTurn &&
+            item.seq > answering.seq &&
+            (item.kind === "practice" || item.kind === "practice_result"),
+        )
+      : [];
   function startRewrite() {
     if (currentIntent?.kind !== "intent") return;
     setRewriteText(currentIntent.payload.text);
@@ -911,6 +935,16 @@ export function ConversationScreen({
             )}
           </div>
         )}
+        {previousPractice.length > 0 && (
+          <section aria-label="前のターンの練習" className="space-y-2">
+            <h3 className="text-xs font-bold">前のターンの練習</h3>
+            <TurnTimeline
+              timeline={previousPractice}
+              turn={practiceTurn}
+              fresh={arrival.ids}
+            />
+          </section>
+        )}
         <TurnTimeline
           timeline={view.entries}
           turn={view.turn_index}
@@ -923,12 +957,11 @@ export function ConversationScreen({
             error={sideError("question")}
             resetKey={questionReset.round}
             resetText={questionReset.text}
-            initialValue={
-              view.last_submission?.action === "ask" &&
-              "text" in view.last_submission.input
-                ? view.last_submission.input.text
-                : ""
-            }
+            {...(storedKey !== null &&
+            storedLive?.action === "ask" &&
+            "text" in storedLive.input
+              ? { storedDraft: { key: storedKey, text: storedLive.input.text } }
+              : {})}
             onSend={(question) => send({ action: "ask", text: question })}
           />
         )}
