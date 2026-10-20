@@ -106,6 +106,12 @@ already posted: an accepted one blocks landing and is reported for the owner.
 
 ## Verify CI on the current head
 
+When `create-pr`'s host-restriction route was used, match each blocked local check to
+the unchanged CI job and its successful result on this head. Record local failure
+and remote success separately. A job missing the relevant test or acceptance does
+not supply that evidence. The exception permits publication, never an unverified
+merge or a claim that the local gate passed.
+
 Inspect workflows, jobs/steps and required checks for the latest head through MCP or CLI,
 including pagination. Compare with the committed ruleset and workflows; inspect
 live requirements/approvals where either exposes them. Report unavailable policy fields
