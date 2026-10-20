@@ -1,54 +1,38 @@
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef } from "react";
 import { FOCUS_RING, PRIMARY_BUTTON, QUIET_BUTTON } from "../../lib/ui";
 import { isComposing } from "./Composer";
 import { measure } from "./session";
 
-/** A side question keeps its own draft and never replaces the main composer. */
+/** A side question's parent owns its draft across pane and past-turn changes. */
 export function CoachQuestion({
   disabled,
   error,
   onSend,
-  resetKey,
-  resetText,
-  storedDraft,
+  open,
+  onOpenChange,
+  text,
+  onTextChange,
 }: {
   disabled: boolean;
   error: string | undefined;
   onSend: (text: string) => Promise<boolean>;
-  resetKey: number;
-  resetText: string;
-  storedDraft?: { key: string; text: string };
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  text: string;
+  onTextChange: (text: string) => void;
 }) {
   const id = useId();
-  const [open, setOpen] = useState(storedDraft !== undefined);
-  const [text, setText] = useState(storedDraft?.text ?? "");
   const button = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const previousReset = useRef(resetKey);
-  const previousStored = useRef(storedDraft?.key);
   const size = measure(text, 500);
   const invalid = size.over || error !== undefined;
   const canSend = !disabled && !size.blank && !size.over;
-  useEffect(() => {
-    const before = previousStored.current;
-    previousStored.current = storedDraft?.key;
-    if (storedDraft === undefined || storedDraft.key === before) return;
-    setText((current) => (current === "" ? storedDraft.text : current));
-    setOpen(true);
-  }, [storedDraft]);
   useEffect(() => {
     if (open) input.current?.focus();
   }, [open]);
   useEffect(() => {
     if (error !== undefined && !disabled) input.current?.focus();
   }, [error, disabled]);
-  useEffect(() => {
-    if (previousReset.current === resetKey) return;
-    previousReset.current = resetKey;
-    if (text !== resetText) return;
-    setText("");
-    setOpen(false);
-  }, [resetKey, resetText, text]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -64,7 +48,7 @@ export function CoachQuestion({
         aria-expanded={open}
         aria-controls={`${id}-box`}
         disabled={disabled}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => onOpenChange(!open)}
       >
         <span aria-hidden="true">{open ? "▾ " : "▸ "}</span>
         コーチに質問（会話は進みません）
@@ -90,7 +74,7 @@ export function CoachQuestion({
             aria-describedby={
               invalid ? `${id}-error` : size.showCounter ? `${id}-count` : undefined
             }
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => onTextChange(event.target.value)}
             onKeyDown={(event) => {
               if (isComposing(event)) {
                 if (event.key === "Enter") event.preventDefault();
@@ -98,7 +82,7 @@ export function CoachQuestion({
               }
               if (event.key === "Escape") {
                 event.preventDefault();
-                setOpen(false);
+                onOpenChange(false);
                 button.current?.focus();
               }
             }}

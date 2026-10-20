@@ -309,6 +309,47 @@ describe("in-session Coach question", () => {
 });
 
 describe("in-session practice again", () => {
+  it("restores the current controls when another tab moves beyond practice", async () => {
+    const nextTurn = sessionView({
+      ...checkIn,
+      stage: "intent",
+      turn_index: 2,
+      version: 5,
+      entries: [...checkIn.entries, entry("partner_line", opener.payload, 2)],
+      allowed_actions: ["intent", "english_direct", "practice_again", "ask", "end"],
+    });
+    const served = serveSession(nextTurn);
+    const { queryClient } = renderSession(nextTurn);
+    const user = userEvent.setup();
+    await press(user, "もう一度練習");
+    await user.type(
+      screen.getByRole("textbox", { name: "もう一度練習" }),
+      "A practice draft",
+    );
+    served.set(
+      sessionView({
+        ...english,
+        turn_index: 2,
+        version: 6,
+        entries: [
+          ...nextTurn.entries,
+          entry("intent", intent.payload, 2),
+          entry("acknowledgment", ack.payload, 2),
+        ],
+      }),
+    );
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+    expect(await screen.findByRole("textbox", { name: "あなたの英語" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "ヒント" }));
+    expect(
+      screen.getByRole("textbox", { name: "分からないところ" }),
+    ).toBeInTheDocument();
+  });
+
   it("restores the new turn's Japanese draft after practicing the previous turn", async () => {
     const nextTurn = sessionView({
       ...checkIn,
@@ -399,6 +440,33 @@ describe("in-session practice again", () => {
       }),
     ).toBeInTheDocument();
   });
+});
+
+it("keeps the question draft and disclosure through a visit to a past turn", async () => {
+  const view = sessionView({
+    ...english,
+    turn_index: 2,
+    version: 6,
+    entries: [
+      ...checkIn.entries,
+      entry("partner_line", opener.payload, 2),
+      entry("intent", intent.payload, 2),
+      entry("acknowledgment", ack.payload, 2),
+    ],
+  });
+  serveSession(view);
+  const user = userEvent.setup();
+  renderSession(view);
+  await press(user, /コーチに質問/);
+  await user.type(screen.getByRole("textbox", { name: "質問" }), "these days は？");
+  await user.click(screen.getByRole("button", { name: "Actually, I study English." }));
+  expect(screen.queryByRole("textbox", { name: "質問" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "今のターンに戻る" }));
+  expect(screen.getByRole("button", { name: /コーチに質問/ })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  expect(screen.getByRole("textbox", { name: "質問" })).toHaveValue("these days は？");
 });
 
 it("hides every in-session control when its action is absent", () => {

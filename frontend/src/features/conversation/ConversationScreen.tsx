@@ -211,7 +211,14 @@ export function ConversationScreen({
       ? view.last_submission.input.text
       : "",
   );
-  const [questionReset, setQuestionReset] = useState({ round: 0, text: "" });
+  const [questionOpen, setQuestionOpen] = useState(
+    view.last_submission?.action === "ask",
+  );
+  const [questionText, setQuestionText] = useState(() =>
+    view.last_submission?.action === "ask" && "text" in view.last_submission.input
+      ? view.last_submission.input.text
+      : "",
+  );
 
   /** A past turn the learner selected on the left, shown read-only on the right. */
   const [pastTurn, setPastTurn] = useState<number | null>(null);
@@ -390,8 +397,10 @@ export function ConversationScreen({
       setPracticeOpen(false);
       setPracticeText("");
     }
-    if (input.action === "ask")
-      setQuestionReset((current) => ({ round: current.round + 1, text: input.text }));
+    if (input.action === "ask" && questionText === input.text) {
+      setQuestionText("");
+      setQuestionOpen(false);
+    }
   }
 
   async function fail(sent: Attempt, error: ApiError) {
@@ -614,6 +623,10 @@ export function ConversationScreen({
     }
     if (storedLive !== null && "text" in storedLive.input) {
       const restored = storedLive.input.text;
+      if (storedLive.action === "ask") {
+        setQuestionText((current) => (current === "" ? restored : current));
+        setQuestionOpen(true);
+      }
       if (storedLive.action === "rewrite_intent") {
         setRewriteText((current) => (current === "" ? restored : current));
         setRewriting(true);
@@ -861,6 +874,10 @@ export function ConversationScreen({
     allowed.has("practice_again") &&
     practiceFeedback?.kind === "feedback" &&
     practiceFeedback.payload.feedback.template !== null;
+  const practicing = practiceOpen && canPractice;
+  useEffect(() => {
+    if (!canPractice) setPracticeOpen(false);
+  }, [canPractice]);
   // The server records this practice under its target, the previous turn.
   // Keep the new result visible beside the current turn without changing it.
   const previousPractice =
@@ -1076,13 +1093,10 @@ export function ConversationScreen({
           <CoachQuestion
             disabled={busy}
             error={sideError("question")}
-            resetKey={questionReset.round}
-            resetText={questionReset.text}
-            {...(storedKey !== null &&
-            storedLive?.action === "ask" &&
-            "text" in storedLive.input
-              ? { storedDraft: { key: storedKey, text: storedLive.input.text } }
-              : {})}
+            open={questionOpen}
+            onOpenChange={setQuestionOpen}
+            text={questionText}
+            onTextChange={setQuestionText}
             onSend={(question) => send({ action: "ask", text: question })}
           />
         )}
@@ -1175,7 +1189,7 @@ export function ConversationScreen({
           />
         )
       )}
-      {showHint && !rewriting && !practiceOpen && (
+      {showHint && !rewriting && !practicing && (
         <HintRequest
           inputRef={gapRef}
           value={gap}
@@ -1186,7 +1200,7 @@ export function ConversationScreen({
           onSubmit={() => void send({ action: "hint", gap, partial_english: text })}
         />
       )}
-      {!busy && !rewriting && !practiceOpen && ui.controls.length > 0 && (
+      {!busy && !rewriting && !practicing && ui.controls.length > 0 && (
         <fieldset
           ref={controlsRef}
           aria-label="操作"
