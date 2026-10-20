@@ -206,7 +206,7 @@ describe("the root layout", () => {
     ).not.toBeInTheDocument();
   });
 
-  it.each([false, true])(
+  it.each(["none", "running", "failed"] as const)(
     "retries the failed forward page with its stored cursor during background refetch: %s",
     async (backgroundRefetch) => {
       useMeta("openrouter");
@@ -232,7 +232,9 @@ describe("the root layout", () => {
           cursors.push(cursor);
           if (cursor === null) {
             headRequests += 1;
-            if (backgroundRefetch && headRequests > 1) await gate.promise;
+            if (backgroundRefetch === "running" && headRequests > 1) await gate.promise;
+            if (backgroundRefetch === "failed" && headRequests > 1 && !reachable)
+              return HttpResponse.error();
             return HttpResponse.json<SessionPageResponse>({
               items: first,
               next_cursor: "stored-next-cursor",
@@ -253,13 +255,14 @@ describe("the root layout", () => {
         await screen.findByText(UNREACHABLE, {}, { timeout: 3000 })
       ).closest('[role="alert"]') as HTMLElement;
       expect(screen.getAllByRole("alert")).toEqual([alert]);
-      reachable = true;
-      if (backgroundRefetch) {
-        void router.options.context.queryClient.refetchQueries({
+      if (backgroundRefetch !== "none") {
+        const refetch = router.options.context.queryClient.refetchQueries({
           queryKey: [{ _id: "listSessions" }],
         });
-        await waitFor(() => expect(headRequests).toBe(2));
+        if (backgroundRefetch === "failed") await refetch;
+        else await waitFor(() => expect(headRequests).toBe(2));
       }
+      reachable = true;
 
       await user.click(within(alert).getByRole("button", { name: "再試行" }));
       gate.release();
@@ -269,7 +272,11 @@ describe("the root layout", () => {
         null,
         "stored-next-cursor",
         "stored-next-cursor",
-        ...(backgroundRefetch ? [null] : []),
+        ...(backgroundRefetch === "running"
+          ? [null]
+          : backgroundRefetch === "failed"
+            ? [null, null]
+            : []),
         "stored-next-cursor",
       ]);
       expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();

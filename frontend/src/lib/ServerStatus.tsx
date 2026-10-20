@@ -50,46 +50,52 @@ export function ServerStatusProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  useEffect(
-    () =>
-      queryClient.getQueryCache().subscribe((event) => {
-        const key = `query:${event.query.queryHash}`;
-        // A query no screen reads any more (the learner left it), or one gone
-        // from the cache, no longer holds the banner up.
-        if (
-          event.type === "removed" ||
-          (event.type === "observerRemoved" && event.query.getObserversCount() === 0)
-        ) {
+  useEffect(() => {
+    const pageRetries = new Map<string, Retry>();
+    return queryClient.getQueryCache().subscribe((event) => {
+      const key = `query:${event.query.queryHash}`;
+      // A query no screen reads any more (the learner left it), or one gone
+      // from the cache, no longer holds the banner up.
+      if (
+        event.type === "removed" ||
+        (event.type === "observerRemoved" && event.query.getObserversCount() === 0)
+      ) {
+        pageRetries.delete(key);
+        status.resolve(key);
+        return;
+      }
+      if (event.type !== "updated") return;
+      const { query, action } = event;
+      if (action.type === "success") {
+        pageRetries.delete(key);
+        status.resolve(key);
+      } else if (action.type === "error" && !isCancelledError(action.error)) {
+        if (toApiError(action.error).kind === "unknown") {
+          // Infinite queries record whether this was a forward page fetch.
+          // Retain it: a normal refetch only reloads the pages already cached.
+          const fetchMeta = query.state.fetchMeta;
+          const retry = () => {
+            void query
+              .fetch(undefined, {
+                cancelRefetch: true,
+                ...(fetchMeta === null ? {} : { meta: fetchMeta }),
+              })
+              .catch(() => {
+                // The cache listener reports the next failure through this banner.
+              });
+          };
+          if (fetchMeta !== null) pageRetries.set(key, retry);
+          // A later failed background refetch must not replace the page
+          // the learner requested with an ordinary cached-page refetch.
+          status.report(key, pageRetries.get(key) ?? retry);
+        } else {
+          // Problem Details: the server answered, whatever it said.
+          pageRetries.delete(key);
           status.resolve(key);
-          return;
         }
-        if (event.type !== "updated") return;
-        const { query, action } = event;
-        if (action.type === "success") {
-          status.resolve(key);
-        } else if (action.type === "error" && !isCancelledError(action.error)) {
-          if (toApiError(action.error).kind === "unknown") {
-            // Infinite queries record whether this was a forward page fetch.
-            // Retain it: a normal refetch only reloads the pages already cached.
-            const fetchMeta = query.state.fetchMeta;
-            status.report(key, () => {
-              void query
-                .fetch(undefined, {
-                  cancelRefetch: true,
-                  ...(fetchMeta === null ? {} : { meta: fetchMeta }),
-                })
-                .catch(() => {
-                  // The cache listener reports the next failure through this banner.
-                });
-            });
-          } else {
-            // Problem Details: the server answered, whatever it said.
-            status.resolve(key);
-          }
-        }
-      }),
-    [queryClient, status],
-  );
+      }
+    });
+  }, [queryClient, status]);
 
   return (
     <StatusContext.Provider value={status}>
