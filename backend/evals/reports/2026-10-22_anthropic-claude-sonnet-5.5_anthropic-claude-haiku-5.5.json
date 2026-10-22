@@ -1,0 +1,1003 @@
+{
+  "cases": [
+    {
+      "case": "01-refreshing-feedback",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "tagged",
+          "passed": true
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        },
+        {
+          "kind": "max_fixes",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "tagged",
+          "passed": true
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        },
+        {
+          "kind": "max_fixes",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ①",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "02-refreshing-retry",
+      "checks_final": {
+        "completed_sentence": true,
+        "schema": true
+      },
+      "checks_first": {
+        "completed_sentence": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "accepted",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "accepted",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ①",
+      "task": "coach.check_retry"
+    },
+    {
+      "case": "03-missing-workplace-point",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "missing_point",
+          "passed": false
+        },
+        {
+          "kind": "tagged",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "missing_point",
+          "passed": false
+        },
+        {
+          "kind": "tagged",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ②",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "04-recently-feedback",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "tagged",
+          "passed": false
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "tagged",
+          "passed": false
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        },
+        {
+          "kind": "not_tagged",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ③",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "05-multi-sentence-tag-question",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "fix_to",
+          "passed": false
+        },
+        {
+          "kind": "absent",
+          "passed": true
+        },
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "fix_to",
+          "passed": false
+        },
+        {
+          "kind": "absent",
+          "passed": true
+        },
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ④; docs/product/requirements.md §3.11",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "06-reaction-and-missing-tag",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "tagged",
+          "passed": false
+        },
+        {
+          "kind": "missing_point",
+          "passed": false
+        },
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "tagged",
+          "passed": false
+        },
+        {
+          "kind": "missing_point",
+          "passed": false
+        },
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ⑤",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "07-repeated-reaction",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "tagged",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "tagged",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ⑤ follow-on",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "08-starting-as-studying",
+      "checks_final": {
+        "completed_sentence": true,
+        "schema": true
+      },
+      "checks_first": {
+        "completed_sentence": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "reading_noted",
+          "passed": true
+        },
+        {
+          "kind": "accepted",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "reading_noted",
+          "passed": true
+        },
+        {
+          "kind": "accepted",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ⑥ / ③",
+      "task": "coach.check_retry"
+    },
+    {
+      "case": "09-assets-as-agents",
+      "checks_final": {
+        "completed_sentence": true,
+        "schema": true
+      },
+      "checks_first": {
+        "completed_sentence": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "reading_noted",
+          "passed": true
+        },
+        {
+          "kind": "accepted",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "reading_noted",
+          "passed": true
+        },
+        {
+          "kind": "accepted",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ⑥ / ④",
+      "task": "coach.check_retry"
+    },
+    {
+      "case": "10-partner-shares",
+      "checks_final": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "partner_share": true,
+        "schema": true
+      },
+      "checks_first": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "partner_share": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "no_question",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "no_question",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ⑦",
+      "task": "partner.reply"
+    },
+    {
+      "case": "11-partner-answers-learner",
+      "checks_final": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "partner_share": null,
+        "schema": true
+      },
+      "checks_first": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "partner_share": null,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ⑦ follow-on",
+      "task": "partner.reply"
+    },
+    {
+      "case": "12-already-fine",
+      "checks_final": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": true,
+        "completed_sentence": true,
+        "fix_numbers": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "no_fix",
+          "passed": true
+        },
+        {
+          "kind": "no_tag",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "no_fix",
+          "passed": true
+        },
+        {
+          "kind": "no_tag",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/requirements.md §3.11: English already fine",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "13-leave-or-live",
+      "checks_final": {
+        "blanks_filled": null,
+        "completed_sentence": null,
+        "fix_numbers": null,
+        "schema": true
+      },
+      "checks_first": {
+        "blanks_filled": null,
+        "completed_sentence": null,
+        "fix_numbers": null,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "reading_question",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "reading_question",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/requirements.md §3.11; docs/product/conversation-rules.md §5.3",
+      "task": "coach.feedback"
+    },
+    {
+      "case": "14-sapporo-only-in-intent",
+      "checks_final": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "partner_share": null,
+        "schema": true
+      },
+      "checks_first": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "partner_share": null,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/requirements.md §3.11: content only in Japanese",
+      "task": "partner.reply"
+    },
+    {
+      "case": "15-different-opener",
+      "checks_final": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "schema": true
+      },
+      "checks_first": {
+        "partner_japanese": true,
+        "partner_questions": true,
+        "partner_sentences": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "differs_from",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "differs_from",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/requirements.md §3.11; docs/product/conversation-rules.md §4.1",
+      "task": "partner.open"
+    },
+    {
+      "case": "16-build-hint-without-aws",
+      "checks_final": {
+        "build_hint_latin": true,
+        "schema": true
+      },
+      "checks_first": {
+        "build_hint_latin": true,
+        "schema": true
+      },
+      "error": null,
+      "expectations_final": [
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "expectations_first": [
+        {
+          "kind": "absent",
+          "passed": true
+        }
+      ],
+      "outcomes": [
+        "ok"
+      ],
+      "source": "docs/product/conversation-rules.md §7 ②; §5.1",
+      "task": "coach.acknowledge"
+    }
+  ],
+  "checks": {
+    "blanks_filled": {
+      "final": {
+        "passed": 7,
+        "rate": 1.0,
+        "total": 7
+      },
+      "first": {
+        "passed": 7,
+        "rate": 1.0,
+        "total": 7
+      }
+    },
+    "build_hint_latin": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "completed_sentence": {
+      "final": {
+        "passed": 10,
+        "rate": 1.0,
+        "total": 10
+      },
+      "first": {
+        "passed": 10,
+        "rate": 1.0,
+        "total": 10
+      }
+    },
+    "fix_numbers": {
+      "final": {
+        "passed": 7,
+        "rate": 1.0,
+        "total": 7
+      },
+      "first": {
+        "passed": 7,
+        "rate": 1.0,
+        "total": 7
+      }
+    },
+    "partner_japanese": {
+      "final": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      },
+      "first": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      }
+    },
+    "partner_questions": {
+      "final": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      },
+      "first": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      }
+    },
+    "partner_sentences": {
+      "final": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      },
+      "first": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      }
+    },
+    "partner_share": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "schema": {
+      "final": {
+        "passed": 16,
+        "rate": 1.0,
+        "total": 16
+      },
+      "first": {
+        "passed": 16,
+        "rate": 1.0,
+        "total": 16
+      }
+    }
+  },
+  "expectations": {
+    "absent": {
+      "final": {
+        "passed": 6,
+        "rate": 1.0,
+        "total": 6
+      },
+      "first": {
+        "passed": 6,
+        "rate": 1.0,
+        "total": 6
+      }
+    },
+    "accepted": {
+      "final": {
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      },
+      "first": {
+        "passed": 3,
+        "rate": 1.0,
+        "total": 3
+      }
+    },
+    "differs_from": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "fix_to": {
+      "final": {
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 0,
+        "rate": 0.0,
+        "total": 1
+      }
+    },
+    "max_fixes": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "missing_point": {
+      "final": {
+        "passed": 0,
+        "rate": 0.0,
+        "total": 2
+      },
+      "first": {
+        "passed": 0,
+        "rate": 0.0,
+        "total": 2
+      }
+    },
+    "no_fix": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "no_question": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "no_tag": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "not_tagged": {
+      "final": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      },
+      "first": {
+        "passed": 4,
+        "rate": 1.0,
+        "total": 4
+      }
+    },
+    "reading_noted": {
+      "final": {
+        "passed": 2,
+        "rate": 1.0,
+        "total": 2
+      },
+      "first": {
+        "passed": 2,
+        "rate": 1.0,
+        "total": 2
+      }
+    },
+    "reading_question": {
+      "final": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      },
+      "first": {
+        "passed": 1,
+        "rate": 1.0,
+        "total": 1
+      }
+    },
+    "tagged": {
+      "final": {
+        "passed": 3,
+        "rate": 0.6,
+        "total": 5
+      },
+      "first": {
+        "passed": 3,
+        "rate": 0.6,
+        "total": 5
+      }
+    }
+  },
+  "metadata": {
+    "coach_model": "anthropic/claude-sonnet-5.5",
+    "commit": "7819ae2ca10cf58da4b71290ecc31165647e60bd",
+    "date": "2026-10-22",
+    "dirty": false,
+    "partner_model": "anthropic/claude-haiku-5.5"
+  },
+  "tasks": {
+    "coach.acknowledge": {
+      "calls": 1,
+      "cost_credits": "0.00186",
+      "latency_p50_ms": 1968,
+      "latency_p95_ms": 1968,
+      "models": [
+        "anthropic/claude-sonnet-5.5"
+      ],
+      "outcomes": {
+        "invalid_output": 0,
+        "ok": 1,
+        "provider_error": 0,
+        "rate_limited": 0,
+        "repaired": 0,
+        "timeout": 0
+      },
+      "providers": [
+        "openrouter"
+      ]
+    },
+    "coach.check_retry": {
+      "calls": 3,
+      "cost_credits": "0.031014",
+      "latency_p50_ms": 7089,
+      "latency_p95_ms": 7233,
+      "models": [
+        "anthropic/claude-sonnet-5.5"
+      ],
+      "outcomes": {
+        "invalid_output": 0,
+        "ok": 3,
+        "provider_error": 0,
+        "rate_limited": 0,
+        "repaired": 0,
+        "timeout": 0
+      },
+      "providers": [
+        "openrouter"
+      ]
+    },
+    "coach.feedback": {
+      "calls": 8,
+      "cost_credits": "0.117058",
+      "latency_p50_ms": 7138,
+      "latency_p95_ms": 15502,
+      "models": [
+        "anthropic/claude-sonnet-5.5"
+      ],
+      "outcomes": {
+        "invalid_output": 0,
+        "ok": 8,
+        "provider_error": 0,
+        "rate_limited": 0,
+        "repaired": 0,
+        "timeout": 0
+      },
+      "providers": [
+        "openrouter"
+      ]
+    },
+    "partner.open": {
+      "calls": 1,
+      "cost_credits": "0.0000603",
+      "latency_p50_ms": 1533,
+      "latency_p95_ms": 1533,
+      "models": [
+        "anthropic/claude-haiku-5.5"
+      ],
+      "outcomes": {
+        "invalid_output": 0,
+        "ok": 1,
+        "provider_error": 0,
+        "rate_limited": 0,
+        "repaired": 0,
+        "timeout": 0
+      },
+      "providers": [
+        "openrouter"
+      ]
+    },
+    "partner.reply": {
+      "calls": 3,
+      "cost_credits": "0.0005608",
+      "latency_p50_ms": 2473,
+      "latency_p95_ms": 2881,
+      "models": [
+        "anthropic/claude-haiku-5.5"
+      ],
+      "outcomes": {
+        "invalid_output": 0,
+        "ok": 3,
+        "provider_error": 0,
+        "rate_limited": 0,
+        "repaired": 0,
+        "timeout": 0
+      },
+      "providers": [
+        "openrouter"
+      ]
+    }
+  }
+}
