@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import datetime as _dt
+import datetime as dt
 import hashlib
 import json
 import os
@@ -1113,10 +1113,10 @@ def extract_deps(body: str, title: str, self_number: int) -> dict[str, list[int]
 
 def days_since(iso_date: str | None) -> int | None:
     try:
-        d = _dt.date.fromisoformat((iso_date or "")[:10])
+        d = dt.date.fromisoformat((iso_date or "")[:10])
     except (ValueError, TypeError):
         return None
-    return (_dt.date.today() - d).days
+    return (dt.date.today() - d).days
 
 
 def canonical_tier(labels: list[str]) -> str | None:

@@ -7,7 +7,7 @@ Run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
 from __future__ import annotations
 
-import datetime as _dt
+import datetime as dt
 import io
 import json
 import re
@@ -585,7 +585,7 @@ class StructuredDependencySourcesTest(unittest.TestCase):
 
 class DaysSinceTest(unittest.TestCase):
     def test_recent_date_is_zero_or_more(self):
-        today = _dt.date.today().isoformat()
+        today = dt.date.today().isoformat()
         self.assertEqual(idg.days_since(today), 0)
 
     def test_invalid_date_returns_none(self):
@@ -647,7 +647,7 @@ class ScoreIssueTest(unittest.TestCase):
         # Neither stale (>= STALE_DAYS) nor fresh (<= FRESH_DAYS): a neutral
         # age so the staleness/freshness bonus never perturbs the assertions
         # below, which are about the *other* scoring inputs.
-        neutral = (_dt.date.today() - _dt.timedelta(days=90)).isoformat()
+        neutral = (dt.date.today() - dt.timedelta(days=90)).isoformat()
         rec = {
             "unblocks_open": [],
             "referenced_by_open": [],
@@ -693,13 +693,13 @@ class ScoreIssueTest(unittest.TestCase):
         self.assertEqual(score, 2)
 
     def test_stale_issue_penalized(self):
-        old = (_dt.date.today() - _dt.timedelta(days=idg.STALE_DAYS + 1)).isoformat()
+        old = (dt.date.today() - dt.timedelta(days=idg.STALE_DAYS + 1)).isoformat()
         rec = self._base_rec(updated_at=old)
         score, parts, _ = idg.score_issue(rec, "")
         self.assertEqual(score, -1)
 
     def test_fresh_issue_rewarded(self):
-        recent = (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
+        recent = (dt.date.today() - dt.timedelta(days=1)).isoformat()
         rec = self._base_rec(updated_at=recent)
         score, parts, _ = idg.score_issue(rec, "")
         self.assertEqual(score, 1)
