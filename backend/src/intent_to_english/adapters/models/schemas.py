@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from intent_to_english.core import coaching
 from intent_to_english.core.models import FixTag
@@ -99,12 +99,16 @@ class FeedbackValue(CoachOutput):
 
 
 class FeedbackOutput(CoachOutput):
-    """One top-level object, usable with NativeOutput's response_format."""
+    """One top-level object, usable with NativeOutput's response_format.
+
+    Readings stay an unbounded array: native structured output accepts no array
+    length beyond minItems 1, so the pair is checked when converting instead.
+    """
 
     kind: Literal["feedback", "reading_question"]
     feedback: FeedbackValue | None = None
     word: str | None = None
-    readings: tuple[str, str] | None = None
+    readings: tuple[str, ...] | None = None
 
     def to_domain(self) -> coaching.Feedback | coaching.ReadingQuestion:
         """Require exactly the payload selected by kind."""
@@ -120,8 +124,10 @@ class FeedbackOutput(CoachOutput):
             and self.feedback is None
             and self.word is not None
             and self.readings is not None
+            and len(self.readings) == coaching.READING_OPTIONS
         ):
-            return coaching.ReadingQuestion(self.word, self.readings)
+            first, second = self.readings
+            return coaching.ReadingQuestion(self.word, (first, second))
         message = "Feedback kind requires its matching payload only"
         raise ValueError(message)
 
@@ -179,12 +185,14 @@ class PieceGivenOutput(CoachOutput):
 
 
 class RetryOutput(CoachOutput):
-    """Wrap the discriminated result in one native-output object."""
+    """Wrap the kind-tagged result in one native-output object.
 
-    result: Annotated[
-        RetryAcceptedOutput | BlankOffOutput | PieceGivenOutput,
-        Field(discriminator="kind"),
-    ]
+    A plain union keeps the schema's anyOf: a pydantic discriminator emits oneOf,
+    which native structured output does not support. Each member's literal kind and
+    forbidden extra fields still select exactly one.
+    """
+
+    result: RetryAcceptedOutput | BlankOffOutput | PieceGivenOutput
 
     def to_domain(self) -> coaching.RetryResult:
         """Convert the selected result without changing its meaning."""
