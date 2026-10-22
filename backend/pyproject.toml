@@ -14,7 +14,7 @@ requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.22",
     "alembic>=1.20",
-    "fastapi>=0.141.1",
+    "fastapi>=0.143.2",
     "pydantic-ai-slim[openrouter]>=2.55.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.1.4",
