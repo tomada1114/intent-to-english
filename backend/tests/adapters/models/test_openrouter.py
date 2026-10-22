@@ -467,6 +467,51 @@ async def test_coach_tasks_convert_and_preserve_prompts_and_usage(
     assert isinstance(result, m.ParseFailure) if invalid else result.output == expected
 
 
+# Anthropic's native structured outputs answer these with a 400, which the adapter
+# reports as model_unavailable: unions must be anyOf, and arrays allow only
+# minItems 0 or 1, so lengths are checked after parsing instead.
+UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
+    {"oneOf", "discriminator", "prefixItems", "maxItems"}
+)
+SCHEMA_TASKS = [("partner", task, task_request) for task, task_request in REQUESTS] + [
+    ("coach", case[0], case[1]) for case in COACH_CASES
+]
+
+
+def _unsupported_schema_paths(node, path="$"):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in UNSUPPORTED_SCHEMA_KEYWORDS or (key == "minItems" and value > 1):
+                yield f"{path}.{key}"
+            yield from _unsupported_schema_paths(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            yield from _unsupported_schema_paths(item, f"{path}[{index}]")
+
+
+@pytest.mark.parametrize(
+    ("role", "task", "task_request"),
+    SCHEMA_TASKS,
+    ids=[f"{case[0]}-{case[1]}-{i}" for i, case in enumerate(SCHEMA_TASKS)],
+)
+async def test_task_output_schema_uses_only_native_structured_output_features(
+    role, task, task_request
+):
+    sent = []
+
+    def answer(messages, info):
+        sent.append(info.model_request_parameters.output_object.json_schema)
+        return ModelResponse([TextPart("{}")])
+
+    adapter_type = (
+        OpenRouterPartnerModel if role == "partner" else openrouter.OpenRouterCoachModel
+    )
+    await getattr(adapter_type("model", FunctionModel(answer)), task)(task_request)
+
+    assert len(sent) == 1
+    assert list(_unsupported_schema_paths(sent[0])) == []
+
+
 @pytest.mark.parametrize(
     "readings",
     [["leave"], ["leave", "live", "love"], ["leave", "leave"]],
@@ -627,3 +672,26 @@ async def test_coach_feedback_rejects_inconsistent_core_payloads(payload):
     ).feedback(coaching.FeedbackRequest(None, "I walk.", None, (), ()))
     assert isinstance(result, m.ParseFailure)
     assert result.usage.input_tokens == 3
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {"kind": "accepted", "blanks": [1], "hint": "過去形です。"},
+        {"kind": "blank_off", "line": "伝わりました。"},
+        {"kind": "done", "line": "伝わりました。"},
+    ],
+    ids=["accepted-with-blank-off-fields", "blank-off-with-accepted-fields", "unknown"],
+)
+async def test_coach_retry_rejects_a_kind_without_its_own_fields(result):
+    def answer(messages, info):
+        return ModelResponse(
+            [TextPart(json.dumps({"result": result}))],
+            usage=RequestUsage(input_tokens=3, output_tokens=4),
+        )
+
+    outcome = await openrouter.OpenRouterCoachModel(
+        "coach", FunctionModel(answer)
+    ).check_retry(coaching.CheckRetryRequest(None, COACH_FEEDBACK, "I walk.", 1, ()))
+    assert isinstance(outcome, m.ParseFailure)
+    assert outcome.usage.output_tokens == 4

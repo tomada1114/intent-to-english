@@ -281,8 +281,14 @@ or attribution arguments that could pick up shell values. The per-agent
 the complete run, not only SDK socket waits. Parse failures retain response usage,
 while provider failures carry only safe core errors and latency. Coach feedback uses one
 top-level JSON object with a `kind` discriminator and exactly
-one matching feedback or reading-question payload. Retry results use a discriminated
+one matching feedback or reading-question payload. Retry results use a kind-tagged
 payload inside a top-level object too, so every task supports native structured output.
+The schemas stay inside what Anthropic's native structured output accepts, because
+OpenRouter answers anything else with a 400 that the adapter reports as unavailable:
+unions are `anyOf`, the documented union form (a pydantic discriminator would emit
+`oneOf`, which the supported keywords do not include), and arrays carry no
+length beyond `minItems` 1, so the two readings are checked when the output converts. A
+test walks every task's schema for those keywords.
 
 Rejected: calling OpenRouter with httpx2 directly — no new package and full control, but the
 request, the schema, parsing, retries, and error mapping would all be hand-written, and Bedrock
