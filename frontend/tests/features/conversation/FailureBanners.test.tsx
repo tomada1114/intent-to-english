@@ -1136,3 +1136,47 @@ describe("ConversationScreen retry waiting focus", () => {
     },
   );
 });
+
+it("settles a reload-restored hint without clearing the retained English draft", async () => {
+  const pending: SessionResponse = {
+    ...english,
+    last_submission: {
+      action: "hint",
+      input: { gap: "久しぶり", partial_english: "I watched" },
+      state: "pending",
+      failure_code: null,
+    },
+  };
+  const served = serveSession(pending);
+  const { queryClient } = renderSession(pending);
+  expect(screen.getByRole("textbox", { name: "分からないところ" })).toHaveValue(
+    "久しぶり",
+  );
+  served.set(
+    sessionView({
+      ...english,
+      version: 3,
+      entries: [
+        ...english.entries,
+        entry("hint_request", { gap: "久しぶり", partial_english: "I watched" }),
+        entry("gap_hint", { hint: "in a while を使えます" }),
+      ],
+    }),
+  );
+
+  await act(() =>
+    queryClient.invalidateQueries({
+      queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+    }),
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("textbox", { name: "分からないところ" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+    "I watched",
+  );
+  expect(served.bodies).toEqual([]);
+});

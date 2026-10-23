@@ -806,3 +806,57 @@ it.each(["ask", "rewrite_intent", "practice_again"] as const)(
     expect(screen.getByRole("textbox", { name: label })).toHaveValue("New draft");
   },
 );
+
+it.each(["ask", "practice_again"] as const)(
+  "clears the consumed %s editor after a reload-restored pending action completes",
+  async (action) => {
+    const base = action === "ask" ? english : checkIn;
+    const pending: SessionResponse = {
+      ...base,
+      last_submission: {
+        action,
+        input: { text: "Restored input" },
+        state: "pending",
+        failure_code: null,
+      },
+    };
+    const served = serveSession(pending);
+    const { queryClient } = renderSession(pending);
+    const user = userEvent.setup();
+    const label = action === "ask" ? "質問" : "もう一度練習";
+    expect(screen.getByRole("textbox", { name: label })).toHaveValue("Restored input");
+    const recorded =
+      action === "ask"
+        ? [
+            entry("question", { text: "Restored input" }),
+            entry("coach_answer", { text: "確認しました。" }),
+          ]
+        : [
+            entry("practice", { sentence: "Restored input", turn_index: 1 }),
+            entry("practice_result", {
+              turn_index: 1,
+              result: { line: "確認しました。", readings_noted: [] },
+            }),
+          ];
+    served.set(
+      sessionView({
+        ...base,
+        version: base.version + 1,
+        entries: [...base.entries, ...recorded],
+      }),
+    );
+
+    await act(() =>
+      queryClient.invalidateQueries({
+        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox", { name: label })).not.toBeInTheDocument(),
+    );
+    await press(user, action === "ask" ? /コーチに質問/ : "もう一度練習");
+    expect(screen.getByRole("textbox", { name: label })).toHaveValue("");
+    expect(served.bodies).toEqual([]);
+  },
+);
