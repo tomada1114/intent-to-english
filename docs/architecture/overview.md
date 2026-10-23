@@ -279,7 +279,9 @@ explicit key and `X-OpenRouter-Title` app name, and supplies no provider credent
 or attribution arguments that could pick up shell values. The per-agent
 `instrument = False` overrides global instrumentation. A 60-second scope also bounds
 the complete run, not only SDK socket waits. Parse failures retain response usage,
-while provider failures carry only safe core errors and latency. Coach feedback uses one
+while provider failures carry only safe core errors, latency, and the provider's HTTP
+status when it answered with one: an integer that tells a rejected request (400) from an
+outage (503) without carrying the provider's text. Coach feedback uses one
 top-level JSON object with a `kind` discriminator and exactly
 one matching feedback or reading-question payload. Retry results use a kind-tagged
 payload inside a top-level object too, so every task supports native structured output.
@@ -511,7 +513,9 @@ separate calls. A task's cost is empty if any attempt has no reported cost; know
 costs are summed without rounding provider decimals through the shared core helper.
 Provider failures and unparsed content are
 N/A in quality denominators, with schema failures still counted for schema. Each
-case retains its safe decisions and outcomes, without raw provider responses.
+case retains its safe decisions and outcomes, without raw provider responses, and its
+error code with the HTTP status beside it (`error_status` in JSON, `model_unavailable
+(HTTP 400)` in the Markdown Error column) when the provider returned one.
 
 Both reports are committed. The README summary between `eval-summary:start` and
 `eval-summary:end` links the latest report and uses its generated task table; before
