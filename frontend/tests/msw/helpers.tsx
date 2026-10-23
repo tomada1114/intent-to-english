@@ -139,12 +139,14 @@ export function serveSession(
     new HttpResponse(null, { status: 204 }),
 ) {
   let current = initial;
+  let reads = 0;
   const bodies: ActionBody[] = [];
   const cancels: CancelSessionRequest[] = [];
   server.use(
-    http.get(`/api/sessions/${SESSION_ID}`, () =>
-      HttpResponse.json<SessionResponse>(current),
-    ),
+    http.get(`/api/sessions/${SESSION_ID}`, () => {
+      reads += 1;
+      return HttpResponse.json<SessionResponse>(current);
+    }),
     http.post(`/api/sessions/${SESSION_ID}/actions`, async ({ request }) => {
       const body = (await request.json()) as ActionBody;
       bodies.push(body);
@@ -163,6 +165,7 @@ export function serveSession(
     bodies,
     cancels,
     current: () => current,
+    reads: () => reads,
     /** Change the server's view, as another tab's action would. */
     set: (next: SessionResponse) => {
       current = next;
