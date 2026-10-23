@@ -183,3 +183,37 @@ def test_since_uses_historical_local_timezone(monkeypatch, capsys, value, expect
         else:
             monkeypatch.setenv("TZ", previous)
         time.tzset()
+
+
+def test_main_shows_http_status_breakdowns_in_existing_outcome_columns(
+    monkeypatch, capsys, make_model_call
+):
+    records = []
+    for outcome, status in [
+        (m.CallOutcome.PROVIDER_ERROR, 400),
+        (m.CallOutcome.PROVIDER_ERROR, 400),
+        (m.CallOutcome.PROVIDER_ERROR, 503),
+        (m.CallOutcome.PROVIDER_ERROR, None),
+        (m.CallOutcome.RATE_LIMITED, 429),
+        (m.CallOutcome.TIMEOUT, None),
+        (m.CallOutcome.OK, None),
+    ]:
+        record = make_model_call()
+        records.append(
+            replace(record, call=replace(record.call, outcome=outcome, status=status))
+        )
+
+    async def read(_url, _session=None, _since=None):
+        return records
+
+    monkeypatch.setattr("intent_to_english.call_log.read_calls", read)
+
+    assert main([]) == 0
+
+    captured = capsys.readouterr()
+    assert (
+        "partner | test/model | reply | 7 | 1 | 0 | 0 | 1 | 1 (429: 1) | 4 (400: 2, 503: 1) |"
+        in captured.out
+    )
+    assert "provider_error | input tokens" in captured.out
+    assert captured.err == ""

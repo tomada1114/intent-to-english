@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from math import ceil
 from typing import TYPE_CHECKING
@@ -39,6 +39,7 @@ class SummaryRow:
     cost: Decimal | None
     latency_p50_ms: int
     latency_p95_ms: int
+    http_statuses: tuple[tuple[CallOutcome, int, int], ...] = ()
 
     def __post_init__(self) -> None:
         """Reject a summary whose counts or percentiles cannot describe calls."""
@@ -61,6 +62,11 @@ def summarize(records: Iterable[ModelCallRecord]) -> tuple[SummaryRow, ...]:
     rows = []
     for (role, model, task), group in sorted(grouped.items()):
         latencies = sorted(record.call.usage.latency_ms for record in group)
+        statuses = Counter(
+            (record.call.outcome, record.call.status)
+            for record in group
+            if record.call.status is not None
+        )
         rows.append(
             SummaryRow(
                 role,
@@ -76,6 +82,10 @@ def summarize(records: Iterable[ModelCallRecord]) -> tuple[SummaryRow, ...]:
                 sum_reported_costs(record.call.usage.cost for record in group),
                 latencies[ceil(len(group) * 0.50) - 1],
                 latencies[ceil(len(group) * 0.95) - 1],
+                tuple(
+                    (kind, status, count)
+                    for (kind, status), count in sorted(statuses.items())
+                ),
             )
         )
     return tuple(rows)

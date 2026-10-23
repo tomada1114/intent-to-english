@@ -104,3 +104,29 @@ def test_missing_accounting_is_distinct_from_reported_zero_and_sums_exactly(
     assert empty.input_tokens is None
     assert empty.output_tokens is None
     assert empty.cost is None
+
+
+def test_summary_counts_http_statuses_within_each_outcome(make_model_call):
+    records = []
+    for outcome, status in [
+        (m.CallOutcome.PROVIDER_ERROR, 400),
+        (m.CallOutcome.PROVIDER_ERROR, 400),
+        (m.CallOutcome.PROVIDER_ERROR, 503),
+        (m.CallOutcome.PROVIDER_ERROR, None),
+        (m.CallOutcome.RATE_LIMITED, 429),
+        (m.CallOutcome.OK, None),
+    ]:
+        record = make_model_call()
+        records.append(
+            replace(record, call=replace(record.call, outcome=outcome, status=status))
+        )
+
+    (row,) = summarize(records)
+
+    assert row.calls == 6
+    assert dict(row.outcomes)[m.CallOutcome.PROVIDER_ERROR] == 4
+    assert row.http_statuses == (
+        (m.CallOutcome.PROVIDER_ERROR, 400, 2),
+        (m.CallOutcome.PROVIDER_ERROR, 503, 1),
+        (m.CallOutcome.RATE_LIMITED, 429, 1),
+    )

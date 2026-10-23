@@ -95,7 +95,9 @@ async def run_model_task[Request, Output](
             usage = Usage(
                 error.provider, error.model, None, None, None, error.latency_ms
             )
-            attempt = CallAttempt(role, task, number, usage, outcome)
+            attempt = CallAttempt(
+                role, task, number, usage, outcome, status=error.status
+            )
             attempts.append(attempt)
             if record is not None:
                 await record(attempt)

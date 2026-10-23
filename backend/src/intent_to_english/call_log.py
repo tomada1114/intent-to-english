@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from intent_to_english.core.call_log import SummaryRow
+    from intent_to_english.core.models import CallOutcome
 
 
 def _since(value: str) -> datetime:
@@ -39,7 +40,7 @@ def _table(rows: Sequence[SummaryRow]) -> str:
             row.model,
             row.task.value,
             row.calls,
-            *(count for _, count in row.outcomes),
+            *(_outcome_cell(row, kind, count) for kind, count in row.outcomes),
             row.input_tokens,
             row.output_tokens,
             row.cost,
@@ -50,6 +51,16 @@ def _table(rows: Sequence[SummaryRow]) -> str:
             " | ".join("—" if value is None else str(value) for value in values)
         )
     return "\n".join(lines) + "\n"
+
+
+def _outcome_cell(row: SummaryRow, kind: CallOutcome, count: int) -> str:
+    """Keep outcome totals while showing the subset with a reported HTTP status."""
+    statuses = ", ".join(
+        f"{status}: {number}"
+        for outcome, status, number in row.http_statuses
+        if outcome is kind
+    )
+    return f"{count} ({statuses})" if statuses else str(count)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

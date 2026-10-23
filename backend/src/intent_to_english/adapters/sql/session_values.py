@@ -107,6 +107,7 @@ def call_values(record: models.ModelCallRecord) -> dict[str, Any]:
         "cost": str(usage.cost) if usage.cost is not None else None,
         "latency_ms": usage.latency_ms,
         "outcome": call.outcome,
+        "status": call.status,
         "violations": [asdict(item) for item in call.violations],
         "created_at": record.created_at,
     }
@@ -132,6 +133,7 @@ def call_from(row: RowMapping) -> models.ModelCallRecord:
             models.Violation(models.CheckId(item["check"]), item["detail"])
             for item in row["violations"]
         ),
+        status=row["status"],
     )
     return models.ModelCallRecord(
         row["id"],

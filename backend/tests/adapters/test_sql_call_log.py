@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import quote
 
 import aiosqlite
 import pytest
-from sqlalchemy import make_url, text
+from sqlalchemy import make_url, text, update
 from sqlalchemy.exc import DBAPIError
 
 from intent_to_english.adapters.sql.call_log import CallLogReadError, read_calls
 from intent_to_english.adapters.sql.engine import make_engine, make_read_engine
-from intent_to_english.adapters.sql.tables import metadata
+from intent_to_english.adapters.sql.tables import metadata, model_calls
+from intent_to_english.core.models import CallOutcome
 
 pytestmark = pytest.mark.anyio
 
@@ -148,3 +150,28 @@ async def test_postgres_reader_uses_typed_filters_and_read_only_transaction(
             await reader.dispose()
     finally:
         await writer.dispose()
+
+
+async def test_sql_reader_restores_provider_http_status(
+    migrated_sqlite_url, seed_call_log
+):
+    records = await seed_call_log(migrated_sqlite_url)
+    engine = make_engine(migrated_sqlite_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                update(model_calls)
+                .where(model_calls.c.id == records[0].id)
+                .values(status=400, outcome="provider_error")
+            )
+    finally:
+        await engine.dispose()
+
+    restored = await read_calls(migrated_sqlite_url)
+
+    expected = replace(
+        records[0],
+        call=replace(records[0].call, status=400, outcome=CallOutcome.PROVIDER_ERROR),
+    )
+    assert expected in restored
+    assert len(restored) == 4

@@ -151,6 +151,7 @@ model_calls = Table(
     Column("cost", String),
     Column("latency_ms", Integer, nullable=False),
     Column("outcome", String, nullable=False),
+    Column("status", Integer),
     Column("violations", JSON, nullable=False),
     Column("created_at", UtcDateTime, nullable=False),
 )
