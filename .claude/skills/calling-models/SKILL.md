@@ -168,7 +168,8 @@ enter a model request. The 16 seeds are tested on fixed ports without a quality 
 `just backend eval` is billed and human-run: it uses `Container.models`, the shared
 task runner and one repair, with memory storage and owned cleanup. It refuses fixed
 mode and existing report paths or invalid README markers before any call. JSON/Markdown reports retain first/final quality rates,
-outcomes, credits, latency, ids, UTC date and revision; missing cost stays empty and
+outcomes, credits, latency, ids, reasoning efforts, UTC date and revision; a set
+effort also names the report pair; missing cost stays empty and
 unobserved content is N/A. Reports are committed and generate the README summary.
 A new expectation joins the tested closed vocabulary in `evaluation/`. The file
 contract and rationale are § Decisions › "Evaluation lives in the repository".

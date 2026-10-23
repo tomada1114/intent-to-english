@@ -367,6 +367,8 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
         "model_mode": "fixed",
         "coach_model": "anthropic/claude-sonnet-5.5",
         "partner_model": "anthropic/claude-haiku-5.5",
+        "coach_reasoning_effort": None,
+        "partner_reasoning_effort": None,
     }
 
 

@@ -512,8 +512,11 @@ successfully. A failure removes only artifacts exclusively created by that run,
 leaving the original README and any concurrent writer's files intact.
 
 The Markdown and JSON reports under `backend/evals/reports/` use
-`<UTC-date>_<coach-id>_<partner-id>`, replacing `/` with `-` in model ids. They include
-both configured ids, the UTC date, commit and dirty state passed by the recipe,
+`<UTC-date>_<coach-id>_<partner-id>`, replacing `/` with `-` in model ids, followed by
+`_coach-effort-<level>` and `_partner-effort-<level>` for each reasoning effort that was
+set, so a run at a lower effort is its own report pair beside the default run of the same
+day. They include both configured ids and both efforts (null, shown as the provider
+default, when unset), the UTC date, commit and dirty state passed by the recipe,
 first-attempt and final rates per check and expectation, all outcomes per task,
 reported cost labelled credits, and nearest-rank p50/p95 latency. Repairs count as
 separate calls. A task's cost is empty if any attempt has no reported cost; known

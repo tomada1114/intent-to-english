@@ -120,6 +120,8 @@ def test_offline_fake_writes_both_reports_and_only_readme_summary(
     assert len(data["cases"]) == 16
     assert data["metadata"]["commit"] == "test-head"
     assert data["metadata"]["dirty"] is False
+    assert data["metadata"]["coach_reasoning_effort"] is None
+    assert data["metadata"]["partner_reasoning_effort"] is None
     assert (reports / f"{STEM}.md").read_text().startswith("# Model evaluation")
     assert readme.read_text().startswith("before\n<!-- eval-summary:start -->")
     assert readme.read_text().endswith("<!-- eval-summary:end -->\nafter\n")
@@ -184,6 +186,44 @@ def test_filename_preserves_a_plain_model_id_and_replaces_only_slashes():
     )
 
     assert cli.report_stem(metadata) == "2026-10-19_coach-no-slash_provider-partner"
+
+
+def test_reasoning_efforts_name_the_report_and_reach_its_metadata(
+    files, fake_live, monkeypatch
+):
+    _, reports, args = files
+    offline = replace(
+        fake_live, models=ModelPorts(FixedPartnerModel(), FixedCoachModel())
+    )
+    monkeypatch.setattr(cli, "build_container", lambda _settings: offline)
+    monkeypatch.setenv("INTENT_TO_ENGLISH_COACH_REASONING_EFFORT", "low")
+
+    assert cli.main(args) == 0
+
+    stem = f"{STEM}_coach-effort-low"
+    data = json.loads((reports / f"{stem}.json").read_text())
+    assert data["metadata"]["coach_reasoning_effort"] == "low"
+    assert data["metadata"]["partner_reasoning_effort"] is None
+    markdown = (reports / f"{stem}.md").read_text()
+    assert "Reasoning effort: Coach `low`; Partner provider default" in markdown
+    assert not (reports / f"{STEM}.json").exists()
+
+
+def test_filename_names_each_set_reasoning_effort_after_the_model_ids():
+    metadata = RunMetadata(
+        "2026-10-19",
+        "provider/coach",
+        "provider/partner",
+        "head",
+        False,
+        coach_reasoning_effort="low",
+        partner_reasoning_effort="none",
+    )
+
+    assert cli.report_stem(metadata) == (
+        "2026-10-19_provider-coach_provider-partner"
+        "_coach-effort-low_partner-effort-none"
+    )
 
 
 @pytest.mark.parametrize(

@@ -49,6 +49,8 @@ class MetadataData(TypedDict):
     partner_model: str
     commit: str
     dirty: bool
+    coach_reasoning_effort: str | None
+    partner_reasoning_effort: str | None
 
 
 class CaseData(TypedDict):
@@ -90,13 +92,15 @@ class ReportData(TypedDict):
 
 @dataclass(frozen=True, slots=True)
 class RunMetadata:
-    """The UTC date, selected models and source revision of one run."""
+    """The UTC date, selected models, their efforts and source revision of one run."""
 
     date: str
     coach_model: str
     partner_model: str
     commit: str
     dirty: bool
+    coach_reasoning_effort: str | None = None
+    partner_reasoning_effort: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +154,8 @@ class Report:
                 partner_model=meta.partner_model,
                 commit=meta.commit,
                 dirty=meta.dirty,
+                coach_reasoning_effort=meta.coach_reasoning_effort,
+                partner_reasoning_effort=meta.partner_reasoning_effort,
             ),
             cases=cases,
             checks=_comparisons(cases, expectations=False),
@@ -175,6 +181,7 @@ class Report:
             "",
             f"UTC date: {_cell(meta['date'])}",
             f"Coach: `{_cell(meta['coach_model'])}`; Partner: `{_cell(meta['partner_model'])}`",
+            f"Reasoning effort: Coach {_effort(meta['coach_reasoning_effort'])}; Partner {_effort(meta['partner_reasoning_effort'])}",
             f"Commit: `{_cell(meta['commit'])}`; dirty: {str(meta['dirty']).lower()}",
             "",
             "Rates include applicable observed outputs only. A parse failure fails schema; content checks and expectations are N/A. Provider failures are N/A for output quality and remain counted in outcomes. Final means the last actual attempt, including a failed repair. Task cost is empty if any attempt has no reported cost.",
@@ -279,6 +286,11 @@ def _rate_cell(rate: Rate) -> str:
         if rate["rate"] is not None
         else "N/A"
     )
+
+
+def _effort(effort: str | None) -> str:
+    """An unset effort sends none, so the provider's default thinking applied."""
+    return "provider default" if effort is None else f"`{_cell(effort)}`"
 
 
 def _error(case: CaseData) -> str:

@@ -236,8 +236,9 @@ Context notes never enter a model request. Tests run the complete set on fixed p
 render reports and update a temporary README without requiring a quality pass rate.
 
 Reports are new `.md` and `.json` files under `backend/evals/reports/`, named
-`<UTC-date>_<coach-id>_<partner-id>` with `/` replaced by `-`. They record the source
-commit and dirty state, first/final check and expectation rates, outcomes, reported
+`<UTC-date>_<coach-id>_<partner-id>` with `/` replaced by `-`, plus
+`_coach-effort-<level>` or `_partner-effort-<level>` for each reasoning effort set. They
+record both reasoning efforts, the source commit and dirty state, first/final check and expectation rates, outcomes, reported
 cost in credits and nearest-rank p50/p95 latency per task. Missing cost stays empty.
 Commit both reports after an owner-run evaluation; the summary below links the latest.
 

@@ -80,6 +80,8 @@ async def _execute(options: Options, settings: Settings) -> int:
             settings.partner_model,
             options.commit,
             options.dirty,
+            coach_reasoning_effort=settings.coach_reasoning_effort,
+            partner_reasoning_effort=settings.partner_reasoning_effort,
         )
         stem = report_stem(metadata)
         markdown, machine = (
@@ -140,8 +142,17 @@ def today_utc() -> str:
 
 
 def report_stem(metadata: RunMetadata) -> str:
-    """Keep model ids intact except for the specified slash replacement."""
-    return f"{metadata.date}_{metadata.coach_model.replace('/', '-')}_{metadata.partner_model.replace('/', '-')}"
+    """Keep model ids intact except for slashes, then name each effort that was set.
+
+    An unset effort adds nothing, so a default run keeps the date-and-ids name and a
+    run at another effort on the same date gets its own pair of reports.
+    """
+    stem = f"{metadata.date}_{metadata.coach_model.replace('/', '-')}_{metadata.partner_model.replace('/', '-')}"
+    if metadata.coach_reasoning_effort is not None:
+        stem += f"_coach-effort-{metadata.coach_reasoning_effort}"
+    if metadata.partner_reasoning_effort is not None:
+        stem += f"_partner-effort-{metadata.partner_reasoning_effort}"
+    return stem
 
 
 def replace_summary(text: str, block: str) -> str:
