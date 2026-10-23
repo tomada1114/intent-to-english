@@ -9,7 +9,8 @@ the mode"; the external facts below that the overview does not state carry their
 ## Building it
 
 - `composition.py` builds the adapter only when it chooses OpenRouter, passing the key
-  from `Settings`, both model ids, and a monotonic clock for latency. The key is
+  from `Settings`, one `OpenRouterRole` per role (its model id and optional reasoning
+  effort), and a monotonic clock for latency. The key is
   unwrapped from its secret type here and nowhere else.
 - `build_openrouter_models` builds one `openai.AsyncOpenAI`, with `base_url`
   `https://openrouter.ai/api/v1`, `api_key` the string unwrapped by composition, `max_retries=0`, and the app's
@@ -34,8 +35,10 @@ the mode"; the external facts below that the overview does not state carry their
 - The client holds connections, so the builder registers `client.close` with
   `ResourceClosers`. **REQUIRED:** `designing-core-logic` (its adding-a-port reference,
   "An adapter that holds a resource").
-- No reasoning-effort setting is sent until the evaluation settles one
-  (overview § Open). Instrumentation stays off.
+- A role's reasoning effort is sent only when its setting is set: the role's calls then
+  carry `OpenRouterModelSettings(openrouter_reasoning={"effort": ...})`, which PydanticAI
+  sends as OpenRouter's `reasoning` object. Unset sends no `reasoning` key, so the
+  provider's default thinking applies. Instrumentation stays off.
 
 ## One call
 

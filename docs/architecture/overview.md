@@ -413,13 +413,20 @@ replacement, using the boot id and cutoff to recognize it (§ Core flows).
 | `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` with a key selects OpenRouter for both roles; `fixed` explicitly pins offline responses |
 | `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | the Coach's OpenRouter model id |
 | `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | the Partner's OpenRouter model id |
+| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT` | unset | the Coach's OpenRouter reasoning effort (`xhigh` … `none`); unset sends none |
+| `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | unset | the Partner's, read the same way |
 
 The composition root selects both OpenRouter adapters when auto mode has a key,
 otherwise both fixed adapters, and exposes the selection through `Container.model_mode`.
 Only composition unwraps the secret for the shared-client builder. The provider-key alias
 is a `SecretStr`,
 omitted from settings repr; a blank key is none. Empty model ids keep their defaults,
-while whitespace-only ids fail at startup naming their variables. One boot id is made
+while whitespace-only ids fail at startup naming their variables. Each role's reasoning
+effort is its own setting, because the Coach is nearly all of a run's cost and the slow
+side of a turn while the Partner is neither, so the two are tuned apart. Unset sends no
+`reasoning` parameter and keeps the model's default thinking, so adding the setting
+changes no call until the owner sets it; an unknown level fails at startup naming its
+variable. One boot id is made
 per container build, independently of entity ids. With SQL selected, the two repository
 ports share one lazy engine and one disposal callback. This keeps the full HTTP flow
 usable without a key and lets fixed mode prevent billing even with one set.
@@ -587,9 +594,9 @@ source of every value named here.
   (https://openrouter.ai/docs/use-cases/usage-accounting, checked 2026-10-17); that a credit
   is one US dollar is unchecked. The report labels the column with the provider's unit until
   it is checked.
-- The reasoning effort per role through OpenRouter: both default models think by default, which
-  costs output tokens and latency. The evaluation run settles whether either role sets a lower
-  effort.
+- Whether either role should default to a lower reasoning effort: both default models think by
+  default, which costs output tokens and latency. The per-role setting exists and is unset; the
+  owner's evaluation run with a lower Coach effort settles whether a default changes.
 - The tag of a missing nuance that is not a core point — ミス or 改善 (conversation-rules
   §5.3). The owner decides; until then evaluation cases assert no tag for it.
 - A one-word reply: its fill-in template is a single blank, so the blank's 直す is the whole

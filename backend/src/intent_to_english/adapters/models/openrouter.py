@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from decimal import Decimal
 from http import HTTPStatus
 from time import monotonic as system_monotonic
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from openai import APITimeoutError, AsyncOpenAI
 from pydantic_ai import Agent, NativeOutput, capture_run_messages
@@ -16,7 +17,7 @@ from pydantic_ai.exceptions import (
     UnexpectedModelBehavior,
 )
 from pydantic_ai.messages import ModelResponse
-from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic_ai.settings import ModelSettings
 
@@ -41,14 +42,21 @@ if TYPE_CHECKING:
 CALL_TIMEOUT_SECONDS = 60
 PROVIDER = "openrouter"
 PARSE_FAILURE = "Model output did not match its schema"
+type ReasoningEffort = Literal["xhigh", "high", "medium", "low", "minimal", "none"]
 
 
 class _OpenRouterCalls:
     """One call boundary for both roles: timeouts, parse failures and accounting."""
 
-    def __init__(self, model_id: str, monotonic: Callable[[], float]) -> None:
+    def __init__(
+        self,
+        model_id: str,
+        monotonic: Callable[[], float],
+        reasoning_effort: ReasoningEffort | None,
+    ) -> None:
         self._model_id = model_id
         self._monotonic = monotonic
+        self._settings = _model_settings(reasoning_effort)
 
     async def _call[Output, Domain](
         self,
@@ -63,7 +71,7 @@ class _OpenRouterCalls:
                     result = await agent.run(
                         prompt.user_prompt,
                         instructions=prompt.instructions,
-                        model_settings=ModelSettings(timeout=CALL_TIMEOUT_SECONDS),
+                        model_settings=self._settings,
                     )
             except TimeoutError:
                 raise ModelTimeoutError(
@@ -117,6 +125,15 @@ class _OpenRouterCalls:
         )
 
 
+def _model_settings(effort: ReasoningEffort | None) -> ModelSettings:
+    """Send a reasoning effort only when one is set; unset keeps the provider's default."""
+    if effort is None:
+        return ModelSettings(timeout=CALL_TIMEOUT_SECONDS)
+    return OpenRouterModelSettings(
+        timeout=CALL_TIMEOUT_SECONDS, openrouter_reasoning={"effort": effort}
+    )
+
+
 class OpenRouterPartnerModel(_OpenRouterCalls):
     """The three Partner tasks over one model and task-specific agents."""
 
@@ -125,9 +142,11 @@ class OpenRouterPartnerModel(_OpenRouterCalls):
         model_id: str,
         model: Model,
         monotonic: Callable[[], float] = system_monotonic,
+        *,
+        reasoning_effort: ReasoningEffort | None = None,
     ) -> None:
         """Build an independent, retry-free agent for each task once."""
-        super().__init__(model_id, monotonic)
+        super().__init__(model_id, monotonic, reasoning_effort)
         self._open = self._agent(model, "partner_open")
         self._reply = self._agent(model, "partner_reply")
         self._restate = self._agent(model, "partner_restate")
@@ -183,9 +202,11 @@ class OpenRouterCoachModel(_OpenRouterCalls):
         model_id: str,
         model: Model,
         monotonic: Callable[[], float] = system_monotonic,
+        *,
+        reasoning_effort: ReasoningEffort | None = None,
     ) -> None:
         """Build task agents once, with native structured outputs."""
-        super().__init__(model_id, monotonic)
+        super().__init__(model_id, monotonic, reasoning_effort)
         self._acknowledge = Agent(
             model,
             output_type=NativeOutput(schemas.AcknowledgmentOutput),
@@ -321,22 +342,36 @@ def _build_provider(
     return OpenRouterProvider(openai_client=client)
 
 
+@dataclass(frozen=True, slots=True)
+class OpenRouterRole:
+    """One role's model id and its reasoning effort; no effort keeps the default."""
+
+    model_id: str
+    reasoning_effort: ReasoningEffort | None = None
+
+
 def build_openrouter_models(
     api_key: str,
-    model_ids: tuple[str, str],
+    roles: tuple[OpenRouterRole, OpenRouterRole],
     resources: ResourceClosers,
     *,
     app_title: str,
     monotonic: Callable[[], float] = system_monotonic,
 ) -> tuple[OpenRouterPartnerModel, OpenRouterCoachModel]:
-    """Select two model ids over one provider without making a network request."""
+    """Select the Partner's and the Coach's roles over one provider, without a request."""
     provider = _build_provider(api_key, resources, app_title)
-    partner_id, coach_id = model_ids
+    partner_role, coach_role = roles
     return (
         OpenRouterPartnerModel(
-            partner_id, OpenRouterModel(partner_id, provider=provider), monotonic
+            partner_role.model_id,
+            OpenRouterModel(partner_role.model_id, provider=provider),
+            monotonic,
+            reasoning_effort=partner_role.reasoning_effort,
         ),
         OpenRouterCoachModel(
-            coach_id, OpenRouterModel(coach_id, provider=provider), monotonic
+            coach_role.model_id,
+            OpenRouterModel(coach_role.model_id, provider=provider),
+            monotonic,
+            reasoning_effort=coach_role.reasoning_effort,
         ),
     )

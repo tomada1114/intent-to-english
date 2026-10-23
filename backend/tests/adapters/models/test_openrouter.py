@@ -16,6 +16,7 @@ from pydantic_ai.usage import RequestUsage
 from intent_to_english.adapters.models import openrouter, prompts
 from intent_to_english.adapters.models.openrouter import (
     OpenRouterPartnerModel,
+    OpenRouterRole,
     build_openrouter_models,
 )
 from intent_to_english.api.app import APP_TITLE
@@ -201,7 +202,10 @@ async def wire(monkeypatch):
     ticks = iter((2.0, 2.25))
     state.adapter, state.coach = build_openrouter_models(
         "explicit-key",
-        ("anthropic/claude-haiku-5.5", "anthropic/claude-sonnet-5.5"),
+        (
+            OpenRouterRole("anthropic/claude-haiku-5.5"),
+            OpenRouterRole("anthropic/claude-sonnet-5.5"),
+        ),
         resources,
         app_title=APP_TITLE,
         monotonic=lambda: next(ticks),
@@ -246,6 +250,59 @@ async def test_builder_pins_client_attribution_native_output_and_disposal(wire):
     assert not state.client.is_closed()
     await resources.drain(None, None, None)
     assert state.client.is_closed()
+
+
+async def test_role_reasoning_effort_reaches_only_its_own_requests(monkeypatch):
+    sent: list[dict[str, object]] = []
+
+    async def respond(request):
+        sent.append(json.loads(request.content))
+        return httpx2.Response(
+            200,
+            json={
+                "id": "test-completion",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "test",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": '{"line":"Nice! What did you do?"}',
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        )
+
+    http_client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
+    monkeypatch.setattr(
+        openrouter,
+        "AsyncOpenAI",
+        lambda **kwargs: AsyncOpenAI(**kwargs, http_client=http_client),
+    )
+    resources = ResourceClosers()
+    partner_model, coach_model = build_openrouter_models(
+        "explicit-key",
+        (
+            OpenRouterRole("anthropic/claude-haiku-5.5"),
+            OpenRouterRole("anthropic/claude-sonnet-5.5", "low"),
+        ),
+        resources,
+        app_title=APP_TITLE,
+    )
+    resources.seal()
+
+    with override_allow_model_requests(True):
+        await partner_model.open(partner.OpenRequest(None))
+        await coach_model.acknowledge(coaching.AcknowledgeRequest("散歩した", ()))
+    await resources.drain(None, None, None)
+
+    assert not {"reasoning", "reasoning_effort"} & sent[0].keys()
+    assert sent[1]["reasoning"] == {"effort": "low"}
+    assert "reasoning_effort" not in sent[1]
 
 
 @pytest.mark.parametrize(

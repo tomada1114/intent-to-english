@@ -79,6 +79,35 @@ def test_settings_model_ids_default_accept_a_value_and_reject_whitespace(
         Settings()
 
 
+@pytest.mark.parametrize(
+    "field", ["coach_reasoning_effort", "partner_reasoning_effort"]
+)
+def test_settings_reasoning_effort_defaults_to_unset_and_accepts_provider_levels(
+    monkeypatch, field
+):
+    variable = f"INTENT_TO_ENGLISH_{field.upper()}"
+    assert getattr(Settings(), field) is None
+    monkeypatch.setenv(variable, "")
+    assert getattr(Settings(), field) is None
+    for level in ("xhigh", "high", "medium", "low", "minimal", "none"):
+        monkeypatch.setenv(variable, level)
+        assert getattr(Settings(), field) == level
+    monkeypatch.setenv(variable, " Low ")
+    assert getattr(Settings(), field) == "low"
+
+
+@pytest.mark.parametrize(
+    "field", ["coach_reasoning_effort", "partner_reasoning_effort"]
+)
+def test_settings_unknown_reasoning_effort_is_rejected_naming_its_variable(
+    monkeypatch, field
+):
+    variable = f"INTENT_TO_ENGLISH_{field.upper()}"
+    monkeypatch.setenv(variable, "max")
+    with pytest.raises(ValidationError, match=variable):
+        Settings()
+
+
 @pytest.mark.parametrize("value", ["", "INFO", "info", "DEBUG", "warning", "ERROR"])
 def test_settings_log_level_normalizes_or_defaults(monkeypatch, value):
     monkeypatch.setenv("INTENT_TO_ENGLISH_LOG_LEVEL", value)

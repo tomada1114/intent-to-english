@@ -71,6 +71,8 @@ def isolated_settings(database_url: str) -> Settings:
         model_mode="fixed",
         coach_model=DEFAULT_COACH_MODEL,
         partner_model=DEFAULT_PARTNER_MODEL,
+        coach_reasoning_effort=None,
+        partner_reasoning_effort=None,
     )
 
 

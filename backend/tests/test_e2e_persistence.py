@@ -47,6 +47,8 @@ E2E_VALUES: dict[str, object] = {
     "model_mode": "fixed",
     "coach_model": "anthropic/claude-sonnet-5.5",
     "partner_model": "anthropic/claude-haiku-5.5",
+    "coach_reasoning_effort": None,
+    "partner_reasoning_effort": None,
 }
 
 pytestmark = pytest.mark.anyio
@@ -249,6 +251,8 @@ def test_verifier_settings_outrank_environment_and_dotenv(
         "INTENT_TO_ENGLISH_MODEL_MODE": "auto",
         "INTENT_TO_ENGLISH_COACH_MODEL": "hostile/coach",
         "INTENT_TO_ENGLISH_PARTNER_MODEL": "hostile/partner",
+        "INTENT_TO_ENGLISH_COACH_REASONING_EFFORT": "xhigh",
+        "INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT": "xhigh",
     }
     dotenv = tmp_path / "scratch.env"
     dotenv.write_text(

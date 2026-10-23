@@ -139,6 +139,8 @@ unprefixed keys other than the declared provider-key alias are ignored.
 | `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. `auto` with a key selects OpenRouter for both roles; `fixed` always uses offline responses. |
 | `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | The configured Coach model id; empty keeps the default, whitespace-only is rejected. |
 | `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | The configured Partner model id; empty keeps the default, whitespace-only is rejected. |
+| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT` | unset | The Coach's OpenRouter reasoning effort: `xhigh`, `high`, `medium`, `low`, `minimal`, or `none`, case-insensitive. Unset or empty sends no effort, so the model's default thinking applies; any other value is rejected at startup. |
+| `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | unset | The Partner's reasoning effort, read the same way. |
 
 To use live models, set `OPENROUTER_API_KEY` in the process environment or in the
 local, gitignored `backend/.env`, and leave `INTENT_TO_ENGLISH_MODEL_MODE=auto`.

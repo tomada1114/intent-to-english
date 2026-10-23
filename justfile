@@ -306,7 +306,7 @@ e2e *ARGS:
     export E2E_DATABASE_URL="sqlite+aiosqlite:///$tmp/e2e.db" E2E_API_PORT="$api" E2E_WEB_PORT="$web"
     export JUST={{ quote(just_executable()) }}
     export INTENT_TO_ENGLISH_DATABASE_URL="$E2E_DATABASE_URL" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL=INFO INTENT_TO_ENGLISH_LOG_FORMAT=text
-    export OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL=anthropic/claude-sonnet-5.5 INTENT_TO_ENGLISH_PARTNER_MODEL=anthropic/claude-haiku-5.5
+    export OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL=anthropic/claude-sonnet-5.5 INTENT_TO_ENGLISH_PARTNER_MODEL=anthropic/claude-haiku-5.5 INTENT_TO_ENGLISH_COACH_REASONING_EFFORT= INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT=
     pnpm --dir e2e run typecheck || finish "$?"
     set -m
     pnpm --dir e2e exec playwright test "$@" </dev/null &
