@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -8,22 +7,13 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  cancelSessionActionMutation,
-  performSessionActionMutation,
-} from "../../api/generated/@tanstack/react-query.gen";
-import type { Action, SessionResponse } from "../../api/generated/types.gen";
+import type { Action } from "../../api/generated/types.gen";
 import { Banner } from "../../lib/Banner";
-import { settleAfterMinimum, useDelayedLoading } from "../../lib/delayed-loading";
+import { useDelayedLoading } from "../../lib/delayed-loading";
 import { formatStart } from "../../lib/format";
 import { HeaderItems } from "../../lib/HeaderItems";
-import { type ApiError, toApiError } from "../../lib/problem-details";
-import { useServerStatus } from "../../lib/ServerStatus";
-import {
-  modelFailureReason,
-  SUBMISSION_POLL_MS,
-  submissionPending,
-} from "../../lib/submission";
+import type { ApiError } from "../../lib/problem-details";
+import { modelFailureReason } from "../../lib/submission";
 import {
   COACH_ENGLISH,
   ENTER,
@@ -46,17 +36,15 @@ import {
 import {
   type ActionInput,
   type Control,
-  hasMatchingSubmission,
-  hasRecordedInput,
   lineBeingAnswered,
   paneFor,
   previousTurnLine,
   restoredFields,
   type SessionView,
-  sessionQueryOptions,
   stageUi,
   toActionInput,
 } from "./session";
+import { type SessionActionEvent, useSessionActions } from "./useSessionActions";
 
 /** Actions whose text is the composer's: a success clears it, nothing else does. */
 const COMPOSER_ACTIONS: ReadonlySet<Action> = new Set([
@@ -76,20 +64,6 @@ const LONG_WAIT = "時間がかかっています（最大2分）";
 const CANCELLED = "中止しました。";
 const STALE = "別の画面でこの会話が進みました。最新の状態を読み込みました。";
 
-/** Conflicts that mean the shown view is out of date: read it again, then say so. */
-const STALE_CODES: ReadonlySet<string> = new Set([
-  "stale_session",
-  "action_in_progress",
-  "action_not_allowed",
-]);
-
-/** The keys this screen reports a request with no response under. */
-const UNANSWERED = {
-  action: "session-action",
-  cancel: "session-cancel",
-  end: "session-end",
-};
-
 const HOW_TO = [
   "1. 返したいことを、まず日本語で送ってください",
   "2. それを自分で英語にしてみてください（途中まででOK。詰まったら「ヒント」）",
@@ -98,20 +72,6 @@ const HOW_TO = [
 ];
 
 type Tab = "conversation" | "coach";
-
-/** One request this tab is waiting for. */
-interface Attempt {
-  id: number;
-  input: ActionInput;
-  /** The version the action answers, which a cancel names. */
-  version: number;
-  /** Last timeline entry before this send, excluding older identical input. */
-  afterSeq: number;
-  /** The stored record before this send cannot prove this request arrived. */
-  storedKey: string | null;
-  /** [中止] was pressed and its 204 has not arrived yet. */
-  cancelling: boolean;
-}
 
 /** How the last action this tab sent (or cancelled) ended, while it matters. */
 type Outcome =
@@ -176,9 +136,6 @@ export function ConversationScreen({
   /** Above both panes: the route's banner when reading the session again failed. */
   notice?: ReactNode;
 }) {
-  const queryClient = useQueryClient();
-  const sessionKey = sessionQueryOptions(view.id).queryKey;
-  const status = useServerStatus();
   const wide = useWideLayout();
   const ids = useId();
   const [tab, setTab] = useState<Tab>("coach");
@@ -222,16 +179,7 @@ export function ConversationScreen({
 
   /** A past turn the learner selected on the left, shown read-only on the right. */
   const [pastTurn, setPastTurn] = useState<number | null>(null);
-  const [attempt, setAttemptState] = useState<Attempt | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [endError, setEndError] = useState<ApiError | null>(null);
-  /** The stored submission this tab has since sent over or cancelled. */
-  const [settledKey, setSettledKey] = useState<string | null>(null);
-  /** Counts cleared markers: a stored wait's clock restarts for each new one. */
-  const [storedRound, setStoredRound] = useState(0);
-  const [cancellingStored, setCancellingStored] = useState<string | null>(null);
-  /** The last action got no response: the layout's [再試行] is its way on. */
-  const [unanswered, setUnanswered] = useState<Attempt | null>(null);
   const backToTurnRef = useRef<HTMLButtonElement>(null);
   /** Where focus goes once the next render is shown, as a control goes away. */
   const focusAfterPast = useRef<"back" | "composer" | "gap" | "again" | null>(null);
@@ -246,151 +194,18 @@ export function ConversationScreen({
     conversation: null,
     coach: null,
   });
-  // The request being waited for, read by settling requests: a second send can
-  // arrive before React renders the disabled state, and a cancelled or
-  // superseded request's late answer must find it gone.
-  const attemptRef = useRef<Attempt | null>(null);
-  const receivedAttempt = useRef<Attempt | null>(null);
-  const attempts = useRef(0);
   const autoSent = useRef<number | null>(null);
-  const ending = useRef(false);
-  /** The version of a result that should take focus once it is shown. */
   const focusOnResult = useRef<number | null>(null);
   const focusHintButton = useRef(false);
-  const latestVersion = useRef(view.version);
-  const stored = view.last_submission;
-  const storedKey =
-    stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
-  const settleSideAfterRead = useEffectEvent((input: ActionInput) =>
-    settleSideInput(input),
-  );
 
-  // A later read can prove that a request whose response was lost did land.
-  // Drop its retry before it can resend old input at the newer stage.
-  useEffect(() => {
-    if (unanswered === null) return;
-    const advanced = view.version > unanswered.version;
-    if (
-      !advanced &&
-      (storedKey === unanswered.storedKey ||
-        !hasMatchingSubmission(view.last_submission, unanswered.input))
-    )
-      return;
-    const input = unanswered.input;
-    if (!advanced && view.last_submission?.state === "pending")
-      receivedAttempt.current = unanswered;
-    setUnanswered(null);
-    status.resolve(UNANSWERED.action);
-    const consumed = hasRecordedInput(view, input, unanswered.afterSeq);
-    if (consumed && COMPOSER_ACTIONS.has(input.action) && "text" in input) {
-      // The learner may have edited the now-enabled field since the failure.
-      setText((current) => (current === input.text ? "" : current));
-    }
-    if (consumed && input.action === "hint") {
-      setGap((current) => (current === input.gap ? "" : current));
-      if (gap === input.gap) setHintOpen(false);
-    }
-    if (consumed) settleSideAfterRead(input);
-    focusOnResult.current = view.version;
-  }, [unanswered, view, status, gap, storedKey]);
-
-  /** Whether the request `id` is still the one being waited for. */
-  function waitingFor(id: number) {
-    return attemptRef.current?.id === id;
-  }
-
-  function setAttempt(next: Attempt | null) {
-    attemptRef.current = next;
-    setAttemptState(next);
-  }
-
-  const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
-  // The marker holds only while the view still shows that submission: a later
-  // one with the same version, action, and state is another submission.
-  useEffect(() => {
-    if (settledKey !== null && storedKey !== settledKey) setSettledKey(null);
-  }, [settledKey, storedKey]);
-  // A submission the server still runs that this tab did not send (a reload,
-  // another tab): wait for it, reading the session every 2 s.
-  const storedPending =
-    attempt === null && storedLive?.state === "pending" ? storedLive : null;
-
-  useQuery({
-    ...sessionQueryOptions(view.id),
-    refetchInterval: (query) =>
-      submissionPending(query.state.data) && attemptRef.current === null
-        ? SUBMISSION_POLL_MS
-        : false,
-  });
-
-  async function writeView(next: SessionResponse) {
-    // A result for an older version (an action an `end` superseded) never
-    // replaces a newer view.
-    queryClient.setQueryData<SessionResponse>(sessionKey, (old) =>
-      old === undefined || next.version >= old.version ? next : old,
-    );
-    await queryClient.invalidateQueries({ queryKey: [{ _id: "listSessions" }] });
-  }
-
-  const readAgain = () => queryClient.invalidateQueries({ queryKey: sessionKey });
-
-  const action = useMutation({
-    ...performSessionActionMutation(),
-    // A read that started before the action must not overwrite its result.
-    onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
-  });
-  const cancelAction = useMutation(cancelSessionActionMutation());
-  const end = useMutation({
-    ...performSessionActionMutation(),
-    onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
-  });
-
-  async function send(input: ActionInput) {
-    if (attemptRef.current !== null) return false;
-    receivedAttempt.current = unanswered;
-    attempts.current += 1;
-    const sent: Attempt = {
-      id: attempts.current,
-      input,
-      version: view.version,
-      afterSeq: view.entries.at(-1)?.seq ?? 0,
-      storedKey,
-      cancelling: false,
-    };
-    setAttempt(sent);
-    setOutcome(null);
-    setSettledKey(storedKey);
-    setUnanswered(null);
-    status.resolve(UNANSWERED.action);
-    let next: SessionResponse;
-    try {
-      // A slow answer waits out the waiting line's 500 ms minimum.
-      next = await settleAfterMinimum(() =>
-        action.mutateAsync({
-          path: { session_id: view.id },
-          body: { ...input, version: sent.version },
-        }),
-      );
-    } catch (error) {
-      if (waitingFor(sent.id)) await fail(sent, toApiError(error));
-      return false;
-    }
-    // Cancelled, or superseded by `end`: the answer is discarded.
-    if (!waitingFor(sent.id)) return false;
-    setAttempt(null);
+  /** Apply one consumption policy to direct success and every recovered completion. */
+  function settleConsumedInput(input: ActionInput) {
     if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
       setText((current) => (current === input.text ? "" : current));
     if (input.action === "hint") {
       setGap((current) => (current === input.gap ? "" : current));
       if (gap === input.gap) setHintOpen(false);
     }
-    settleSideInput(input);
-    focusOnResult.current = next.version;
-    await writeView(next);
-    return true;
-  }
-
-  function settleSideInput(input: ActionInput) {
     if (input.action === "rewrite_intent" && rewriteText === input.text)
       setRewriting(false);
     if (input.action === "practice_again" && practiceText === input.text) {
@@ -400,6 +215,42 @@ export function ConversationScreen({
     if (input.action === "ask" && questionText === input.text) {
       setQuestionText("");
       setQuestionOpen(false);
+    }
+  }
+
+  function restoreInput(input: ActionInput, mode: "empty" | "cancelled") {
+    if (mode === "cancelled") {
+      if ("text" in input) {
+        if (input.action === "rewrite_intent") setRewriteText(input.text);
+        else if (input.action === "practice_again") setPracticeText(input.text);
+        else if (COMPOSER_ACTIONS.has(input.action)) setText(input.text);
+      }
+      if (input.action === "hint") {
+        setGap(input.gap);
+        setHintOpen(true);
+      }
+      return;
+    }
+    if ("text" in input) {
+      const restored = input.text;
+      if (input.action === "ask") {
+        setQuestionText((current) => (current === "" ? restored : current));
+        setQuestionOpen(true);
+      } else if (input.action === "rewrite_intent") {
+        setRewriteText((current) => (current === "" ? restored : current));
+        setRewriting(true);
+        setPracticeOpen(false);
+      } else if (input.action === "practice_again") {
+        setPracticeText((current) => (current === "" ? restored : current));
+        setPracticeOpen(true);
+        setRewriting(false);
+      } else {
+        setText((current) => (current === "" ? restored : current));
+      }
+    }
+    if (input.action === "hint") {
+      setText((current) => (current === "" ? (input.partial_english ?? "") : current));
+      setGap((current) => (current === "" ? input.gap : current));
     }
   }
 
@@ -420,283 +271,86 @@ export function ConversationScreen({
     );
   }
 
-  async function fail(sent: Attempt, error: ApiError) {
-    const code = error.kind === "problem" ? error.code : undefined;
-    if (code === "action_cancelled") {
-      // Ours: the cancel's 204 finishes it. Another tab's: read what it did.
-      if (attemptRef.current?.cancelling === true) return;
-      setAttempt(null);
-      await readAgain();
-      return;
-    }
-    setAttempt(null);
-    if (error.kind === "unknown") {
-      setUnanswered(sent);
-      status.report(UNANSWERED.action, () => void latest.current.send(sent.input));
-      return;
-    }
-    if (code !== undefined && STALE_CODES.has(code)) {
-      await readAgain();
-      if (canRestoreRequestFocus()) focusAfterPast.current = "composer";
-      setOutcome({ kind: "stale" });
-      return;
-    }
-    if (code === "session_ended") {
-      await readAgain();
-      return;
-    }
+  function showFailure(input: ActionInput, error: ApiError) {
+    if (error.kind !== "problem") return;
+    const code = error.code;
     const field =
-      sent.input.action === "ask"
+      input.action === "ask"
         ? "question"
-        : sent.input.action === "rewrite_intent"
+        : input.action === "rewrite_intent"
           ? "rewrite"
-          : sent.input.action === "practice_again"
+          : input.action === "practice_again"
             ? "practice"
-            : sent.input.action === "hint"
+            : input.action === "hint"
               ? "gap"
-              : COMPOSER_ACTIONS.has(sent.input.action)
+              : COMPOSER_ACTIONS.has(input.action)
                 ? "text"
                 : null;
     const message =
       error.status === 422 && field !== null
         ? fieldMessage(error, field === "gap" ? "gap" : "text")
         : undefined;
-    const partnerFailure =
-      sent.input.action === "open" || sent.input.action === "partner_reply";
+    const partnerFailure = input.action === "open" || input.action === "partner_reply";
     const restore = canRestoreRequestFocus() && !partnerFailure;
     focusAfterPast.current =
       restore && field !== "question" ? (field === "gap" ? "gap" : "composer") : null;
     setOutcome(
       field !== null && message !== undefined
         ? { kind: "invalid", field, message }
-        : { kind: "failed", input: sent.input, code },
+        : { kind: "failed", input, code },
     );
   }
 
-  async function cancel() {
-    const current = attemptRef.current;
-    if (current !== null) {
-      if (current.cancelling) return;
-      setAttempt({ ...current, cancelling: true });
-      try {
-        await cancelAction.mutateAsync({
-          path: { session_id: view.id },
-          body: { version: current.version },
-        });
-      } catch (error) {
-        const now = attemptRef.current;
-        if (now?.id !== current.id) return;
-        setAttempt({ ...now, cancelling: false });
-        if (toApiError(error).kind === "unknown") {
-          status.report(UNANSWERED.cancel, () => void latest.current.cancel());
-        }
-        return;
-      }
-      // The result came first and is shown: nothing was cancelled.
-      if (!waitingFor(current.id)) return;
-      focusAfterCancel();
-      setAttempt(null);
-      setOutcome({ kind: "cancelled", action: current.input.action });
-      return;
-    }
-    const pending = storedPending;
-    if (pending === null || cancellingStored === storedKey) return;
-    const version = view.version;
-    setCancellingStored(storedKey);
-    try {
-      await cancelAction.mutateAsync({
-        path: { session_id: view.id },
-        body: { version },
-      });
-    } catch (error) {
-      setCancellingStored(null);
-      if (toApiError(error).kind === "unknown") {
-        status.report(UNANSWERED.cancel, () => void latest.current.cancel());
-      }
-      return;
-    }
-    setCancellingStored(null);
-    // The stored result arrived first and is shown: nothing was cancelled.
-    if (latestVersion.current !== version) return;
-    focusAfterCancel();
-    setSettledKey(storedKey);
-    const fields = restoredFields(pending.input);
-    if (fields.text !== undefined) {
-      if (pending.action === "rewrite_intent") setRewriteText(fields.text);
-      else if (pending.action === "practice_again") setPracticeText(fields.text);
-      else if (COMPOSER_ACTIONS.has(pending.action)) setText(fields.text);
-    }
-    if (fields.gap !== undefined) {
-      setGap(fields.gap);
-      setHintOpen(true);
-    }
-    setOutcome({ kind: "cancelled", action: pending.action });
-    const asked = Date.now();
-    await readAgain();
-    // The server cancelled before its 204, so a pending submission this read
-    // shows is a new one, even at the same version and action: wait for it.
-    const read = queryClient.getQueryState(sessionKey);
-    if (read?.status === "success" && read.dataUpdatedAt >= asked) {
-      setSettledKey(null);
-      setStoredRound((round) => round + 1);
-    }
-  }
-
-  /** [中止] goes away: focus the way on, never the document body. */
-  function focusAfterCancel() {
-    focusAfterPast.current = autoAction !== null ? "again" : "composer";
-  }
-
-  async function endSession() {
-    if (ending.current) return;
-    ending.current = true;
-    if (endError !== null)
-      (backToTurnRef.current ?? coachHeadingRef.current)?.focus({
-        preventScroll: true,
-      });
-    setEndError(null);
-    status.resolve(UNANSWERED.end);
-    try {
-      const next = await end.mutateAsync({
-        path: { session_id: view.id },
-        body: { action: "end", version: view.version },
-      });
-      // Ending supersedes the request in flight: its answer is discarded.
-      setAttempt(null);
-      setOutcome(null);
-      await writeView(next);
-    } catch (caught) {
-      const error = toApiError(caught);
-      const code = error.kind === "problem" ? error.code : undefined;
-      if (error.kind === "unknown") {
-        status.report(UNANSWERED.end, () => void latest.current.endSession());
-      } else if (code !== undefined && STALE_CODES.has(code)) {
-        await readAgain();
+  function onSessionEvent(event: SessionActionEvent) {
+    switch (event.kind) {
+      case "started":
+        setOutcome(null);
+        break;
+      case "consumed":
+        settleConsumedInput(event.input);
+        focusOnResult.current = event.version;
+        break;
+      case "result":
+        focusOnResult.current = event.version;
+        break;
+      case "restore":
+        restoreInput(event.input, event.mode);
+        break;
+      case "failed":
+        showFailure(event.input, event.error);
+        break;
+      case "cancelled":
+        focusAfterPast.current = autoAction !== null ? "again" : "composer";
+        setOutcome({ kind: "cancelled", action: event.action });
+        break;
+      case "stale":
+        if (event.restoreFocus && canRestoreRequestFocus())
+          focusAfterPast.current = "composer";
         setOutcome({ kind: "stale" });
-      } else if (code === "session_ended") {
-        await readAgain();
-      } else {
-        setEndError(error);
-      }
-    } finally {
-      ending.current = false;
+        break;
+      case "ending":
+        if (event.retry)
+          (backToTurnRef.current ?? coachHeadingRef.current)?.focus({
+            preventScroll: true,
+          });
+        break;
     }
   }
 
-  // What a retry from the layout's banner calls: this render's functions,
-  // which send at the version shown then.
-  const latest = useRef({ send, cancel, endSession });
-  useEffect(() => {
-    latest.current = { send, cancel, endSession };
-    latestVersion.current = view.version;
-  });
-  useEffect(
-    () => () => {
-      for (const key of Object.values(UNANSWERED)) status.resolve(key);
-    },
-    [status],
-  );
-
-  // A stored submission that appears later (a polled one settling failed or
-  // interrupted, another tab's) puts its text back too, unless the learner has
-  // typed since. A pending one this tab waited for that completes is a result
-  // like this tab's own: its text is cleared and the composer takes focus.
-  const watched = useRef({
-    key: storedKey,
-    version: view.version,
-    pending: stored,
-    afterSeq: view.entries.at(-1)?.seq ?? 0,
-  });
-  const followStored = useEffectEvent(() => {
-    const before = watched.current;
-    watched.current = {
-      key: storedKey,
-      version: view.version,
-      pending: stored,
-      afterSeq: view.entries.at(-1)?.seq ?? 0,
-    };
-    const received = receivedAttempt.current;
-    if (received !== null && view.version > received.version) {
-      receivedAttempt.current = null;
-      const input = received.input;
-      if (hasRecordedInput(view, input, received.afterSeq)) {
-        if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
-          setText((current) => (current === input.text ? "" : current));
-        if (input.action === "hint") {
-          setGap((current) => (current === input.gap ? "" : current));
-          if (gap === input.gap) setHintOpen(false);
-        }
-        settleSideInput(input);
-        focusOnResult.current = view.version;
-      }
-    }
-    if (before.key === storedKey) return;
-    const completed =
-      before.pending?.state === "pending" &&
-      view.last_submission === null &&
-      view.version > before.version;
-    if (completed && before.pending !== null) {
-      const input =
-        received !== null &&
-        received.version === before.version &&
-        hasMatchingSubmission(before.pending, received.input)
-          ? received.input
-          : toActionInput(before.pending);
-      receivedAttempt.current = null;
-      if (hasRecordedInput(view, input, before.afterSeq)) {
-        if (COMPOSER_ACTIONS.has(input.action) && "text" in input)
-          setText((current) => (current === input.text ? "" : current));
-        if (input.action === "hint") {
-          setGap((current) => (current === input.gap ? "" : current));
-          if (gap === input.gap) setHintOpen(false);
-        }
-        settleSideInput(input);
-      }
-      focusOnResult.current = view.version;
-      return;
-    }
-    if (storedLive !== null && "text" in storedLive.input) {
-      const restored = storedLive.input.text;
-      if (storedLive.action === "ask") {
-        setQuestionText((current) => (current === "" ? restored : current));
-        setQuestionOpen(true);
-      }
-      if (storedLive.action === "rewrite_intent") {
-        setRewriteText((current) => (current === "" ? restored : current));
-        setRewriting(true);
-        setPracticeOpen(false);
-      }
-      if (storedLive.action === "practice_again") {
-        setPracticeText((current) => (current === "" ? restored : current));
-        setPracticeOpen(true);
-        setRewriting(false);
-      }
-    }
-    const fields = restoredFrom(view);
-    if (fields.text !== undefined) {
-      const restored = fields.text;
-      setText((previous) => (previous === "" ? restored : previous));
-    }
-    if (fields.gap !== undefined) {
-      const restored = fields.gap;
-      setGap((previous) => (previous === "" ? restored : previous));
-    }
-  });
-  useEffect(() => {
-    const before = watched.current;
-    if (before.key === storedKey && before.version === view.version) return;
-    followStored();
-  }, [storedKey, view.version]);
-
-  const waitingAction = attempt?.input.action ?? storedPending?.action;
-  const busy = waitingAction !== undefined;
+  const {
+    send,
+    cancel,
+    endSession,
+    endError,
+    endPending,
+    storedLive,
+    unanswered,
+    waitingAction,
+    busy,
+    waitKey,
+    cancelling,
+  } = useSessionActions(view, onSessionEvent);
   const waitingPane = waitingAction === undefined ? null : paneFor(waitingAction);
-  const waitKey =
-    attempt !== null
-      ? `sent:${attempt.id}`
-      : storedPending !== null
-        ? `stored:${storedRound}:${storedKey}`
-        : null;
   const lineShown = useDelayedLoading(busy) && busy;
   useEffect(() => {
     if (!busy) return;
@@ -721,14 +375,7 @@ export function ConversationScreen({
       cancelled = true;
     };
   }, [busy, waitingPane, wide, tab]);
-  // Nothing left to cancel: a cancel that got no response needs no 再試行.
-  useEffect(() => {
-    if (!busy) status.resolve(UNANSWERED.cancel);
-  }, [busy, status]);
   const longWait = useAfter(waitKey, LONG_WAIT_MS);
-  const cancelling =
-    attempt?.cancelling === true ||
-    (storedPending !== null && cancellingStored === storedKey);
   const ended = view.status === "ended";
 
   const autoSend = useEffectEvent((auto: "open" | "partner_reply") => {
@@ -1024,7 +671,7 @@ export function ConversationScreen({
           action={{
             label: "もう一度",
             onClick: () => void endSession(),
-            disabled: end.isPending,
+            disabled: endPending,
           }}
         />
       )}
@@ -1313,7 +960,7 @@ export function ConversationScreen({
         </span>
         {view.allowed_actions.includes("end") && (
           <span className="ml-auto shrink-0">
-            <EndSession ending={end.isPending} onEnd={() => void endSession()} />
+            <EndSession ending={endPending} onEnd={() => void endSession()} />
           </span>
         )}
       </HeaderItems>
