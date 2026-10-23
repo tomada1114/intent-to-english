@@ -69,6 +69,8 @@ export function settingsEnvironment(databaseUrl: string): Record<string, string>
     INTENT_TO_ENGLISH_MODEL_MODE: "fixed",
     INTENT_TO_ENGLISH_COACH_MODEL: "anthropic/claude-sonnet-5.5",
     INTENT_TO_ENGLISH_PARTNER_MODEL: "anthropic/claude-haiku-5.5",
+    INTENT_TO_ENGLISH_COACH_REASONING_EFFORT: "",
+    INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT: "",
   };
 }
 

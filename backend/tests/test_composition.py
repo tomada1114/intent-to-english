@@ -748,6 +748,32 @@ async def test_container_registration_after_ownership_transfer_rejected(make_con
     await container.aclose()
 
 
+async def test_auto_mode_hands_each_role_its_reasoning_effort(monkeypatch):
+    received = []
+    build = openrouter.build_openrouter_models
+
+    def record(api_key, roles, *args, **kwargs):
+        received.append(roles)
+        return build(api_key, roles, *args, **kwargs)
+
+    monkeypatch.setattr(composition, "build_openrouter_models", record)
+    settings = Settings(
+        OPENROUTER_API_KEY=SecretStr("dummy-key"),
+        partner_reasoning_effort="none",
+        coach_reasoning_effort="low",
+    )
+
+    container = build_container(settings)
+    await container.aclose()
+
+    assert received == [
+        (
+            openrouter.OpenRouterRole("anthropic/claude-haiku-5.5", "none"),
+            openrouter.OpenRouterRole("anthropic/claude-sonnet-5.5", "low"),
+        )
+    ]
+
+
 async def test_auto_mode_with_key_builds_both_live_ports_and_closes_one_client(
     monkeypatch,
 ):

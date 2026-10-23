@@ -41,6 +41,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         model_mode="fixed",
         coach_model=DEFAULT_COACH_MODEL,
         partner_model=DEFAULT_PARTNER_MODEL,
+        coach_reasoning_effort=None,
+        partner_reasoning_effort=None,
     )
     # A supplied, resource-free memory container avoids the factory's logging
     # configuration. Neither construction nor openapi() enters lifespan.

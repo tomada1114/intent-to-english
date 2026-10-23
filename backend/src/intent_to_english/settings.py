@@ -32,6 +32,9 @@ SQLITE_DRIVER_OPTIONS = frozenset(
         "cached_statements",
     }
 )
+# OpenRouter's reasoning effort levels, matched by the adapter's ReasoningEffort.
+REASONING_EFFORTS = ("xhigh", "high", "medium", "low", "minimal", "none")
+type ReasoningEffort = Literal["xhigh", "high", "medium", "low", "minimal", "none"]
 SQLITE_TRUE_VALUES = frozenset({"true", "yes", "on", "y", "t", "1"})
 CORS_ORIGIN_PATTERN = re.compile(r"^https?://[^/\s?#]+$")
 
@@ -60,6 +63,10 @@ class Settings(BaseSettings):
             is set and fixed responses otherwise.
         coach_model: The Coach model id, defaulting when empty.
         partner_model: The Partner model id, defaulting when empty.
+        coach_reasoning_effort: The Coach's OpenRouter reasoning effort, one of
+            xhigh, high, medium, low, minimal or none, case-insensitive; unset or
+            blank sends none and leaves the provider's default.
+        partner_reasoning_effort: The Partner's reasoning effort, read the same way.
     """
 
     model_config = SettingsConfigDict(
@@ -83,6 +90,8 @@ class Settings(BaseSettings):
     model_mode: Literal["auto", "fixed"] = "auto"
     coach_model: str = DEFAULT_COACH_MODEL
     partner_model: str = DEFAULT_PARTNER_MODEL
+    coach_reasoning_effort: ReasoningEffort | None = None
+    partner_reasoning_effort: ReasoningEffort | None = None
 
     @field_validator("openrouter_api_key", mode="before")
     @classmethod
@@ -108,6 +117,18 @@ class Settings(BaseSettings):
     def _parse_partner_model(cls, value: object) -> object:
         """Default an empty id and name the variable for whitespace-only input."""
         return _model_id(value, DEFAULT_PARTNER_MODEL, f"{ENV_PREFIX}PARTNER_MODEL")
+
+    @field_validator("coach_reasoning_effort", mode="before")
+    @classmethod
+    def _parse_coach_reasoning_effort(cls, value: object) -> object:
+        """Keep a blank effort unset and name the variable for an unknown level."""
+        return _reasoning_effort(value, f"{ENV_PREFIX}COACH_REASONING_EFFORT")
+
+    @field_validator("partner_reasoning_effort", mode="before")
+    @classmethod
+    def _parse_partner_reasoning_effort(cls, value: object) -> object:
+        """Keep a blank effort unset and name the variable for an unknown level."""
+        return _reasoning_effort(value, f"{ENV_PREFIX}PARTNER_REASONING_EFFORT")
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -190,6 +211,23 @@ def _model_id(value: object, default: str, variable: str) -> object:
         msg = f"{variable} must not contain only whitespace"
         raise ValueError(msg)
     return value
+
+
+def _reasoning_effort(value: object, variable: str) -> object:
+    """Normalize an effort level, with blank meaning the provider's default.
+
+    Raises:
+        ValueError: If the value is not one of OpenRouter's effort levels.
+    """
+    if not isinstance(value, str):
+        return value
+    level = value.strip().lower()
+    if not level:
+        return None
+    if level not in REASONING_EFFORTS:
+        msg = f"{variable} must be one of {', '.join(REASONING_EFFORTS)}"
+        raise ValueError(msg)
+    return level
 
 
 def _check_sqlite_path(url: str, path: str) -> None:

@@ -129,11 +129,12 @@ live practice behave alike (§ Decisions › "Checks and the one repair live in 
 | `OPENROUTER_API_KEY` | unprefixed, through a validation alias, as a secret; unset or blank means no key |
 | `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` with a key selects OpenRouter for both roles; `fixed` always selects fixed adapters |
 | `INTENT_TO_ENGLISH_COACH_MODEL`, `INTENT_TO_ENGLISH_PARTNER_MODEL` | OpenRouter model ids, checked only to be non-empty |
+| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT`, `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | one of OpenRouter's effort levels (`xhigh`, `high`, `medium`, `low`, `minimal`, `none`), case-insensitive; unset or blank sends no effort |
 
 Defaults and reasons are § Decisions › "Keys, models, and the mode". `composition.py`
 selects both OpenRouter roles in auto with a key, otherwise both fixed roles;
 `GET /api/meta` reports that selection. The README's configuration table
-lists all four (**REQUIRED:** `updating-docs`). How a setting is validated and isolated
+lists all six (**REQUIRED:** `updating-docs`). How a setting is validated and isolated
 in tests: **REQUIRED:** `designing-core-logic`'s "Settings are read once, at the boundary".
 
 ## Testing without a live call
@@ -167,7 +168,8 @@ enter a model request. The 16 seeds are tested on fixed ports without a quality 
 `just backend eval` is billed and human-run: it uses `Container.models`, the shared
 task runner and one repair, with memory storage and owned cleanup. It refuses fixed
 mode and existing report paths or invalid README markers before any call. JSON/Markdown reports retain first/final quality rates,
-outcomes, credits, latency, ids, UTC date and revision; missing cost stays empty and
+outcomes, credits, latency, ids, reasoning efforts, UTC date and revision; a set
+effort also names the report pair; missing cost stays empty and
 unobserved content is N/A. Reports are committed and generate the README summary.
 A new expectation joins the tested closed vocabulary in `evaluation/`. The file
 contract and rationale are § Decisions › "Evaluation lives in the repository".

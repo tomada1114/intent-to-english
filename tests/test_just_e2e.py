@@ -114,6 +114,8 @@ E2E_SETTINGS = {
     "INTENT_TO_ENGLISH_MODEL_MODE": "fixed",
     "INTENT_TO_ENGLISH_COACH_MODEL": "anthropic/claude-sonnet-5.5",
     "INTENT_TO_ENGLISH_PARTNER_MODEL": "anthropic/claude-haiku-5.5",
+    "INTENT_TO_ENGLISH_COACH_REASONING_EFFORT": "",
+    "INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT": "",
 }
 HOSTILE = {
     "INTENT_TO_ENGLISH_DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
@@ -128,6 +130,8 @@ HOSTILE = {
     "INTENT_TO_ENGLISH_MODEL_MODE": "auto",
     "INTENT_TO_ENGLISH_COACH_MODEL": "hostile/coach",
     "INTENT_TO_ENGLISH_PARTNER_MODEL": "hostile/partner",
+    "INTENT_TO_ENGLISH_COACH_REASONING_EFFORT": "xhigh",
+    "INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT": "xhigh",
 }
 _DATABASE = re.compile(r"database in (?P<tmp>\S+)")
 _PORTS = re.compile(r"API port (?P<api>\d+), screen port (?P<web>\d+)")
@@ -363,6 +367,8 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
         "model_mode": "fixed",
         "coach_model": "anthropic/claude-sonnet-5.5",
         "partner_model": "anthropic/claude-haiku-5.5",
+        "coach_reasoning_effort": None,
+        "partner_reasoning_effort": None,
     }
 
 

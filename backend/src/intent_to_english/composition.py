@@ -18,7 +18,10 @@ from anyio.lowlevel import checkpoint_if_cancelled
 
 from intent_to_english.adapters.memory import InMemorySessionRepository
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
-from intent_to_english.adapters.models.openrouter import build_openrouter_models
+from intent_to_english.adapters.models.openrouter import (
+    OpenRouterRole,
+    build_openrouter_models,
+)
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.core.services import ConversationService
@@ -250,7 +253,10 @@ def _build_models(
         return ModelPorts(FixedPartnerModel(), FixedCoachModel()), "fixed"
     partner, coach = build_openrouter_models(
         settings.openrouter_api_key.get_secret_value(),
-        (settings.partner_model, settings.coach_model),
+        (
+            OpenRouterRole(settings.partner_model, settings.partner_reasoning_effort),
+            OpenRouterRole(settings.coach_model, settings.coach_reasoning_effort),
+        ),
         resources,
         app_title="Intent to English",
     )
