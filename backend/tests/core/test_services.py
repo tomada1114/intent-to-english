@@ -1858,3 +1858,61 @@ async def test_practice_rejects_a_second_submission_piece_and_repairs_only_once(
     assert len(calls) == 2
     assert tuple(v.check for v in calls[0].call.violations) == (m.CheckId.SCHEMA,)
     assert (await h.repository.get(session.id)).session.turn_state == state
+
+
+@pytest.mark.parametrize("on_attempt", [1, 2], ids=["first", "repair"])
+@pytest.mark.parametrize(
+    ("error", "expected_status", "outcome"),
+    [
+        pytest.param(
+            ModelUnavailableError("test", "model", 5, status=400),
+            400,
+            CallOutcome.PROVIDER_ERROR,
+            id="bad-request",
+        ),
+        pytest.param(
+            ModelRateLimitedError("test", "model", 5, status=429),
+            429,
+            CallOutcome.RATE_LIMITED,
+            id="rate-limit",
+        ),
+        pytest.param(
+            ModelTimeoutError("test", "model", 5),
+            None,
+            CallOutcome.TIMEOUT,
+            id="timeout",
+        ),
+    ],
+)
+async def test_model_error_http_status_reaches_recorded_attempt(
+    error, expected_status, outcome, on_attempt
+):
+    recorded = []
+    calls = 0
+
+    async def call(_request, _repair):
+        nonlocal calls
+        calls += 1
+        if calls < on_attempt:
+            return Parsed(
+                partner.PartnerLine("Why? What?"),
+                Usage("test", "model", None, None, None, 1),
+            )
+        raise error
+
+    async def record(attempt):
+        recorded.append(attempt)
+
+    result = await services.run_model_task(
+        ModelTask.OPEN,
+        call,
+        partner.check_open,
+        partner.OpenRequest(None),
+        record=record,
+    )
+
+    assert result.error is error
+    assert result.attempts == tuple(recorded)
+    assert result.attempts[-1].outcome is outcome
+    assert result.attempts[-1].status == expected_status
+    assert all(attempt.status is None for attempt in result.attempts[:-1])

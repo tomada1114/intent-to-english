@@ -635,3 +635,37 @@ async def test_concurrent_finishes_append_exactly_once(repository, session, subm
     assert len(completed) == 1
     assert len(refused) == 19
     assert (await repository.get(session.id)).session.version == 1
+
+
+@pytest.mark.parametrize(
+    "status",
+    [None, 400, 429, 503],
+    ids=["unreported", "bad-request", "rate-limit", "outage"],
+)
+async def test_model_call_provider_http_status_round_trips(
+    repository, session, submission, nth_id, status
+):
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    record = ModelCallRecord(
+        nth_id(3),
+        session.id,
+        submission.id,
+        1,
+        CallAttempt(
+            ModelRole.PARTNER,
+            ModelTask.OPEN,
+            1,
+            Usage("test", "model", None, None, None, 5),
+            CallOutcome.PROVIDER_ERROR,
+            status=status,
+        ),
+        session.started_at,
+    )
+
+    await repository.record_model_call(record)
+
+    assert await repository.model_calls(session.id) == (record,)
+    assert (await repository.model_calls(session.id))[0].call.status == status
