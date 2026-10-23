@@ -132,12 +132,20 @@ class ModelError(AppError):
 
     code: ClassVar[str] = "model_error"
 
-    def __init__(self, provider: str, model: str, latency_ms: int) -> None:
-        """Preserve the accounting of the failed call, never its payload."""
+    def __init__(
+        self,
+        provider: str,
+        model: str,
+        latency_ms: int,
+        *,
+        status: int | None = None,
+    ) -> None:
+        """Preserve the failed call's accounting and HTTP status, never its payload."""
         super().__init__(provider, model, latency_ms)
         self.provider = provider
         self.model = model
         self.latency_ms = latency_ms
+        self.status = status
 
     def __str__(self) -> str:
         """The stable code is sufficient; provider exceptions stay private."""

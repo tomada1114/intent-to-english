@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from intent_to_english.core import coaching, partner
 from intent_to_english.core import models as m
+from intent_to_english.core.errors import ModelError
 from intent_to_english.core.services import MODEL_TASKS
 from intent_to_english.evaluation.expectations import decide
 from intent_to_english.evaluation.observed import (
@@ -49,6 +50,7 @@ async def run_cases(
                 _expectations(case, observation.outputs[0], first),
                 _expectations(case, observation.outputs[-1], final),
                 run.error.code if run.error else None,
+                run.error.status if isinstance(run.error, ModelError) else None,
             )
         )
     return Report(metadata, tuple(results))
