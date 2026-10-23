@@ -52,7 +52,9 @@ from tests.harness._yaml import (
     Mapping,
     UnreadableYamlError,
     as_mapping,
+    as_sequence,
     as_str,
+    load_yaml,
     scalar,
     source_comment,
 )
@@ -714,3 +716,33 @@ def test_hygiene_findings_action_merge_keys_fail_closed(
 
     with pytest.raises(UnreadableYamlError, match=r"merge keys.*GitHub Actions"):
         hygiene_findings(make_action(text))
+
+
+def test_codeql_paths_cover_authored_code_roots():
+    path = REPO_ROOT / ".github/workflows/codeql.yml"
+    workflow = read_workflow(path)
+    analyze = jobs(workflow, path)["analyze"]
+    (initialize,) = [
+        step
+        for step in steps(analyze, path)
+        if scalar(step.get("uses", "")).startswith("github/codeql-action/init@")
+    ]
+    inputs = as_mapping(initialize["with"], f"{path}: init.with")
+    config = as_mapping(
+        load_yaml(path, text=as_str(inputs["config"], f"{path}: init.config")),
+        f"{path}: config",
+    )
+    paths = {
+        as_str(value, f"{path}: config.paths[]")
+        for value in as_sequence(config["paths"], f"{path}: config.paths")
+    }
+
+    assert paths == {
+        "backend",
+        "frontend",
+        "e2e",
+        "scripts",
+        "tests",
+        ".agents/skills",
+        ".github",
+    }
