@@ -111,8 +111,8 @@ def test_session_tables_have_the_documented_columns_and_nullability():
             {"failure_code", "finished_at"},
         ),
         "model_calls": (
-            "id session_id submission_id turn_index role task attempt provider model input_tokens output_tokens cost latency_ms outcome violations created_at",
-            {"input_tokens", "output_tokens", "cost"},
+            "id session_id submission_id turn_index role task attempt provider model input_tokens output_tokens cost latency_ms outcome status violations created_at",
+            {"input_tokens", "output_tokens", "cost", "status"},
         ),
     }
     for name, (columns, nullable) in expected.items():

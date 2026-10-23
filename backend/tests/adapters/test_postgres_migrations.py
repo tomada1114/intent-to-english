@@ -20,6 +20,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.postgres]
 
 APP_TABLES = {"sessions", "timeline_entries", "submissions", "model_calls"}
 TODOS_REVISION = "f58f944d0d8e"
+SESSIONS_REVISION = "de3f10d569ec"
 
 
 def _tables(connection: Connection) -> set[str]:
@@ -75,7 +76,9 @@ async def test_postgres_drop_revision_downgrade_recreates_todos(
             created = await connection.run_sync(_todos_shape)
             await connection.run_sync(lambda _: command.upgrade(config, "head"))
 
-            await connection.run_sync(lambda _: command.downgrade(config, "-1"))
+            await connection.run_sync(
+                lambda _: command.downgrade(config, SESSIONS_REVISION)
+            )
 
             assert await connection.run_sync(_todos_shape) == created
             assert created[1:] == (["id"], "pk_todos")

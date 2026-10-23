@@ -77,7 +77,7 @@ rejects a mismatched pair before it can enter the append-only timeline.
 | `sessions` | `id`, `started_at`, `ended_at`, `status` (`in_progress` / `ended`), `stage`, `turn_index`, `turn_state` (JSON), `version`, `finished_replies`, `opener`, `wrap_up` (JSON) | one row per session; `version` goes up by one with every accepted action |
 | `timeline_entries` | `id`, `session_id`, `seq`, `turn_index`, `kind`, `payload` (JSON), `created_at` | append-only: never updated or deleted; `(session_id, seq)` unique |
 | `submissions` | `id`, `session_id`, `base_version`, `action`, `input` (JSON), `status` (`pending` / `completed` / `failed` / `cancelled`), `failure_code`, `boot_id`, `created_at`, `finished_at` | one row per action the learner sent; a partial unique index on `(session_id, base_version)` where `status` is `pending` or `completed` |
-| `model_calls` | `id`, `session_id`, `submission_id`, `turn_index`, `role`, `task`, `attempt` (1, or 2 for the repair), `provider`, `model`, `input_tokens`, `output_tokens`, `cost`, `latency_ms`, `outcome`, `violations` (JSON), `created_at` | one row per request to a model; never the key or the prompt text |
+| `model_calls` | `id`, `session_id`, `submission_id`, `turn_index`, `role`, `task`, `attempt` (1, or 2 for the repair), `provider`, `model`, `input_tokens`, `output_tokens`, `cost`, `latency_ms`, `outcome`, `status` (nullable provider HTTP status), `violations` (JSON), `created_at` | one row per request to a model; never the key or the prompt text |
 
 - `turn_state` holds only what the current stage's next action needs: the intent in force,
   the latest English, the feedback in force, retry submissions so far, the two readings at a
@@ -371,6 +371,12 @@ binary float; the log reader restores `Decimal` before summing. JSON readers res
 constructors and optional defaults, keeping older payloads readable.
 
 ### The call log has a read-only command
+
+Each model error retains its reported HTTP status as a nullable integer on the call
+attempt and in `model_calls`. Historical calls and failures without an HTTP response
+keep null. Outcome cells in the existing role/model/task summary show status counts
+when present, such as `4 (400: 2, 503: 1)`; the total still includes unreported statuses.
+Only the integer is retained, never a provider response body or diagnostic text.
 
 `just backend call-log [--session UUID] [--since YYYY-MM-DD|ISO-datetime]` resolves
 the database URL as the migration recipe does, defaulting to `backend/var/dev.db`

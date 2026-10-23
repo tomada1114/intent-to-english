@@ -353,6 +353,7 @@ class CallAttempt:
     usage: Usage
     outcome: CallOutcome
     violations: tuple[Violation, ...] = ()
+    status: int | None = None
 
     def __post_init__(self) -> None:
         """Refuse structurally invalid values at every boundary."""
