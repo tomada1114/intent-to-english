@@ -142,7 +142,7 @@ class Wire:
             raise httpx2.ReadTimeout(message, request=request)
         if self.case == "connection":
             raise httpx2.ConnectError(message, request=request)
-        if self.case in {"429", "500"}:
+        if self.case in {"400", "429", "500"}:
             return httpx2.Response(
                 int(self.case), json={"error": {"message": "PRIVATE-PROVIDER-TEXT"}}
             )
@@ -342,6 +342,30 @@ async def test_provider_failure_maps_without_retry_or_private_text(
     assert "PRIVATE-PROVIDER-TEXT" not in str(caught.value)
     assert "PRIVATE-PROVIDER-TEXT" not in caplog.text
     assert len(state.requests) == 1
+
+
+@pytest.mark.parametrize(
+    ("case", "error_type", "status"),
+    [
+        ("400", ModelUnavailableError, 400),
+        ("429", ModelRateLimitedError, 429),
+        ("500", ModelUnavailableError, 500),
+        ("connection", ModelUnavailableError, None),
+        ("timeout", ModelTimeoutError, None),
+    ],
+    ids=["400", "429", "500", "connection", "timeout"],
+)
+async def test_provider_failure_carries_only_the_http_status(
+    wire, case, error_type, status
+):
+    state, _ = wire
+    state.case = case
+
+    with override_allow_model_requests(True), pytest.raises(error_type) as caught:
+        await state.adapter.open(partner.OpenRequest(None))
+
+    assert caught.value.status == status
+    assert "PRIVATE-PROVIDER-TEXT" not in str(caught.value)
 
 
 @pytest.mark.parametrize(

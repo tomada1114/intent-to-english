@@ -63,7 +63,8 @@ are exempt from it, so review keeps them out of those layers; tests may import t
   core dataclasses with no schema concerns; `feedback` returns either feedback or a
   reading question.
 - **It raises a model error** for a timeout, rate limiting, or an unavailable or
-  unreachable provider, carrying the provider, model, and latency the call's row needs.
+  unreachable provider, carrying the provider, model, and latency the call's row needs,
+  plus the HTTP status when the provider answered with one — an integer, never its body.
 - **An output that does not parse is reported, not raised as a model error:** the
   service gets the parse failure with the call's usage and treats it like a failed
   check.

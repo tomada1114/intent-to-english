@@ -83,7 +83,12 @@ class _OpenRouterCalls:
                     if error.status_code == HTTPStatus.TOO_MANY_REQUESTS
                     else ModelUnavailableError
                 )
-                raise kind(PROVIDER, self._model_id, self._elapsed(started)) from None
+                raise kind(
+                    PROVIDER,
+                    self._model_id,
+                    self._elapsed(started),
+                    status=error.status_code,
+                ) from None
             except ModelAPIError as error:
                 connection_kind = (
                     ModelTimeoutError

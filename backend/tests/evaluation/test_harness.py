@@ -8,7 +8,7 @@ import pytest
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.core import models as m
 from intent_to_english.core import partner
-from intent_to_english.core.errors import ModelTimeoutError
+from intent_to_english.core.errors import ModelTimeoutError, ModelUnavailableError
 from intent_to_english.evaluation.__main__ import replace_summary
 from intent_to_english.evaluation.cases import Case, load_cases
 from intent_to_english.evaluation.expectations import Expectation
@@ -106,11 +106,32 @@ async def test_schema_failure_excludes_content_denominators_then_provider_error_
     assert data["cases"][0]["expectations_first"][0]["passed"] is None
     assert data["cases"][0]["checks_final"]["schema"] is None
     assert data["cases"][0]["error"] == "model_timeout"
+    assert data["cases"][0]["error_status"] is None
     assert data["cases"][1]["error"] is None
     assert data["tasks"]["partner.open"]["outcomes"]["timeout"] == 1
     assert data["tasks"]["partner.open"]["cost_credits"] is None
     assert "credits" in report.render_markdown()
     assert '"coach_model": "coach/model"' in report.render_json()
+
+
+async def test_provider_http_status_reaches_the_error_column_and_json():
+    class Rejecting(FixedPartnerModel):
+        async def open(self, request, repair=None):
+            del request, repair
+            provider = "openrouter"
+            raise ModelUnavailableError(provider, "partner/model", 30, status=400)
+
+    report = await run_cases(
+        (opener("01-rejected"),), Rejecting(), FixedCoachModel(), METADATA
+    )
+
+    case = report.as_dict()["cases"][0]
+    assert case["error"] == "model_unavailable"
+    assert case["error_status"] == 400
+    assert (
+        "| 01-rejected | partner.open | provider_error | model_unavailable (HTTP 400) |"
+        in report.render_markdown()
+    )
 
 
 async def test_all_seed_cases_render_reports_and_rewrite_only_temporary_readme(

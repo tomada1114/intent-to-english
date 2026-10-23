@@ -58,6 +58,7 @@ class CaseData(TypedDict):
     source: str
     task: str
     error: str | None
+    error_status: int | None
     outcomes: list[str]
     checks_first: CheckValues
     checks_final: CheckValues
@@ -109,6 +110,7 @@ class CaseResult:
     expectations_first: tuple[ExpectedResult, ...]
     expectations_final: tuple[ExpectedResult, ...]
     error: str | None
+    error_status: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +134,7 @@ class Report:
                     source=result.case.source,
                     task=f"{result.attempts[0].role.value}.{task.value}",
                     error=result.error,
+                    error_status=result.error_status,
                     outcomes=[attempt.outcome.value for attempt in result.attempts],
                     checks_first=dict(result.checks_first),
                     checks_final=dict(result.checks_final),
@@ -200,7 +203,7 @@ class Report:
             ]
         )
         lines.extend(
-            f"| {_cell(case['case'])} | {_cell(case['task'])} | {', '.join(case['outcomes'])} | {_cell(case['error'] or '')} |"
+            f"| {_cell(case['case'])} | {_cell(case['task'])} | {', '.join(case['outcomes'])} | {_cell(_error(case))} |"
             for case in data["cases"]
         )
         return "\n".join(lines) + "\n"
@@ -276,6 +279,15 @@ def _rate_cell(rate: Rate) -> str:
         if rate["rate"] is not None
         else "N/A"
     )
+
+
+def _error(case: CaseData) -> str:
+    """Name the provider's HTTP status beside the stable code when one was returned."""
+    if case["error"] is None:
+        return ""
+    if case["error_status"] is None:
+        return case["error"]
+    return f"{case['error']} (HTTP {case['error_status']})"
 
 
 def _cell(value: str) -> str:
