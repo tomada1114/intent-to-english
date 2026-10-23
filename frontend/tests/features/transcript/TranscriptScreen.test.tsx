@@ -1,19 +1,22 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import type {
   ProblemDetails,
   SessionResponse,
   TimelineEntryResponse,
 } from "../../../src/api/generated/types.gen";
+import { sessionQueryOptions } from "../../../src/features/conversation";
 import { wrapUpFailureLine } from "../../../src/features/transcript";
 import { createQueryClient } from "../../../src/lib/query-client";
 import { createAppRouter } from "../../../src/router";
 import {
+  advance,
   entry,
+  installFakeClock,
   renderTranscript,
   SESSION_ID,
   serveSession,
@@ -457,6 +460,7 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
   });
 
   it("waits for another tab's wrap-up when its own request gets 409 action_in_progress", async () => {
+    installFakeClock();
     const pending = ended({
       ...DUE,
       last_submission: {
@@ -472,15 +476,46 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
         status: 409,
       });
     });
-    renderTranscript(ended(DUE));
-
-    await waitFor(() => expect(server.bodies).toHaveLength(1));
-    await waitFor(() =>
-      expect(screen.getByText("コーチが振り返りを作っています…")).toBeInTheDocument(),
+    const { queryClient } = renderTranscript(ended(DUE));
+    await advance(0);
+    // Settle the 409-triggered refetch before anchoring the polling clock.
+    await act(
+      () =>
+        new Promise<void>((resolve) => {
+          const finish = () => {
+            const state = queryClient.getQueryState(
+              sessionQueryOptions(SESSION_ID).queryKey,
+            );
+            if (
+              state?.fetchStatus === "idle" &&
+              state.data?.last_submission?.state === "pending"
+            ) {
+              stop();
+              resolve();
+            }
+          };
+          const stop = queryClient.getQueryCache().subscribe(finish);
+          onTestFinished(stop);
+          finish();
+        }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await advance(1);
+    const baseline = server.reads();
+    expect(baseline).toBeGreaterThan(0);
+    expect(
+      queryClient.getQueryState(sessionQueryOptions(SESSION_ID).queryKey)?.fetchStatus,
+    ).toBe("idle");
+    expect(
+      queryClient.getQueryData(sessionQueryOptions(SESSION_ID).queryKey)
+        ?.last_submission,
+    ).toEqual(pending.last_submission);
+    expect(screen.getByText("コーチが振り返りを作っています…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "もう一度" })).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+
+    await advance(1999);
+    expect(server.reads()).toBe(baseline);
     server.set({
       ...pending,
       version: 10,
@@ -488,14 +523,17 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
       last_submission: null,
       allowed_actions: [],
     });
+    await advance(1);
 
-    expect(
-      await screen.findByText("these days", {}, { timeout: 3500 }),
-    ).toBeInTheDocument();
-    expect(server.bodies).toHaveLength(1);
+    expect(server.reads()).toBe(baseline + 1);
+    expect(screen.getByText("these days")).toBeInTheDocument();
+    await advance(6000);
+    expect(server.reads()).toBe(baseline + 1);
+    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
   });
 
   it("waits for a wrap-up pending elsewhere, reading the session every 2 s until it settles", async () => {
+    installFakeClock();
     const view = ended({
       ...DUE,
       last_submission: {
@@ -507,9 +545,13 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     });
     const server = serveSession(view);
     renderTranscript(view);
-
+    await advance(1);
+    const baseline = server.reads();
+    expect(baseline).toBeGreaterThan(0);
     expect(screen.getByText("コーチが振り返りを作っています…")).toBeInTheDocument();
-    // The other tab's wrap-up lands on the server.
+
+    await advance(1999);
+    expect(server.reads()).toBe(baseline);
     server.set({
       ...view,
       version: 10,
@@ -517,10 +559,12 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
       last_submission: null,
       allowed_actions: [],
     });
+    await advance(1);
 
-    expect(
-      await screen.findByText("these days", {}, { timeout: 3500 }),
-    ).toBeInTheDocument();
+    expect(server.reads()).toBe(baseline + 1);
+    expect(screen.getByText("these days")).toBeInTheDocument();
+    await advance(6000);
+    expect(server.reads()).toBe(baseline + 1);
     expect(server.bodies).toEqual([]);
   });
 });
