@@ -56,7 +56,8 @@ class Settings(BaseSettings):
         log_level: DEBUG, INFO, WARNING or ERROR, case-insensitive; blank uses INFO.
         log_format: text or JSON lines; blank uses text.
         openrouter_api_key: Optional secret read from unprefixed OPENROUTER_API_KEY.
-        model_mode: auto or fixed; blank uses auto. Composition currently stays fixed.
+        model_mode: auto or fixed; blank uses auto. Auto uses OpenRouter when the key
+            is set and fixed responses otherwise.
         coach_model: The Coach model id, defaulting when empty.
         partner_model: The Partner model id, defaulting when empty.
     """
