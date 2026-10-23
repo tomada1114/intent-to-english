@@ -523,8 +523,12 @@ separate calls. A task's cost is empty if any attempt has no reported cost; know
 costs are summed without rounding provider decimals through the shared core helper.
 Provider failures and unparsed content are
 N/A in quality denominators, with schema failures still counted for schema. Each
-case retains its safe decisions and outcomes, without raw provider responses, and its
-error code with the HTTP status beside it (`error_status` in JSON, `model_unavailable
+case retains its safe decisions and outcomes. When at least one final expectation
+fails, the JSON case also retains the final parsed model output as `final_output`,
+so the owner can inspect that failure without another billed run. Passing and
+unobserved expectations retain no output; a failed first attempt repaired to a pass
+also retains none. Raw provider responses and diagnostics are never retained. Each
+case includes its error code with the HTTP status beside it (`error_status` in JSON, `model_unavailable
 (HTTP 400)` in the Markdown Error column) when the provider returned one.
 
 Both reports are committed. The README summary between `eval-summary:start` and

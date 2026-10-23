@@ -240,6 +240,8 @@ Reports are new `.md` and `.json` files under `backend/evals/reports/`, named
 `_coach-effort-<level>` or `_partner-effort-<level>` for each reasoning effort set. They
 record both reasoning efforts, the source commit and dirty state, first/final check and expectation rates, outcomes, reported
 cost in credits and nearest-rank p50/p95 latency per task. Missing cost stays empty.
+A JSON case with a failed final expectation also includes its final parsed model
+output in `final_output`; passing and unobserved cases omit it.
 Commit both reports after an owner-run evaluation; the summary below links the latest.
 
 <!-- eval-summary:start -->

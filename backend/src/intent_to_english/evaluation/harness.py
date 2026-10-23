@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING
 
 from intent_to_english.core import coaching, partner
@@ -41,6 +42,7 @@ async def run_cases(
         )
         first = _checks(case, observation.outputs[0], run.attempts[0])
         final = _checks(case, observation.outputs[-1], run.attempts[-1])
+        expectations_final = _expectations(case, observation.outputs[-1], final)
         results.append(
             CaseResult(
                 case,
@@ -48,9 +50,10 @@ async def run_cases(
                 first,
                 final,
                 _expectations(case, observation.outputs[0], first),
-                _expectations(case, observation.outputs[-1], final),
+                expectations_final,
                 run.error.code if run.error else None,
                 run.error.status if isinstance(run.error, ModelError) else None,
+                _failed_output(observation.outputs[-1], expectations_final),
             )
         )
     return Report(metadata, tuple(results))
@@ -127,3 +130,16 @@ def _expectations(
         )
         for item in case.expectations
     )
+
+
+def _failed_output(
+    output: object, expectations: tuple[ExpectedResult, ...]
+) -> dict[str, object] | None:
+    """Keep the final parsed value only when an observed final expectation fails."""
+    if (
+        not any(item["passed"] is False for item in expectations)
+        or not is_dataclass(output)
+        or isinstance(output, type)
+    ):
+        return None
+    return asdict(output)

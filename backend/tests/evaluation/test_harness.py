@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import json
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
+from intent_to_english.core import coaching, partner
 from intent_to_english.core import models as m
-from intent_to_english.core import partner
 from intent_to_english.core.errors import ModelTimeoutError, ModelUnavailableError
 from intent_to_english.evaluation.__main__ import replace_summary
 from intent_to_english.evaluation.cases import Case, load_cases
@@ -107,6 +109,7 @@ async def test_schema_failure_excludes_content_denominators_then_provider_error_
     assert data["cases"][0]["checks_final"]["schema"] is None
     assert data["cases"][0]["error"] == "model_timeout"
     assert data["cases"][0]["error_status"] is None
+    assert "final_output" not in data["cases"][0]
     assert data["cases"][1]["error"] is None
     assert data["tasks"]["partner.open"]["outcomes"]["timeout"] == 1
     assert data["tasks"]["partner.open"]["cost_credits"] is None
@@ -206,3 +209,66 @@ async def test_task_percentiles_and_reported_cost_completeness(
     assert task["latency_p50_ms"] == 10
     assert task["latency_p95_ms"] == 19
     assert task["cost_credits"] == expected
+
+
+async def test_failed_final_expectation_retains_fixed_output_in_json(tmp_path):
+    failing = replace(
+        opener(),
+        expectations=(Expectation("differs_from", text="Hey! How's it going?"),),
+    )
+    report = await run_cases(
+        (failing, opener("02-pass")), FixedPartnerModel(), FixedCoachModel(), METADATA
+    )
+    target = tmp_path / "report.json"
+    target.write_text(report.render_json(), encoding="utf-8")
+
+    cases = json.loads(target.read_text(encoding="utf-8"))["cases"]
+    assert cases[0]["expectations_final"] == [{"kind": "differs_from", "passed": False}]
+    assert cases[0]["final_output"] == {"text": "Hey! How's it going?"}
+    assert "final_output" not in cases[1]
+    assert report.as_dict()["tasks"]["partner.open"]["calls"] == 2
+
+
+async def test_failed_feedback_output_serializes_nested_fixes():
+    case = Case(
+        Path("feedback.toml"),
+        m.ModelTask.FEEDBACK,
+        "conversation-rules section 7",
+        coaching.FeedbackRequest("すっきりした", "I feel refreshing.", None, (), ()),
+        {},
+        (Expectation("no_fix"),),
+    )
+
+    report = await run_cases((case,), FixedPartnerModel(), FixedCoachModel(), METADATA)
+
+    case_data = json.loads(report.render_json())["cases"][0]
+    assert case_data["expectations_final"] == [{"kind": "no_fix", "passed": False}]
+    assert case_data["final_output"]["fixes"] == [
+        {
+            "number": 1,
+            "original": "refreshing",
+            "replacement": "refreshed",
+            "reason": "自分の気分は -ed。-ing だと「人をさわやかにさせる」",
+            "tag": "miss",
+        }
+    ]
+    assert report.as_dict()["tasks"]["coach.feedback"]["calls"] == 1
+
+
+async def test_repaired_expectation_omits_output_when_final_attempt_passes():
+    class RepairingPartner(FixedPartnerModel):
+        async def open(self, request, repair=None):
+            del request
+            return m.Parsed(
+                partner.PartnerLine("日本語" if repair is None else "How are you?"),
+                m.Usage("fixed", "fixed", None, None, None, 0),
+            )
+
+    case = replace(opener(), expectations=(Expectation("differs_from", text="日本語"),))
+
+    report = await run_cases((case,), RepairingPartner(), FixedCoachModel(), METADATA)
+
+    case_data = json.loads(report.render_json())["cases"][0]
+    assert case_data["expectations_first"][0]["passed"] is False
+    assert case_data["expectations_final"][0]["passed"] is True
+    assert "final_output" not in case_data

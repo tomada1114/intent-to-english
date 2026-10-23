@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass
 from math import ceil
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from intent_to_english.core.models import CallOutcome, sum_reported_costs
 
@@ -54,7 +54,7 @@ class MetadataData(TypedDict):
 
 
 class CaseData(TypedDict):
-    """Case results contain safe decisions rather than raw provider responses."""
+    """Case decisions and, on a failed final expectation, the parsed model output."""
 
     case: str
     source: str
@@ -66,6 +66,7 @@ class CaseData(TypedDict):
     checks_final: CheckValues
     expectations_first: list[ExpectedResult]
     expectations_final: list[ExpectedResult]
+    final_output: NotRequired[dict[str, object]]
 
 
 class TaskData(TypedDict):
@@ -115,6 +116,7 @@ class CaseResult:
     expectations_final: tuple[ExpectedResult, ...]
     error: str | None
     error_status: int | None
+    final_output: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,20 +134,21 @@ class Report:
             task = result.case.task
             for attempt in result.attempts:
                 grouped[f"{attempt.role.value}.{task.value}"].append(attempt)
-            cases.append(
-                CaseData(
-                    case=result.case.path.stem,
-                    source=result.case.source,
-                    task=f"{result.attempts[0].role.value}.{task.value}",
-                    error=result.error,
-                    error_status=result.error_status,
-                    outcomes=[attempt.outcome.value for attempt in result.attempts],
-                    checks_first=dict(result.checks_first),
-                    checks_final=dict(result.checks_final),
-                    expectations_first=list(result.expectations_first),
-                    expectations_final=list(result.expectations_final),
-                )
+            case_data = CaseData(
+                case=result.case.path.stem,
+                source=result.case.source,
+                task=f"{result.attempts[0].role.value}.{task.value}",
+                error=result.error,
+                error_status=result.error_status,
+                outcomes=[attempt.outcome.value for attempt in result.attempts],
+                checks_first=dict(result.checks_first),
+                checks_final=dict(result.checks_final),
+                expectations_first=list(result.expectations_first),
+                expectations_final=list(result.expectations_final),
             )
+            if result.final_output is not None:
+                case_data["final_output"] = result.final_output
+            cases.append(case_data)
         meta = self.metadata
         return ReportData(
             metadata=MetadataData(
@@ -166,7 +169,7 @@ class Report:
         )
 
     def render_json(self) -> str:
-        """Serialize the stable report with no provider text or credentials."""
+        """Serialize decisions and selected parsed outputs without provider diagnostics."""
         return (
             json.dumps(self.as_dict(), ensure_ascii=False, indent=2, sort_keys=True)
             + "\n"
