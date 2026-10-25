@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -124,6 +125,33 @@ def tools_only_path(bin_dir: Path) -> Path:
             raise AssertionError("the test host has no " + name + " on PATH")
         (bin_dir / name).symlink_to(target)
     return bin_dir
+
+
+def publish_pid(pid_file: Path) -> str:
+    """The shell that writes the last background job's PID to `pid_file`
+    atomically, so a reader never sees it half written."""
+    return f'echo "$!" > "{pid_file}.tmp" && mv "{pid_file}.tmp" "{pid_file}"'
+
+
+def is_running(pid: int) -> bool:
+    """Whether `pid` is a live process: gone or an unreaped zombie is not."""
+    state = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    return bool(state) and not state.startswith("Z")
+
+
+def descendant_still_running(pid: int, grace: float = 2.0) -> bool:
+    """Whether `pid` is still running once `grace` seconds have passed since a
+    kill: a SIGKILLed process needs a moment to leave the run queue."""
+    deadline = time.monotonic() + grace
+    while is_running(pid):
+        if time.monotonic() >= deadline:
+            return True
+        time.sleep(0.05)
+    return False
 
 
 def run_script(args, cwd, *, extra_path: str | None = None):
@@ -1233,40 +1261,67 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertIn("baseline: TIMEOUT(1s)\n", proc.stdout)
         self.assertIn("verdict: READY_WITH_WARNINGS\n", proc.stdout)
 
-    def test_the_timeout_kills_the_whole_process_tree(self):
-        # A gate that forks workers must not leave them running: killing only
-        # the `bash -c` wrapper would strand whatever they hold open.
+    def _run_timeout_with_descendant(self, issue, verify, pid_file):
+        """Run a verify command that publishes one descendant's PID to
+        `pid_file` and must hit a 1 s timeout; return the script's result and
+        whether that descendant was still running afterwards. The descendant is
+        always killed before this returns, so a failing assertion leaves
+        nothing behind."""
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
             repo = td / "repo"
             repo.mkdir()
             make_repo(repo)
-            marker = td / "still-alive"
+            pid = None
+            try:
+                proc = run_script(
+                    [
+                        *issue_args(issue, td / "worktrees"),
+                        "--verify",
+                        verify,
+                        "--verify-timeout",
+                        "1",
+                        "--log",
+                        str(td / "verify" / f"{issue}.log"),
+                    ],
+                    repo,
+                )
+                self.assertTrue(pid_file.exists(), "the descendant never became ready")
+                pid = int(pid_file.read_text(encoding="utf-8"))
+                survived = descendant_still_running(pid)
+            finally:
+                if pid is not None and is_running(pid):
+                    os.kill(pid, signal.SIGKILL)
+        return proc, survived
 
-            proc = run_script(
-                [
-                    "--issue",
-                    "602",
-                    "--branch",
-                    "feat/602",
-                    "--base",
-                    "main",
-                    "--root",
-                    str(td / "worktrees"),
-                    "--verify",
-                    f"( sleep 4; touch {marker} ) & wait",
-                    "--verify-timeout",
-                    "1",
-                    "--log",
-                    str(td / "verify" / "602.log"),
-                ],
-                repo,
+    def test_the_timeout_kills_the_whole_process_tree(self):
+        # A gate that forks workers must not leave them running: killing only
+        # the `bash -c` wrapper would strand whatever they hold open.
+        with tempfile.TemporaryDirectory() as fixture:
+            pid_file = Path(fixture) / "descendant.pid"
+            proc, survived = self._run_timeout_with_descendant(
+                "602",
+                f"sleep 60 & {publish_pid(pid_file)}; wait",
+                pid_file,
             )
-            time.sleep(6)
-            child_survived = marker.exists()
 
         self.assertIn("baseline: TIMEOUT(1s)\n", proc.stdout)
-        self.assertFalse(child_survived, "the forked child outlived the timeout")
+        self.assertFalse(survived, "the forked child outlived the timeout")
+
+    def test_timeout_kills_term_resistant_descendant_after_wrapper_exits(self):
+        # The wrapper dies on SIGTERM; its child ignores it (the disposition is
+        # set before the fork, so the child is ready the moment it exists). The
+        # group must still be killed once the leader is gone.
+        with tempfile.TemporaryDirectory() as fixture:
+            pid_file = Path(fixture) / "descendant.pid"
+            proc, survived = self._run_timeout_with_descendant(
+                "603",
+                f"trap '' TERM; sleep 60 & {publish_pid(pid_file)}; trap - TERM; wait",
+                pid_file,
+            )
+
+        self.assertIn("baseline: TIMEOUT(1s)\n", proc.stdout)
+        self.assertFalse(survived, "a TERM-resistant child outlived the timeout")
 
     def test_bad_verify_timeout_is_a_usage_error(self):
         with tempfile.TemporaryDirectory() as td:

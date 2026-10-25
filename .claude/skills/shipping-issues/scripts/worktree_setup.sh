@@ -108,25 +108,46 @@ import os
 import signal
 import subprocess
 import sys
+import time
+
+GRACE = 5.0
 
 workdir, command, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
 proc = subprocess.Popen(["bash", "-c", command], cwd=workdir,
                         start_new_session=True)
+# A new session makes the shell its group's leader, so the group id is its pid.
+# Kept from the spawn: once the shell has exited, getpgid() on it can no longer
+# name the group its workers still run in.
+pgid = proc.pid
+
+
+def signal_group(sig):
+    """Send `sig` to the owned group; False once no member is left to get it."""
+    try:
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
+
+
 try:
     sys.exit(proc.wait(timeout=timeout))
 except subprocess.TimeoutExpired:
     # The whole process group, not just the shell: a runner that forked workers
-    # would otherwise outlive the kill still holding whatever it bound.
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(os.getpgid(proc.pid), sig)
-        except (ProcessLookupError, PermissionError):
-            break
-        try:
-            proc.wait(timeout=5)
-            break
-        except subprocess.TimeoutExpired:
-            continue
+    # would otherwise outlive the kill still holding whatever it bound. The
+    # shell exiting on SIGTERM ends nothing else, so the group gets the grace
+    # period and then SIGKILL, whether or not its leader is still there.
+    deadline = time.monotonic() + GRACE
+    alive = signal_group(signal.SIGTERM)
+    while alive and time.monotonic() < deadline:
+        proc.poll()
+        time.sleep(0.05)
+        alive = signal_group(0)
+    if alive:
+        signal_group(signal.SIGKILL)
+    proc.wait()
     sys.exit(124)
 PYTIMEOUT
 }
