@@ -67,11 +67,12 @@ A `dependabot/uv/...` PR moves Python dependencies. Review it as closely as an A
   - a `[[package]]` dropping out because nothing requires it any more.
 
   A change under `[options]` is "Stop and ask".
-- `[tool.uv] exclude-newer-package` holds no entry whose timestamp is older than the
-  7-day window. Such an entry is stale — its fix is already inside the window — and
-  it freezes that package at its date, so Dependabot's proposals for it fail. Put its
-  removal (comment included, then `uv lock`) in the plan as its own change; this review
-  is the trigger that drops it (`managing-dependencies`).
+- `[tool.uv.exclude-newer-package]` holds no entry whose cutoff is more than 7 days
+  old. The Security Fixes workflow drops such an entry on its next run, so one that
+  lingers means that workflow is failing or its pull request is still open: freezing the
+  package at its cutoff, it makes Dependabot's proposals for it fail. Report it rather
+  than removing it on the combined branch (`managing-dependencies`'
+  `references/security-fixes.md`).
 - CI's `uv sync --group dev --locked` passed on the current head — every job that
   installs the project starts with it,
   and it refuses a lock that disagrees with either manifest. `uv lock --check` (the
@@ -105,8 +106,8 @@ A `dependabot/npm_and_yarn/...` PR moves the pnpm workspace's JavaScript depende
   whose package adds or changes a lifecycle script: it would need an `allowBuilds`
   ruling.
 - `pnpm-workspace.yaml` holds no `minimumReleaseAgeExclude` entry past its removal date
-  (the day its version turned 7 days old). Plan its removal, comment included, as its
-  own change, with any `pnpm-lock.yaml` change a plain `pnpm install` then makes.
+  (the day its version turned 7 days old). As on the `uv` side, the Security Fixes
+  workflow drops it; one that lingers is reported, not removed here.
 - CI's `pnpm install --frozen-lockfile` passed on the current head in the `Frontend`,
   `Contract Drift`, and `E2E` jobs: it refuses a lock that disagrees with a
   `package.json`.

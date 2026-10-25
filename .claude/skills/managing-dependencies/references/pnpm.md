@@ -81,8 +81,9 @@ none; shortening any of them loosens a gate, which is the owner's decision.
   to version updates only
   (https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference,
   checked 2026-10-14), but not `minimumReleaseAgeStrict`: the install refuses the
-  version, in the Dependabot job or the PR's CI. It waits out the window, or the owner
-  decides the one-package exception below; never an implementer's call.
+  version, in the Dependabot job or the PR's CI. The Security Fixes workflow handles it
+  instead, with the exception below ([security-fixes.md](security-fixes.md)); an
+  implementer never adds one by hand.
 
 ## Exceptions in `pnpm-workspace.yaml`
 
@@ -97,10 +98,12 @@ their comments; read them there rather than a copy here.
   version), a pattern, or specific versions, the last since pnpm 10.19.0
   (https://pnpm.io/settings/dependency-resolution, checked 2026-10-14). Name the one
   exact version, `<package>@1.2.3`, never a name or a pattern, which would exempt every
-  later release too. The comment names the advisory, why waiting is riskier, and the
-  removal date: the day that version turns 7 days old and the window admits it. Drop the
-  entry once its date passes; `merging-dependency-prs`' review checklist looks for one.
-  Never a shorter window to let one version through.
+  later release too, and only the version an advisory names as its first patched one.
+  The Security Fixes workflow adds each entry with a comment naming the advisories and
+  the day that version turns 7 days old, and drops it on its first run after, once
+  `pnpm install --frozen-lockfile --lockfile-only` passes without it
+  ([security-fixes.md](security-fixes.md)). The key stays, as `[]`, when empty. Never a
+  shorter window to let one version through.
 - **`allowBuilds`**: `strictDepBuilds: true` fails the install when a dependency has a
   build script not ruled on, and `allowBuilds` maps a package, optionally one version,
   to `true` (run it) or `false` (refuse it)

@@ -72,12 +72,13 @@ update younger than 7 days does not lock or install. Dependabot resolves under t
 window, so that failure normally stays inside its own job and no PR opens: look in
 the Dependabot job log (Insights → Dependency graph → Dependabot) and at the Dependabot
 alert, which stays open. A pnpm one that does open a PR fails its
-`pnpm install --frozen-lockfile` in CI.
+`pnpm install --frozen-lockfile` in CI. This repository leaves Dependabot security
+updates off for that reason.
 
-**Fix:** a security update you want now is a human decision: report the advisory, the
-affected version, and its publish date, and let the owner choose between waiting out
-the window and merging early, through `managing-dependencies`' one-package exception
-(`exclude-newer-package` for Python, `minimumReleaseAgeExclude` for pnpm).
+**Fix:** none on a Dependabot PR. The Security Fixes workflow turns the alert into its
+own pull request, with a one-package exception while the fix is younger than the window
+(`managing-dependencies`' `references/security-fixes.md`). If the alert stays open past
+a day, read that workflow's latest run and report its error.
 
 ## F4 — A Python dependency PR fails at `uv sync --locked`
 
