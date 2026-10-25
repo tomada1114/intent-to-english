@@ -165,7 +165,7 @@ print_help() {
 }
 
 # --- args --------------------------------------------------------------
-ISSUE="" BRANCH="" BASE="" ROOT="" VERIFY="" LOG="" DRY=0
+ISSUE="" BRANCH="" BASE="" ROOT="" VERIFY="" LOG="" DRY=0 reentry=0
 LOG_DIR="" VERIFY_TIMEOUT="900"
 SPECS=()
 
@@ -246,10 +246,11 @@ is_registered_worktree() {
 # own lockfile; another JavaScript lockfile selects nothing. A lockfile is
 # looked for in the tree the worktree holds — never the main checkout, which
 # may sit on another commit than --base (an un-pulled main, a feature branch).
-# A real run reads the created worktree; a dry run, which creates nothing, reads
-# the ref `git worktree add` would check out (checkout_ref, set per spec).
+# A real run, and any run on a worktree that already exists, reads the
+# worktree's own files; a dry run that would create one, which creates nothing,
+# reads the ref `git worktree add` would check out (checkout_ref, set per spec).
 has_lockfile() { # $1=file name at the tree's root
-  if [[ $DRY -eq 1 ]]; then
+  if [[ $DRY -eq 1 && $reentry -eq 0 ]]; then
     git -C "$repo_root" cat-file -e "$checkout_ref:$1" 2>/dev/null
   else
     [[ -f "$worktree_path/$1" ]]
@@ -298,6 +299,45 @@ do_install() {
   emit deps "$*"
 }
 
+# --- 3. create the worktree ---------------------------------------------
+# Creates worktree_path on $1 (an existing branch as it stands, else a new
+# branch at the base $2) under the root $3, or prints what it would run in a
+# dry run. Sets checkout_ref, the ref the worktree checks out. Returns 1 when
+# `git worktree add` fails.
+create_worktree() {
+  local c_branch="$1" c_base="$2" c_root="$3" wt_log wt_rc
+  if branch_exists "$c_branch"; then
+    checkout_ref="$c_branch"
+  else
+    checkout_ref="$c_base"
+  fi
+  if [[ $DRY -eq 1 ]]; then
+    echo "DRY: mkdir -p $c_root"
+    if branch_exists "$c_branch"; then
+      echo "DRY: git -C $repo_root worktree add $worktree_path $c_branch"
+    else
+      echo "DRY: git -C $repo_root worktree add $worktree_path -b $c_branch $c_base"
+    fi
+    return 0
+  fi
+  mkdir -p "$c_root"
+  wt_log="$(mktemp)"
+  if branch_exists "$c_branch"; then
+    git -C "$repo_root" worktree add "$worktree_path" "$c_branch" >"$wt_log" 2>&1
+  else
+    git -C "$repo_root" worktree add "$worktree_path" -b "$c_branch" "$c_base" >"$wt_log" 2>&1
+  fi
+  wt_rc=$?
+  if [[ $wt_rc -ne 0 ]]; then
+    emit result "BLOCKED"
+    sed 's/^/  /' "$wt_log"
+    rm -f "$wt_log"
+    return 1
+  fi
+  rm -f "$wt_log"
+  emit result "CREATED"
+}
+
 # --- provision_one: everything that used to be this whole script's tail,
 # now per-spec. Never calls `exit` — every failure path `return`s 1 so a
 # batch run can continue with the remaining specs; the single-issue driver
@@ -310,6 +350,8 @@ provision_one() {
   local p_issue="$1" p_branch="$2" p_base="$3" p_root="$4" p_verify="$5" p_log="$6"
   local warn=0
   worktree_path="$p_root/$p_issue"
+  checkout_ref=""
+  reentry=0
   PROVISION_VERDICT=""
   # Exported so a caller that sources this file can read it; shellcheck otherwise
   # reports it unused.
@@ -319,57 +361,37 @@ provision_one() {
   emit worktree "$worktree_path"
 
   # --- 2. idempotent re-entry ---------------------------------------------
+  # A registered worktree is reused as it stands — never recreated, reset,
+  # cleaned, or switched — once it is on the requested branch, and then goes
+  # through the same install, hook check, and baseline as a new one: a first
+  # run that created it may have failed before any of those finished.
+  # `result: EXISTS` says only that nothing was created; `verdict:` says
+  # whether it is ready. Without one, step 3 creates it.
   if [[ -e "$worktree_path" ]]; then
-    if is_registered_worktree "$worktree_path"; then
-      emit result "EXISTS"
-      emit path "$worktree_path"
-      PROVISION_VERDICT="READY"
-      echo "verdict: READY"
-      return 0
-    else
+    if ! is_registered_worktree "$worktree_path"; then
       emit result "BLOCKED"
       emit path "$worktree_path"
       PROVISION_VERDICT="BLOCKED"
       echo "verdict: BLOCKED"
       return 1
     fi
-  fi
-
-  # --- 3. create the worktree ---------------------------------------------
-  # The ref the worktree checks out: an existing branch as it stands, else a
-  # new branch at the base.
-  if branch_exists "$p_branch"; then
+    emit result "EXISTS"
+    emit path "$worktree_path"
+    local actual_branch
+    actual_branch="$(git -C "$worktree_path" symbolic-ref --quiet --short HEAD 2>/dev/null)" \
+      || actual_branch="(detached HEAD)"
+    if [[ "$actual_branch" != "$p_branch" ]]; then
+      emit branch "MISMATCH $actual_branch (requested $p_branch)"
+      PROVISION_VERDICT="BLOCKED"
+      echo "verdict: BLOCKED"
+      return 1
+    fi
+    reentry=1
     checkout_ref="$p_branch"
-  else
-    checkout_ref="$p_base"
-  fi
-  if [[ $DRY -eq 1 ]]; then
-    echo "DRY: mkdir -p $p_root"
-    if branch_exists "$p_branch"; then
-      echo "DRY: git -C $repo_root worktree add $worktree_path $p_branch"
-    else
-      echo "DRY: git -C $repo_root worktree add $worktree_path -b $p_branch $p_base"
-    fi
-  else
-    mkdir -p "$p_root"
-    local wt_log wt_rc
-    wt_log="$(mktemp)"
-    if branch_exists "$p_branch"; then
-      git -C "$repo_root" worktree add "$worktree_path" "$p_branch" >"$wt_log" 2>&1
-    else
-      git -C "$repo_root" worktree add "$worktree_path" -b "$p_branch" "$p_base" >"$wt_log" 2>&1
-    fi
-    wt_rc=$?
-    if [[ $wt_rc -ne 0 ]]; then
-      emit result "BLOCKED"
-      sed 's/^/  /' "$wt_log"
-      rm -f "$wt_log"
-      PROVISION_VERDICT="BLOCKED"
-      echo "verdict: BLOCKED"
-      return 1
-    fi
-    rm -f "$wt_log"
-    emit result "CREATED"
+  elif ! create_worktree "$p_branch" "$p_base" "$p_root"; then
+    PROVISION_VERDICT="BLOCKED"
+    echo "verdict: BLOCKED"
+    return 1
   fi
 
   # --- 4. install dependencies --------------------------------------------

@@ -340,6 +340,220 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("verdict: BLOCKED\n", proc.stdout)
 
+    # --- re-entry provisions as a fresh checkout would ----------------------
+
+    def test_reentry_after_failed_install_retries_dependencies(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            commit_files(repo, "uv.lock")
+            root = td / "worktrees"
+            bin_dir = td / "bin"
+            bin_dir.mkdir()
+            record = td / "uv-call.txt"
+            log = td / "verify-logs" / "20.log"
+            write_stub(bin_dir, "uv", record, exit_code=7)
+            first = run_script(issue_args("20", root), repo, extra_path=str(bin_dir))
+            wt = root / "20"
+            (wt / "notes.txt").write_text("unrelated work\n", encoding="utf-8")
+            record.unlink()
+            write_stub(bin_dir, "uv", record, exit_code=0)
+
+            second = run_script(
+                [
+                    *issue_args("20", root),
+                    "--verify",
+                    "echo baseline-ran",
+                    "--log",
+                    str(log),
+                ],
+                repo,
+                extra_path=str(bin_dir),
+            )
+            recorded = record.read_text(encoding="utf-8").splitlines()
+            baseline = log.read_text(encoding="utf-8")
+            notes_kept = (wt / "notes.txt").read_text(encoding="utf-8")
+
+        self.assertEqual(first.returncode, 1)
+        self.assertIn("result: CREATED\n", first.stdout)
+        self.assertIn("verdict: BLOCKED\n", first.stdout)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertIn("result: EXISTS\n", second.stdout)
+        self.assertEqual(recorded, ["sync --all-groups --locked", str(wt)])
+        self.assertEqual(
+            deps_lines(second.stdout), ["deps: uv sync --all-groups --locked"]
+        )
+        self.assertIn("baseline: PASS\n", second.stdout)
+        self.assertIn("baseline-ran", baseline)
+        self.assertIn("verdict: READY\n", second.stdout)
+        self.assertEqual(notes_kept, "unrelated work\n")
+
+    def test_reentry_failed_install_still_blocks(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            commit_files(repo, "uv.lock")
+            root = td / "worktrees"
+            bin_dir = td / "bin"
+            bin_dir.mkdir()
+            write_stub(bin_dir, "uv", td / "uv-call.txt", exit_code=7)
+            run_script(issue_args("21", root), repo, extra_path=str(bin_dir))
+
+            proc = run_script(issue_args("21", root), repo, extra_path=str(bin_dir))
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("result: EXISTS\n", proc.stdout)
+        self.assertEqual(
+            deps_lines(proc.stdout),
+            ["deps: FAILED: uv sync --all-groups --locked (exit=7)"],
+        )
+        self.assertIn("verdict: BLOCKED\n", proc.stdout)
+
+    def test_reentry_wrong_branch_blocks(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            commit_files(repo, "uv.lock")
+            root = td / "worktrees"
+            bin_dir = td / "bin"
+            bin_dir.mkdir()
+            record = td / "uv-call.txt"
+            write_stub(bin_dir, "uv", record)
+            run_script(issue_args("22", root), repo, extra_path=str(bin_dir))
+            wt = root / "22"
+            (wt / "README.md").write_text("dirty edit\n", encoding="utf-8")
+            record.unlink()
+            args = issue_args("22", root)
+            args[args.index("--branch") + 1] = "feat/other"
+
+            proc = run_script(args, repo, extra_path=str(bin_dir))
+            branch = git(wt, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+            readme = (wt / "README.md").read_text(encoding="utf-8")
+            other_exists = git(repo, "branch", "--list", "feat/other").stdout.strip()
+            installed = record.exists()
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("result: EXISTS\n", proc.stdout)
+        self.assertIn("branch: MISMATCH feat/22 (requested feat/other)\n", proc.stdout)
+        self.assertIn("verdict: BLOCKED\n", proc.stdout)
+        self.assertEqual(branch, "feat/22")
+        self.assertEqual(readme, "dirty edit\n")
+        self.assertEqual(other_exists, "")
+        self.assertFalse(installed, "a mismatched checkout is never provisioned")
+
+    def test_reentry_detached_head_blocks(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            root = td / "worktrees"
+            run_script(issue_args("23", root), repo)
+            wt = root / "23"
+            git(wt, "checkout", "-q", "--detach")
+
+            proc = run_script(issue_args("23", root), repo)
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn(
+            "branch: MISMATCH (detached HEAD) (requested feat/23)\n", proc.stdout
+        )
+        self.assertIn("verdict: BLOCKED\n", proc.stdout)
+
+    def test_reentry_checks_the_shared_hook(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            commit_files(repo, ".pre-commit-config.yaml")
+            root = td / "worktrees"
+            run_script(issue_args("24", root), repo)
+
+            proc = run_script(issue_args("24", root), repo)
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("result: EXISTS\n", proc.stdout)
+        self.assertIn("hooks: MISSING", proc.stdout)
+        self.assertIn("verdict: READY_WITH_WARNINGS\n", proc.stdout)
+
+    def test_reentry_red_baseline_is_a_warning(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            root = td / "worktrees"
+            log = td / "verify-logs" / "25.log"
+            run_script(issue_args("25", root), repo)
+
+            proc = run_script(
+                [*issue_args("25", root), "--verify", "exit 3", "--log", str(log)],
+                repo,
+            )
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("result: EXISTS\n", proc.stdout)
+        self.assertIn("baseline: FAIL(exit=3)\n", proc.stdout)
+        self.assertIn("verdict: READY_WITH_WARNINGS\n", proc.stdout)
+
+    def test_reentry_dry_run_plans_provisioning_and_changes_nothing(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            commit_files(repo, "uv.lock", "pnpm-lock.yaml")
+            root = td / "worktrees"
+            bin_dir = td / "bin"
+            bin_dir.mkdir()
+            record = td / "calls.txt"
+            write_stub(bin_dir, "uv", record, append=True)
+            write_stub(bin_dir, "pnpm", record, append=True)
+            run_script(issue_args("26", root), repo, extra_path=str(bin_dir))
+            record.unlink()
+            wt = root / "26"
+            log = td / "verify-logs" / "26.log"
+
+            proc = run_script(
+                [
+                    *issue_args("26", root),
+                    "--verify",
+                    "echo hi",
+                    "--log",
+                    str(log),
+                    "--dry-run",
+                ],
+                repo,
+                extra_path=str(bin_dir),
+            )
+            anything_ran = record.exists()
+            log_written = log.exists()
+            worktrees = git(repo, "worktree", "list").stdout.strip().splitlines()
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("result: EXISTS\n", proc.stdout)
+        self.assertNotIn("worktree add", proc.stdout)
+        dry = [ln for ln in proc.stdout.splitlines() if ln.startswith("DRY: (cd ")]
+        self.assertEqual(
+            dry,
+            [
+                f"DRY: (cd {wt} && uv sync --all-groups --locked)",
+                f"DRY: (cd {wt} && pnpm install --frozen-lockfile)",
+                f"DRY: (cd {wt} && echo hi) > {log} 2>&1",
+            ],
+        )
+        self.assertIn("verdict: READY\n", proc.stdout)
+        self.assertFalse(anything_ran)
+        self.assertFalse(log_written)
+        self.assertEqual(len(worktrees), 2)
+
     def test_dependency_install_runs_uv_sync_locked_in_worktree(self):
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
