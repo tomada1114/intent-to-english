@@ -24,6 +24,16 @@ changes the workflow or its script:
      `pnpm install --frozen-lockfile --lockfile-only` passing. Each entry is the exact
      `"<name>@<version>"`, which pnpm accepts since 10.19.0.
 
+   Then every version the lock newly holds is looked up in the GitHub Advisory
+   Database (`GET /advisories?ecosystem=<pip|npm>&affects=<name>@<version>`). A
+   Dependabot alert only describes the versions locked before, so the newest release
+   the window admits can carry an advisory no alert names yet: virtualenv 21.14.11,
+   picked to close `< 21.14.9`, was itself inside GHSA-cx6f-vjhg-g3cc
+   (`>= 21.14.9, < 21.14.13`), and Dependency Review refused the PR (observed
+   2026-10-25). Such an advisory raises its package's target — with an exception if
+   that version is inside the window — or adds the package, and the lock is redone, up
+   to three rounds; one with no patched version fails that lockfile.
+
    The step summary shows the planned title, body, and diff, which the job hands on as
    an output. No dependency cache is used.
 2. **`Open the pull request`** runs only on `main`, never for a pull request or a dry
