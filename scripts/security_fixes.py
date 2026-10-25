@@ -20,7 +20,13 @@ for `uv.lock` and `pnpm-lock.yaml`:
 - An exception whose fix the window now admits is dropped, and the lock must not
   move when it is (`uv lock` keeps every version, `pnpm install
   --frozen-lockfile --lockfile-only` still passes).
-- After locking, no locked version may still match an alert's vulnerable range.
+- After locking, every version the lock newly holds is checked against the
+  GitHub Advisory Database: Dependabot alerts only describe the versions locked
+  before, so the newest release the window admits can carry an advisory of its
+  own. One that does raises its package's target, and the lock is redone, a few
+  rounds at most.
+- No locked version may then still match an alert's or advisory's vulnerable
+  range.
 
 It edits the working tree only; the workflow commits, pushes, and opens the
 pull request, and the owner merges it. Nothing runs while a pull request from
@@ -77,6 +83,10 @@ ECOSYSTEMS = {UV: "pip", PNPM: "npm"}
 UV_TABLE = "[tool.uv.exclude-newer-package]"
 PNPM_KEY = "minimumReleaseAgeExclude"
 TITLE_LIMIT = 72
+# Relock rounds while newly locked versions keep turning up advisories.
+ADVISORY_ROUNDS = 3
+# Package specs per `affects=` query, to keep the URL short.
+AFFECTS_BATCH = 20
 
 _REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
 _VERSION = re.compile(r"^v?(\d+(?:\.\d+)*)$")
@@ -108,7 +118,11 @@ class SecurityFixError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class Alert:
-    """One open Dependabot alert on a lockfile this script handles."""
+    """An advisory against one package.
+
+    Either an open Dependabot alert, or a match in the GitHub Advisory Database
+    for a version this run locked.
+    """
 
     ecosystem: str
     package: str
@@ -129,6 +143,7 @@ class Fix:
     alerts: list[Alert]
     published: datetime | None = None
     exception: bool = False
+    entry: str = ""
 
 
 @dataclass(slots=True)
@@ -402,6 +417,59 @@ def plan_fixes(
             target = highest(a.patched for a in patched if a.patched is not None)
             fixes.append(Fix(group[0].ecosystem, package, target, patched))
     return fixes
+
+
+def advisories_for(
+    ecosystem: str, versions: dict[str, set[str]], root: Path
+) -> list[Alert]:
+    """Return the reviewed advisories that affect any of ``versions``.
+
+    Reads the GitHub Advisory Database (`GET /advisories?affects=`), which any
+    token can read, so a version no Dependabot alert describes yet is still
+    judged.
+    """
+    upstream = ECOSYSTEMS[ecosystem]
+    specs = sorted(
+        f"{name}@{version}" for name, found in versions.items() for version in found
+    )
+    alerts: list[Alert] = []
+    for start in range(0, len(specs), AFFECTS_BATCH):
+        affects = urllib.parse.quote(
+            ",".join(specs[start : start + AFFECTS_BATCH]), safe="@,/"
+        )
+        for raw in _gh_lines(
+            f"advisories?ecosystem={upstream}&affects={affects}&per_page=100",
+            ".[]",
+            root,
+        ):
+            if raw.get("withdrawn_at"):
+                continue
+            for vulnerability in raw.get("vulnerabilities") or []:
+                package = vulnerability.get("package") or {}
+                name = _normalize(ecosystem, str(package.get("name", "")))
+                vulnerable = vulnerability.get("vulnerable_version_range")
+                if (
+                    package.get("ecosystem") != upstream
+                    or name not in versions
+                    or not vulnerable
+                    or not any(in_range(v, vulnerable) for v in versions[name])
+                ):
+                    continue
+                patched = vulnerability.get("first_patched_version")
+                if isinstance(patched, dict):
+                    patched = patched.get("identifier")
+                alerts.append(
+                    Alert(
+                        ecosystem=ecosystem,
+                        package=name,
+                        ghsa=raw["ghsa_id"],
+                        severity=raw.get("severity", ""),
+                        vulnerable=vulnerable,
+                        patched=patched or None,
+                        url=raw.get("html_url", ""),
+                    )
+                )
+    return alerts
 
 
 def unresolved(fix: Fix, locked: dict[str, set[str]]) -> list[str]:
@@ -786,42 +854,118 @@ def _add_exception(ctx: Context, fix: Fix, published: datetime) -> None:
         )
 
 
+def _raise_targets(
+    ecosystem: str, fixes: dict[str, Fix], found: list[Alert]
+) -> set[str]:
+    """Fold advisories on newly locked versions into the fixes; return raised ones."""
+    raised: set[str] = set()
+    for alert in found:
+        fix = fixes.get(alert.package)
+        if fix is None:
+            if alert.patched is None:
+                fix = Fix(ecosystem, alert.package, "0", [])
+            else:
+                fix = Fix(ecosystem, alert.package, alert.patched, [])
+                raised.add(alert.package)
+            fixes[alert.package] = fix
+        if all(
+            (a.ghsa, a.vulnerable) != (alert.ghsa, alert.vulnerable) for a in fix.alerts
+        ):
+            fix.alerts.append(alert)
+        if alert.patched is not None and _compare(alert.patched, fix.target) > 0:
+            fix.target = alert.patched
+            raised.add(alert.package)
+    return raised
+
+
+def _set_exception(ctx: Context, fix: Fix) -> None:
+    """Judge ``fix.target`` against the window and add its exception if needed."""
+    previous = f"{fix.package}@{fix.target}"
+    if fix.ecosystem == PNPM and fix.exception and fix.entry and fix.entry != previous:
+        text = ctx.workspace.read_text(encoding="utf-8")
+        ctx.workspace.write_text(pnpm_drop(text, fix.entry), encoding="utf-8")
+    fix.published = published_at(fix.ecosystem, fix.package, fix.target)
+    fix.exception = ctx.now < fix.published + ctx.windows[fix.ecosystem]
+    if fix.exception:
+        _add_exception(ctx, fix, fix.published)
+        fix.entry = previous
+
+
 def apply_fixes(ctx: Context, ecosystem: str, fixes: list[Fix]) -> None:
-    """Add the exceptions the fixes need, relock, and check no alert still matches."""
+    """Add the exceptions the fixes need, relock, and check no advisory still matches.
+
+    Every version the relock newly holds is looked up in the GitHub Advisory
+    Database; an advisory there raises its package's target (or adds the
+    package), and the lock is redone, up to ``ADVISORY_ROUNDS`` times.
+    """
     if not fixes:
         return
     lock_path = ctx.uv_lock if ecosystem == UV else ctx.pnpm_lock
     read_locked = uv_locked if ecosystem == UV else pnpm_locked
     before = read_locked(lock_path.read_text(encoding="utf-8"))
-    for fix in fixes:
-        fix.published = published_at(ecosystem, fix.package, fix.target)
-        fix.exception = ctx.now < fix.published + ctx.windows[ecosystem]
-        if fix.exception:
-            _add_exception(ctx, fix, fix.published)
-    names = [fix.package for fix in fixes]
-    if ecosystem == UV:
-        argv = ["uv", "lock", *(f"--upgrade-package={name}" for name in names)]
-    else:
-        argv = ["pnpm", "update", "--recursive", "--lockfile-only", "--no-save", *names]
-    _checked(argv, ctx.root, f"upgrading {', '.join(names)}")
-    after = read_locked(lock_path.read_text(encoding="utf-8"))
-    for fix in fixes:
+    by_package = {fix.package: fix for fix in fixes}
+    pending = set(by_package)
+    argv: list[str] = []
+    after = before
+    for _ in range(ADVISORY_ROUNDS):
+        for name in sorted(pending):
+            if by_package[name].target != "0":
+                _set_exception(ctx, by_package[name])
+        names = sorted(name for name, fix in by_package.items() if fix.target != "0")
+        if ecosystem == UV:
+            argv = ["uv", "lock", *(f"--upgrade-package={name}" for name in names)]
+        else:
+            argv = [
+                "pnpm",
+                "update",
+                "--recursive",
+                "--lockfile-only",
+                "--no-save",
+                *names,
+            ]
+        _checked(argv, ctx.root, f"upgrading {', '.join(names)}")
+        after = read_locked(lock_path.read_text(encoding="utf-8"))
+        moved = {
+            name: found - before.get(name, set())
+            for name, found in after.items()
+            if found - before.get(name, set())
+        }
+        pending = _raise_targets(
+            ecosystem, by_package, advisories_for(ecosystem, moved, ctx.root)
+        )
+        if not pending:
+            break
+    for fix in by_package.values():
         left = unresolved(fix, after)
         if left:
+            unpatched = sorted(
+                {
+                    a.ghsa
+                    for a in fix.alerts
+                    if a.patched is None
+                    and any(in_range(v, a.vulnerable) for v in left)
+                }
+            )
+            reason = (
+                f"{', '.join(unpatched)} has no patched version"
+                if unpatched
+                else f"{fix.target} closes its advisories"
+            )
             raise SecurityFixError(
                 code="ERR_FIXES_UNRESOLVED",
                 detail=(
                     f"{fix.package} is still locked at {', '.join(left)} after "
-                    f"`{' '.join(argv)}`; {fix.target} closes its alerts"
+                    f"`{' '.join(argv)}`; {reason}"
                 ),
-                expected=f"no locked {fix.package} inside its alerts' vulnerable ranges",
+                expected=f"no locked {fix.package} inside its advisories' vulnerable ranges",
                 next_step=(
-                    "a dependent's range likely holds it back: an override or a parent "
-                    "upgrade is the owner's call (managing-dependencies)"
+                    "a dependent's range likely holds it back, or the newest admitted "
+                    "release is itself vulnerable: an override or a parent upgrade is "
+                    "the owner's call (managing-dependencies)"
                 ),
             )
     _record_changes(ctx, ecosystem, before, after)
-    ctx.plan.fixes.extend(fixes)
+    ctx.plan.fixes.extend(by_package.values())
 
 
 def title(plan: Plan) -> str:
@@ -909,8 +1053,10 @@ def body(plan: Plan, windows: dict[str, timedelta], run_url: str) -> str:
     lines += ["", "## Test Plan", ""]
     if plan.fixes:
         lines.append(
-            "- The workflow relocked under the window and the exceptions above, and "
-            "checked that no locked version still matches an alert's vulnerable range."
+            "- The workflow relocked under the window and the exceptions above, "
+            "checked every newly locked version against the GitHub Advisory Database, "
+            "and checked that no locked version still matches an advisory's vulnerable "
+            "range."
         )
     if plan.dropped:
         lines.append(

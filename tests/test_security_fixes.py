@@ -113,6 +113,28 @@ def _alert(  # noqa: PLR0913 -- one keyword per field a test varies
     }
 
 
+def _advisory(
+    package: str,
+    vulnerable: str,
+    patched: str | None,
+    *,
+    ghsa: str = "GHSA-dddd-eeee-ffff",
+) -> dict[str, Any]:
+    return {
+        "ghsa_id": ghsa,
+        "severity": "high",
+        "html_url": f"https://github.com/advisories/{ghsa}",
+        "withdrawn_at": None,
+        "vulnerabilities": [
+            {
+                "package": {"ecosystem": "pip", "name": package},
+                "vulnerable_version_range": vulnerable,
+                "first_patched_version": patched,
+            }
+        ],
+    }
+
+
 @dataclass
 class Fake:
     """Stands in for gh, uv, pnpm, and the registries."""
@@ -122,6 +144,11 @@ class Fake:
     pulls: list[dict[str, str]] = field(default_factory=list)
     uv_result: dict[str, str] = field(default_factory=dict)
     pnpm_result: dict[str, str] = field(default_factory=dict)
+    # Per-call lock results, consumed before the fixed result above applies.
+    uv_rounds: list[dict[str, str]] = field(default_factory=list)
+    pnpm_rounds: list[dict[str, str]] = field(default_factory=list)
+    # GitHub Advisory Database entries; the script filters them by version.
+    advisories: list[dict[str, Any]] = field(default_factory=list)
     published: dict[str, str] = field(default_factory=dict)
     gh_fails: bool = False
     pnpm_install_fails: bool = False
@@ -135,19 +162,26 @@ class Fake:
         if argv[:2] == ["gh", "api"]:
             if self.gh_fails:
                 return subprocess.CompletedProcess(argv, 1, "", "HTTP 403")
-            rows = self.alerts if "dependabot/alerts" in argv[3] else self.pulls
+            if "dependabot/alerts" in argv[3]:
+                rows = self.alerts
+            elif argv[3].startswith("advisories?"):
+                rows = self.advisories
+            else:
+                rows = self.pulls
             out = "".join(json.dumps(row) + "\n" for row in rows)
         elif argv[:2] == ["uv", "lock"]:
             lock = security_fixes.uv_locked((cwd / "uv.lock").read_text("utf-8"))
             versions = {name: max(found) for name, found in lock.items()}
-            versions.update(self.uv_result)
+            versions.update(self.uv_rounds.pop(0) if self.uv_rounds else self.uv_result)
             (cwd / "uv.lock").write_text(_uv_lock(versions), "utf-8")
         elif argv[:2] == ["pnpm", "update"]:
             lock = security_fixes.pnpm_locked(
                 (cwd / "pnpm-lock.yaml").read_text("utf-8")
             )
             versions = {name: max(found) for name, found in lock.items()}
-            versions.update(self.pnpm_result)
+            versions.update(
+                self.pnpm_rounds.pop(0) if self.pnpm_rounds else self.pnpm_result
+            )
             (cwd / "pnpm-lock.yaml").write_text(_pnpm_lock(versions), "utf-8")
         elif argv[:2] == ["pnpm", "install"] and self.pnpm_install_fails:
             code = 1
@@ -598,3 +632,120 @@ def test_main_rejects_a_repo_that_is_not_owner_name(make_fake: MakeFake) -> None
         security_fixes.main(["--out", "x", "--repo", "nope"], root=fake.root)
 
     assert info.value.code == 2
+
+
+def test_main_raises_a_target_when_the_relocked_version_has_an_advisory(
+    make_fake: MakeFake,
+) -> None:
+    fake = make_fake(uv={"virtualenv": "21.9.0"})
+    fake.alerts = [_alert("virtualenv", "< 21.14.9", "21.14.9")]
+    fake.advisories = [
+        _advisory("virtualenv", ">= 21.14.9, < 21.14.13", "21.14.13", ghsa="GHSA-cx6f")
+    ]
+    fake.published = {
+        "virtualenv==21.14.9": "2026-10-17T16:09:42Z",
+        "virtualenv==21.14.13": "2026-10-22T20:10:16.95Z",
+    }
+    fake.uv_rounds = [{"virtualenv": "21.14.11"}, {"virtualenv": "21.14.13"}]
+
+    assert _main(fake) == 0
+
+    pyproject = (fake.root / "pyproject.toml").read_text("utf-8")
+    assert security_fixes.uv_exceptions(pyproject) == {
+        "virtualenv": "2026-10-22T20:10:17Z"
+    }
+    assert [argv for argv in fake.calls if argv[:2] == ["uv", "lock"]] == [
+        ["uv", "lock", "--upgrade-package=virtualenv"],
+        ["uv", "lock", "--upgrade-package=virtualenv"],
+    ]
+    body = (fake.root / "out" / "body.md").read_text("utf-8")
+    assert "| `virtualenv` | uv.lock | 21.14.13 |" in body
+    assert "[GHSA-cx6f](https://github.com/advisories/GHSA-cx6f) (high)" in body
+    assert "exception until 2026-10-29" in body
+
+
+def test_main_adds_a_package_whose_moved_version_has_an_advisory(
+    make_fake: MakeFake,
+) -> None:
+    fake = make_fake(uv={"certifi": "2026.6.17", "idna": "3.9"})
+    fake.alerts = [_alert("certifi", "< 2026.10.19", "2026.10.19")]
+    fake.advisories = [_advisory("idna", "= 3.10", "3.11")]
+    fake.published = {
+        "certifi==2026.10.19": "2026-10-10T00:00:00Z",
+        "idna==3.11": "2026-10-01T00:00:00Z",
+    }
+    fake.uv_rounds = [{"certifi": "2026.10.19", "idna": "3.10"}, {"idna": "3.11"}]
+
+    assert _main(fake) == 0
+
+    assert ["uv", "lock", "--upgrade-package=certifi", "--upgrade-package=idna"] in (
+        fake.calls
+    )
+    assert (fake.root / "out" / "title.txt").read_text("utf-8") == (
+        "deps: fix security alerts in certifi, idna\n"
+    )
+
+
+def test_main_fails_when_a_relocked_version_has_an_unpatched_advisory(
+    make_fake: MakeFake, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = make_fake(uv={"virtualenv": "21.9.0"})
+    fake.alerts = [_alert("virtualenv", "< 21.14.9", "21.14.9")]
+    fake.advisories = [_advisory("virtualenv", ">= 21.14.9", None)]
+    fake.published = {"virtualenv==21.14.9": "2026-10-17T16:09:42Z"}
+    fake.uv_result = {"virtualenv": "21.14.11"}
+
+    assert _main(fake) == 1
+
+    err = capsys.readouterr().err
+    assert err.startswith(
+        "ERR_FIXES_UNRESOLVED: virtualenv is still locked at 21.14.11"
+    )
+    assert "has no patched version" in err
+    assert security_fixes.uv_locked((fake.root / "uv.lock").read_text("utf-8")) == {
+        "virtualenv": {"21.9.0"}
+    }
+
+
+def test_main_gives_up_after_the_advisory_rounds(
+    make_fake: MakeFake, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = make_fake(uv={"virtualenv": "1.0"})
+    fake.alerts = [_alert("virtualenv", "< 1.1", "1.1")]
+    fake.advisories = [
+        _advisory("virtualenv", f"= 1.{n}", f"1.{n + 1}", ghsa=f"GHSA-{n}")
+        for n in range(1, 9)
+    ]
+    fake.published = {f"virtualenv==1.{n}": "2026-01-01T00:00:00Z" for n in range(1, 9)}
+    fake.uv_rounds = [{"virtualenv": f"1.{n}"} for n in range(1, 9)]
+
+    assert _main(fake) == 1
+
+    assert capsys.readouterr().err.startswith("ERR_FIXES_UNRESOLVED: virtualenv")
+    assert len([a for a in fake.calls if a[:2] == ["uv", "lock"]]) == (
+        security_fixes.ADVISORY_ROUNDS
+    )
+
+
+def test_main_replaces_a_pnpm_exception_when_the_target_rises(
+    make_fake: MakeFake,
+) -> None:
+    fake = make_fake(pnpm={"postcss": "8.5.30"})
+    fake.alerts = [
+        _alert(
+            "postcss", "< 8.5.31", "8.5.31", ecosystem="npm", manifest="pnpm-lock.yaml"
+        )
+    ]
+    advisory = _advisory("postcss", "= 8.5.31", "8.5.32")
+    advisory["vulnerabilities"][0]["package"]["ecosystem"] = "npm"
+    fake.advisories = [advisory]
+    fake.published = {
+        "postcss@8.5.31": "2026-10-24T00:00:00Z",
+        "postcss@8.5.32": "2026-10-24T12:00:00Z",
+    }
+    fake.pnpm_rounds = [{"postcss": "8.5.31"}, {"postcss": "8.5.32"}]
+
+    assert _main(fake) == 0
+
+    workspace = (fake.root / "pnpm-workspace.yaml").read_text("utf-8")
+    assert security_fixes.pnpm_exceptions(workspace) == ["postcss@8.5.32"]
