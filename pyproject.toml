@@ -41,6 +41,9 @@ exclude-newer = "7 days"
 # entry with a comment naming its advisories, and drops it once the window
 # admits the fix (managing-dependencies). Keep one `name = "cutoff"` per line.
 [tool.uv.exclude-newer-package]
+# GHSA-6q48-6c7w-9gw2: version 2026.10.19, published 2026-10-20T02:24:16Z.
+# The window admits it from 2026-10-27T02:24:16Z; the next run after drops this.
+certifi = "2026-10-20T02:24:17Z"
 
 [tool.uv.workspace]
 members = ["backend"]
