@@ -21,6 +21,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -553,6 +554,152 @@ class WorktreeSetupTest(unittest.TestCase):
         self.assertFalse(anything_ran)
         self.assertFalse(log_written)
         self.assertEqual(len(worktrees), 2)
+
+    # --- destinations are validated before the first mutation --------------
+
+    def _snapshot(self, repo: Path) -> tuple:
+        """What a rejected invocation must leave exactly as it found it."""
+        return (
+            git(repo, "status", "--porcelain", "--untracked-files=all").stdout,
+            git(repo, "worktree", "list", "--porcelain").stdout,
+            git(repo, "branch", "--list").stdout,
+        )
+
+    def _assert_rejected_untouched(self, proc, repo, before, record):
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("placement: REJECTED", proc.stdout)
+        self.assertIn("verdict: BLOCKED\n", proc.stdout)
+        self.assertNotIn("result: CREATED", proc.stdout)
+        self.assertEqual(self._snapshot(repo), before)
+        self.assertFalse(record.exists(), "no installer runs for a rejected placement")
+
+    def _fixture(self, td: Path):
+        repo = td / "repo"
+        repo.mkdir()
+        make_repo(repo)
+        commit_files(repo, "uv.lock")
+        bin_dir = td / "bin"
+        bin_dir.mkdir()
+        record = td / "uv-call.txt"
+        write_stub(bin_dir, "uv", record)
+        return repo, bin_dir, record
+
+    def test_nested_worktree_root_blocks_before_creation(self):
+        # Each case maps the fixture's paths to (arguments, the nested path).
+        cases = {
+            "single, root inside the checkout": lambda p: (
+                issue_args("30", p.repo / "wt"),
+                p.repo / "wt",
+            ),
+            "batch, root inside the checkout": lambda p: (
+                [
+                    "--spec",
+                    "30:feat/30",
+                    "--base",
+                    "main",
+                    "--root",
+                    str(p.repo / "wt"),
+                ],
+                p.repo / "wt",
+            ),
+            "root is the checkout itself": lambda p: (
+                issue_args("30", p.repo),
+                p.repo / "30",
+            ),
+            "root reached through a symlink into the checkout": lambda p: (
+                issue_args("30", p.td / "link" / "wt"),
+                p.repo / "wt",
+            ),
+        }
+        for name, build in cases.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as td:
+                td = Path(td)
+                repo, bin_dir, record = self._fixture(td)
+                (td / "link").symlink_to(repo, target_is_directory=True)
+                args, nested = build(SimpleNamespace(td=td, repo=repo))
+                before = self._snapshot(repo)
+
+                proc = run_script(args, repo, extra_path=str(bin_dir))
+
+                self._assert_rejected_untouched(proc, repo, before, record)
+                self.assertFalse(nested.exists(), f"{nested} must not be created")
+
+    def test_registered_worktree_inside_the_checkout_blocks_on_reentry(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            repo, bin_dir, record = self._fixture(td)
+            nested = repo / "wt" / "31"
+            git(repo, "worktree", "add", "-q", str(nested), "-b", "feat/31", "main")
+            before = self._snapshot(repo)
+
+            proc = run_script(
+                issue_args("31", repo / "wt"), repo, extra_path=str(bin_dir)
+            )
+
+            self._assert_rejected_untouched(proc, repo, before, record)
+            self.assertTrue(nested.is_dir(), "an existing checkout is never removed")
+        self.assertNotIn("result: EXISTS", proc.stdout)
+
+    def test_invalid_baseline_log_blocks_before_creation(self):
+        # Each case maps the fixture's paths to the --log it passes.
+        cases = {
+            "log is the checkout directory": lambda p: p.repo,
+            "log is a file symlink into the checkout": lambda p: p.td / "log-link.log",
+            "log inside the worktree to be created": lambda p: (
+                p.root / "32" / "baseline.log"
+            ),
+            "log inside the checkout": lambda p: p.repo / "baseline.log",
+        }
+        for name, build in cases.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as td:
+                td = Path(td)
+                repo, bin_dir, record = self._fixture(td)
+                (td / "log-link.log").symlink_to(repo / "README.md")
+                root = td / "worktrees"
+                log = build(SimpleNamespace(td=td, repo=repo, root=root))
+                before = self._snapshot(repo)
+                readme = (repo / "README.md").read_text(encoding="utf-8")
+
+                proc = run_script(
+                    [*issue_args("32", root), "--verify", "echo hi", "--log", str(log)],
+                    repo,
+                    extra_path=str(bin_dir),
+                )
+
+                self._assert_rejected_untouched(proc, repo, before, record)
+                self.assertFalse((root / "32").exists())
+                self.assertEqual(
+                    (repo / "README.md").read_text(encoding="utf-8"), readme
+                )
+
+    def test_single_issue_escaping_the_root_is_a_usage_error(self):
+        for issue in ("../escape", "a", "1/2", ""):
+            with self.subTest(issue=issue), tempfile.TemporaryDirectory() as td:
+                td = Path(td)
+                repo, bin_dir, record = self._fixture(td)
+                root = td / "worktrees"
+                before = self._snapshot(repo)
+
+                proc = run_script(
+                    [
+                        "--issue",
+                        issue,
+                        "--branch",
+                        "feat/x",
+                        "--base",
+                        "main",
+                        "--root",
+                        str(root),
+                    ],
+                    repo,
+                    extra_path=str(bin_dir),
+                )
+
+                self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+                self.assertFalse((td / "escape").exists())
+                self.assertFalse(root.exists())
+                self.assertEqual(self._snapshot(repo), before)
+                self.assertFalse(record.exists())
 
     def test_dependency_install_runs_uv_sync_locked_in_worktree(self):
         with tempfile.TemporaryDirectory() as td:
