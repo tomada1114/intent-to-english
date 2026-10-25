@@ -28,7 +28,7 @@ such as a driver (`managing-dependencies`).
 | Tables, the naming convention, `UtcDateTime` | `backend/src/intent_to_english/adapters/sql/tables.py` |
 | The app engine (`make_engine`) and read-only command engine (`make_read_engine`) | `backend/src/intent_to_english/adapters/sql/engine.py` |
 | The read-only model-call query and row restoration | `backend/src/intent_to_english/adapters/sql/call_log.py`, `session_values.py` |
-| One repository per port, its statements beside it | `backend/src/intent_to_english/adapters/sql/repository.py` |
+| One repository per port, its statements beside it | `backend/src/intent_to_english/adapters/sql/session_repository.py` |
 | Alembic's settings, without a URL | `backend/alembic.ini` |
 | How Alembic reaches the database; the revision template | `backend/migrations/env.py`, `backend/migrations/script.py.mako` |
 | The revisions | `backend/migrations/versions/` |
@@ -68,8 +68,12 @@ a statement's shape. Two traps met here:
   passed with it, so one constant writes every column.
 
 Each method takes its own pooled connection — `engine.begin()` for a write, which
-commits or rolls back, `engine.connect()` for a read — so concurrent calls never share
-a transaction. A driver error with a domain meaning is translated there (an
+commits or rolls back, `engine.connect()` for a simple read such as a page of
+sessions — so concurrent calls never share a transaction. A read that must see one
+consistent session, timeline, and latest submission (`SqlSessionRepository.get`) is the
+exception: it runs under `engine.begin()` and takes the same transition lock as a write
+(`_SESSION`'s `with_for_update()` on PostgreSQL, `BEGIN IMMEDIATE` on SQLite), so a
+concurrent transition cannot change it halfway through. A driver error with a domain meaning is translated there (an
 `IntegrityError` on `create` becomes the port's `ValueError`; **BACKGROUND:**
 `designing-errors`); any other propagates as a bug.
 

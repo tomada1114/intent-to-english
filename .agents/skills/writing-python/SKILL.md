@@ -149,8 +149,8 @@ if TYPE_CHECKING:
 - A path built from outside input is resolved with `Path.resolve()` and checked to stay
   under its allowed root before it is opened.
 - SQL takes values only through bound parameters, with the statement a module
-  constant built once (`adapters/sql/repository.py`'s `_SELECT_ONE` and siblings,
-  `persisting-data`); never a string assembled from input.
+  constant built once (`adapters/sql/session_repository.py`'s `_SESSION` and
+  siblings, `persisting-data`); never a string assembled from input.
 - A subprocess takes a fixed argv list, never `shell=True`; its `# noqa: S603` names why
   the argv is safe (`backend/tests/test_composition.py`).
 
