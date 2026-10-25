@@ -49,6 +49,7 @@ jobs:
       patch: ${{ steps.plan.outputs.patch }}
       title: ${{ steps.plan.outputs.title }}
       body: ${{ steps.plan.outputs.body }}
+      failed: ${{ steps.plan.outputs.failed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,9 +71,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           OUT: ${{ runner.temp }}/security-fixes
+        # A failure in one lockfile still plans the other's change, so the
+        # status is recorded here and the `result` job fails the run after any
+        # pull request is open.
         run: |
           set -euo pipefail
-          uv run --locked python scripts/security_fixes.py --out "$OUT"
+          status=0
+          uv run --locked python scripts/security_fixes.py --out "$OUT" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "::error::scripts/security_fixes.py exited $status; its report is in this step's log."
+          fi
           if [ ! -f "$OUT/title.txt" ]; then
             echo "No change to propose." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -158,3 +167,29 @@ jobs:
             push origin "HEAD:refs/heads/${branch}"
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
             --title "$(cat "${RUNNER_TEMP}/title.txt")" --body-file "${RUNNER_TEMP}/body.md"
+
+  # The run's verdict, after any pull request is open: red when the plan
+  # recorded a failure or either job did not succeed (a skipped `open-pr` is
+  # fine), so a scheduled failure still reaches the owner by email.
+  result:
+    name: Result
+    needs: [plan, open-pr]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Fail on a planning failure or a failed job
+        env:
+          PLAN: ${{ needs.plan.result }}
+          PLAN_FAILED: ${{ needs.plan.outputs.failed }}
+          OPEN_PR: ${{ needs.open-pr.result }}
+        run: |
+          if [ "$PLAN" != "success" ] || [ "$PLAN_FAILED" = "true" ]; then
+            echo "::error::Planning failed; read the Plan security fixes log."
+            exit 1
+          fi
+          if [ "$OPEN_PR" != "success" ] && [ "$OPEN_PR" != "skipped" ]; then
+            echo "::error::Opening the pull request ended as $OPEN_PR."
+            exit 1
+          fi

@@ -204,12 +204,14 @@ def _main(fake: Fake, *extra: str) -> int:
 # --------------------------------------------------------------------------- #
 
 
-def test_committed_files_hold_empty_exception_lists_and_a_seven_day_window() -> None:
+def test_committed_exception_lists_parse_under_a_seven_day_window() -> None:
+    # A Security Fixes pull request adds entries to these files, so the test
+    # holds for any entries the script can read, not only for empty lists.
     pyproject = (REPO_ROOT / "pyproject.toml").read_text("utf-8")
     workspace = (REPO_ROOT / "pnpm-workspace.yaml").read_text("utf-8")
 
-    assert security_fixes.uv_exceptions(pyproject) == {}
-    assert security_fixes.pnpm_exceptions(workspace) == []
+    assert isinstance(security_fixes.uv_exceptions(pyproject), dict)
+    assert isinstance(security_fixes.pnpm_exceptions(workspace), list)
     assert security_fixes.uv_window(pyproject) == timedelta(days=7)
     assert security_fixes.pnpm_window(workspace) == timedelta(days=7)
 
@@ -430,6 +432,39 @@ def test_main_fails_when_the_lock_still_holds_a_vulnerable_version(
     assert "\nExpected: " in err
     assert "\nNext: " in err
     assert not (fake.root / "out").exists()
+    assert security_fixes.uv_locked((fake.root / "uv.lock").read_text("utf-8")) == {
+        "virtualenv": {"21.9.0"}
+    }
+
+
+def test_main_still_plans_one_lockfile_when_the_other_fails(
+    make_fake: MakeFake, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = make_fake(uv={"certifi": "2026.6.17"}, pnpm={"postcss": "8.5.30"})
+    fake.alerts = [
+        _alert("certifi", "< 2026.10.19", "2026.10.19"),
+        _alert(
+            "postcss", "< 8.5.31", "8.5.31", ecosystem="npm", manifest="pnpm-lock.yaml"
+        ),
+    ]
+    fake.published = {
+        "certifi==2026.10.19": "2026-10-10T00:00:00Z",
+        "postcss@8.5.31": "2026-10-24T00:00:00Z",
+    }
+    fake.uv_result = {"certifi": "2026.10.19"}
+    fake.pnpm_result = {"postcss": "8.5.30"}
+
+    assert _main(fake) == 1
+
+    assert capsys.readouterr().err.startswith("ERR_FIXES_UNRESOLVED: postcss")
+    assert (fake.root / "pnpm-workspace.yaml").read_text("utf-8") == WORKSPACE
+    assert (fake.root / "out" / "title.txt").read_text("utf-8") == (
+        "deps: fix security alerts in certifi\n"
+    )
+    body = (fake.root / "out" / "body.md").read_text("utf-8")
+    assert "### Failed in this run" in body
+    assert "- `ERR_FIXES_UNRESOLVED`: postcss is still locked at 8.5.30" in body
+    assert "postcss" not in body.split("### Failed in this run")[0]
 
 
 def test_main_drops_an_expired_uv_exception_that_keeps_the_lock(

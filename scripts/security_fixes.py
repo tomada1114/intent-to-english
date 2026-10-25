@@ -36,7 +36,8 @@ registry.npmjs.org. Run by hand, it rewrites the lockfiles of your checkout.
 
 Exit codes:
     0  a change was planned, or nothing needed one
-    1  a failure, reported on stderr as ERR_FIXES_<KIND>
+    1  a failure, reported on stderr as ERR_FIXES_<KIND>; a failure in one
+       lockfile leaves it as it was and still plans the other's change
     2  invalid arguments
 """
 
@@ -139,6 +140,7 @@ class Plan:
     changes: dict[str, list[str]] = field(default_factory=dict)
     new_packages: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    failures: list[SecurityFixError] = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -889,6 +891,18 @@ def body(plan: Plan, windows: dict[str, timedelta], run_url: str) -> str:
             "",
         ]
         lines += [f"- {item}" for item in plan.new_packages]
+    if plan.failures:
+        lines += [
+            "",
+            "### Failed in this run",
+            "",
+            "These left their lockfile as it was; the run's log has the full report.",
+            "",
+        ]
+        lines += [
+            f"- `{error.code}`: {error.detail.splitlines()[0]}"
+            for error in plan.failures
+        ]
     if plan.notes:
         lines += ["", "### Alerts not handled here", ""]
         lines += [f"- {note}" for note in plan.notes]
@@ -932,23 +946,52 @@ def plan_run(repo: str, root: Path, now: datetime) -> Context | None:
     }
     ctx = Context(root=root, now=now, windows=windows, plan=Plan())
     alerts = read_alerts(repo, root, ctx.plan.notes)
-    drop_expired_uv(ctx)
-    drop_expired_pnpm(ctx)
-    for ecosystem, path, read_locked in (
-        (UV, ctx.uv_lock, uv_locked),
-        (PNPM, ctx.pnpm_lock, pnpm_locked),
-    ):
-        mine = [alert for alert in alerts if alert.ecosystem == ecosystem]
-        locked = read_locked(path.read_text(encoding="utf-8"))
-        apply_fixes(ctx, ecosystem, plan_fixes(mine, locked, ctx.plan.notes))
+    for ecosystem in (UV, PNPM):
+        _plan_ecosystem(ctx, ecosystem, [a for a in alerts if a.ecosystem == ecosystem])
     return ctx
 
 
-def _fail(error: SecurityFixError) -> int:
+def _plan_ecosystem(ctx: Context, ecosystem: str, alerts: list[Alert]) -> None:
+    """Change one ecosystem's files, or leave them and its plan as they were.
+
+    A failure in one lockfile must not hold back the other's fixes, so it is
+    recorded and the run goes on; `main` still exits 1 for it.
+    """
+    paths = (
+        (ctx.pyproject, ctx.uv_lock)
+        if ecosystem == UV
+        else (ctx.workspace, ctx.pnpm_lock)
+    )
+    saved = {path: path.read_text(encoding="utf-8") for path in paths}
+    plan = ctx.plan
+    sizes = (
+        len(plan.fixes),
+        len(plan.dropped),
+        len(plan.new_packages),
+        len(plan.notes),
+    )
+    try:
+        if ecosystem == UV:
+            drop_expired_uv(ctx)
+        else:
+            drop_expired_pnpm(ctx)
+        read_locked = uv_locked if ecosystem == UV else pnpm_locked
+        locked = read_locked(paths[1].read_text(encoding="utf-8"))
+        apply_fixes(ctx, ecosystem, plan_fixes(alerts, locked, plan.notes))
+    except SecurityFixError as error:
+        for path, text in saved.items():
+            path.write_text(text, encoding="utf-8")
+        del plan.fixes[sizes[0] :], plan.dropped[sizes[1] :]
+        del plan.new_packages[sizes[2] :], plan.notes[sizes[3] :]
+        plan.changes.pop(ecosystem, None)
+        plan.failures.append(error)
+        _report(error)
+
+
+def _report(error: SecurityFixError) -> None:
     print(f"{error.code}: {error.detail}", file=sys.stderr)
     print(f"Expected: {error.expected}", file=sys.stderr)
     print(f"Next: {error.next_step}", file=sys.stderr)
-    return 1
 
 
 def main(argv: list[str] | None = None, root: Path = REPO_ROOT) -> int:
@@ -975,15 +1018,17 @@ def main(argv: list[str] | None = None, root: Path = REPO_ROOT) -> int:
     try:
         ctx = plan_run(args.repo, root, now)
     except SecurityFixError as error:
-        return _fail(error)
+        _report(error)
+        return 1
     if ctx is None:
         return 0
     plan = ctx.plan
+    failed = 1 if plan.failures else 0
     for note in plan.notes:
         print(f"note: {note}")
     if not plan.fixes and not plan.dropped:
         print("No security fix or expired exception to act on.")
-        return 0
+        return failed
     server = os.environ.get("GITHUB_SERVER_URL", "")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     run_url = f"{server}/{args.repo}/actions/runs/{run_id}" if server and run_id else ""
@@ -993,7 +1038,7 @@ def main(argv: list[str] | None = None, root: Path = REPO_ROOT) -> int:
         body(plan, ctx.windows, run_url), encoding="utf-8"
     )
     print(title(plan))
-    return 0
+    return failed
 
 
 if __name__ == "__main__":
