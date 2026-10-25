@@ -26,7 +26,8 @@ updates:
     # almost never disagree: uv judges each file's upload time, the cooldown the
     # release date, so a late-uploaded wheel or a boundary-day release can still
     # fail the Dependabot job. Security updates skip this cooldown but not
-    # exclude-newer. The npm cooldown below equals it too.
+    # exclude-newer, so they stay off: .github/workflows/security-fixes.yml turns
+    # alerts into pull requests instead. The npm cooldown below equals it too.
     cooldown:
       default-days: 7
     # Minor and patch updates arrive as one PR; each major stays a PR of its own.
@@ -50,9 +51,8 @@ updates:
     # shorter cooldown proposes versions `pnpm install` refuses; change them
     # together, or neither. Security updates skip this cooldown, but
     # `minimumReleaseAgeStrict: true` still refuses a version younger than
-    # 7 days, so such a PR fails its install and is handled by hand
-    # (managing-dependencies); a `minimumReleaseAgeExclude` entry is the
-    # owner's decision.
+    # 7 days, so they stay off: .github/workflows/security-fixes.yml adds the
+    # `minimumReleaseAgeExclude` entry such a fix needs (managing-dependencies).
     cooldown:
       default-days: 7
     # Minor and patch updates arrive as one PR; each major stays a PR of its own.
