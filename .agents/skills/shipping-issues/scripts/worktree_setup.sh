@@ -63,7 +63,8 @@
 #     caller-supplied --root. This script never creates or modifies
 #     anything inside the repo checkout — the skill treats an unexpectedly
 #     dirty main checkout as a hard stop condition. This guard is enforced
-#     per-spec in batch mode, not just for the first one.
+#     per-spec in batch mode, not just for the first one, and before the
+#     spec's first mkdir, git change, install, or baseline.
 #
 # Exit codes:
 #   0 = READY or READY_WITH_WARNINGS (batch: every spec READY/READY_WITH_WARNINGS)
@@ -80,8 +81,16 @@ emit() { printf '%s: %s\n' "$1" "$2"; }
 # path (or any of it) to exist yet. Walks up to the nearest existing
 # ancestor, canonicalizes that with `cd && pwd -P` (which resolves symlinks
 # and any `..`/`.` components in one shot), then reappends the missing tail.
+# A symlink as the final component — a file's, or a dangling one — is followed
+# first, since `pwd -P` only resolves directories; $2 bounds a symlink loop.
 resolve_path() {
-  local p="$1" d b
+  local p="$1" depth="${2:-0}" d b t
+  if [[ -L "$p" && $depth -lt 40 ]]; then
+    t="$(readlink "$p")"
+    [[ "$t" == /* ]] || t="$(dirname "$p")/$t"
+    resolve_path "$t" $((depth + 1))
+    return
+  fi
   if [[ -d "$p" ]]; then
     (cd "$p" && pwd -P)
     return
@@ -95,7 +104,7 @@ resolve_path() {
   if [[ "$d" == "$p" ]]; then
     printf '%s\n' "$p"
   else
-    printf '%s/%s\n' "$(resolve_path "$d")" "$b"
+    printf '%s/%s\n' "$(resolve_path "$d" "$depth")" "$b"
   fi
 }
 
@@ -205,6 +214,12 @@ if [[ ${#SPECS[@]} -eq 0 ]]; then
     usage
     exit 2
   fi
+  # The issue names the directory under --root, so anything but digits could
+  # point it elsewhere ("../x"); --spec applies the same rule below.
+  if [[ ! "$ISSUE" =~ ^[0-9]+$ ]]; then
+    echo "Invalid --issue (must be digits): $ISSUE" >&2
+    exit 2
+  fi
 else
   if [[ -z "$BASE" || -z "$ROOT" ]]; then
     usage
@@ -299,6 +314,39 @@ do_install() {
   emit deps "$*"
 }
 
+# Whether the resolved path $1 is $2 or lies beneath it.
+is_within() { [[ "$1" == "$2" || "$1" == "$2"/* ]]; }
+
+# --- 1. placement, checked before anything is created or run ------------
+# The worktree must lie beneath --root and outside the primary checkout; the
+# baseline log (with --verify) must be a file outside both checkouts. Every
+# path is resolved physically first, so a symlink cannot smuggle one inside
+# the other. Prints `placement: REJECTED <why>` and returns 1 on a violation.
+validate_placement() {
+  local v_root="$1" v_verify="$2" v_log="$3" r_repo r_root r_wt r_log
+  r_repo="$(resolve_path "$repo_root")"
+  r_root="$(resolve_path "$v_root")"
+  r_wt="$(resolve_path "$worktree_path")"
+  if is_within "$r_wt" "$r_repo"; then
+    emit placement "REJECTED worktree $worktree_path is inside the primary checkout $repo_root"
+    return 1
+  fi
+  if [[ "$r_wt" == "$r_root" ]] || ! is_within "$r_wt" "$r_root"; then
+    emit placement "REJECTED worktree $worktree_path resolves outside the root $v_root"
+    return 1
+  fi
+  [[ -n "$v_verify" ]] || return 0
+  r_log="$(resolve_path "$v_log")"
+  if [[ -d "$r_log" ]]; then
+    emit placement "REJECTED baseline log $v_log is a directory"
+    return 1
+  fi
+  if is_within "$r_log" "$r_repo" || is_within "$r_log" "$r_wt"; then
+    emit placement "REJECTED baseline log $v_log is inside a checkout"
+    return 1
+  fi
+}
+
 # --- 3. create the worktree ---------------------------------------------
 # Creates worktree_path on $1 (an existing branch as it stands, else a new
 # branch at the base $2) under the root $3, or prints what it would run in a
@@ -359,6 +407,12 @@ provision_one() {
 
   emit repo_root "$repo_root"
   emit worktree "$worktree_path"
+
+  if ! validate_placement "$p_root" "$p_verify" "$p_log"; then
+    PROVISION_VERDICT="BLOCKED"
+    echo "verdict: BLOCKED"
+    return 1
+  fi
 
   # --- 2. idempotent re-entry ---------------------------------------------
   # A registered worktree is reused as it stands — never recreated, reset,
@@ -437,21 +491,9 @@ provision_one() {
 
   # --- 6. verification baseline (only with --verify) ----------------------
   if [[ -n "$p_verify" ]]; then
-    local log_path="$p_log" log_dir resolved_log resolved_repo_root resolved_worktree verify_rc
+    # Its placement was checked in step 1, before anything was created.
+    local log_path="$p_log" log_dir verify_rc
     log_dir="$(dirname "$log_path")"
-
-    resolved_log="$(resolve_path "$log_path")"
-    resolved_repo_root="$(resolve_path "$repo_root")"
-    resolved_worktree="$(resolve_path "$worktree_path")"
-
-    case "$resolved_log" in
-      "$resolved_repo_root"/*|"$resolved_worktree"/*)
-        emit baseline_log "$log_path"
-        PROVISION_VERDICT="BLOCKED"
-        echo "verdict: BLOCKED"
-        return 1
-        ;;
-    esac
 
     if [[ $DRY -eq 1 ]]; then
       echo "DRY: mkdir -p $log_dir"
