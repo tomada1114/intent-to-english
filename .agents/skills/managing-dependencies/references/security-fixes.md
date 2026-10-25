@@ -39,6 +39,17 @@ changes the workflow or its script:
    (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax,
    checked 2026-10-25).
 
+3. **`Result`** fails the run when planning recorded a failure or a job did not succeed,
+   after any pull request is open. A failure in one lockfile leaves that lockfile as
+   it was and still proposes the other's change, listed under "Failed in this run".
+
+GitHub disables a public repository's scheduled workflows after 60 days without
+repository activity ("scheduled workflows are automatically disabled when no
+repository activity has occurred in 60 days",
+https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows,
+checked 2026-10-25). Its pull requests count as activity only while they arrive; after
+a quiet spell, check Actions → Security Fixes and enable it again.
+
 ## The owner's one-time setup
 
 An agent never does these; they create credentials and change repository settings.

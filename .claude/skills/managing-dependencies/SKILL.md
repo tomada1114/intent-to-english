@@ -2,13 +2,13 @@
 name: managing-dependencies
 description: >
   Covers whether a Python or JavaScript package may be added and how it lands: the
-  sign-off and review record, uv add into backend/ or the dev group, pnpm --dir frontend
-  or e2e add, ranges with uv.lock or pnpm-lock.yaml pinning, the 7-day window
-  (exclude-newer, pnpm-workspace.yaml's minimumReleaseAge) and the Dependabot cooldowns
-  equal to it, a one-package exception, allowBuilds and other pnpm-workspace.yaml
-  exceptions, OSV-Scanner and Dependency Review. Use when adding, bumping, or removing a
-  package, changing the window or an exception, or uv lock --check or a frozen pnpm
-  install fails.
+  sign-off and review record, uv add or pnpm add into the right member, ranges and lock
+  pinning, the 7-day window (exclude-newer, minimumReleaseAge) and the Dependabot
+  cooldowns equal to it, the Security Fixes workflow and its one-package exceptions,
+  allowBuilds and other pnpm-workspace.yaml exceptions, OSV-Scanner and Dependency
+  Review. Use when adding, bumping, or removing a package, changing the window or an
+  exception, a Security Fixes run or PR needs attention, or uv lock --check or a frozen
+  pnpm install fails.
 ---
 
 # Managing Dependencies
