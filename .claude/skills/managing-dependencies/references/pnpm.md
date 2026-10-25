@@ -41,7 +41,9 @@ both are fetched) is `frontend/AGENTS.md`'s "Toolchain".
 - `pnpm install --frozen-lockfile` (`just install`, `just frontend install`, and every
   CI job that installs) fails when a `package.json` and the lockfile disagree, and
   `verifyDepsBeforeRun: error` makes `pnpm exec` and `pnpm run` refuse a `node_modules`
-  that no longer matches the lockfile: reinstall after the lockfile moves.
+  that no longer matches the lockfile or `pnpm-workspace.yaml`'s settings: reinstall
+  after either moves, a Security Fixes exception included (`ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`,
+  "The value of the minimumReleaseAgeExclude setting has changed", observed 2026-10-25).
 - The review record's transitive count is the `packages:` entries `pnpm-lock.yaml`
   gains, not only the direct one.
 
