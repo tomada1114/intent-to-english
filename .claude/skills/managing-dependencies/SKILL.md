@@ -145,6 +145,8 @@ nothing merges on its own.
   `uv lock` keeps every locked version without it. A stale entry would freeze the
   package at its cutoff, so dropping it is never a judgment call; dropping it early
   would move the lock back to a vulnerable version (observed with `uv lock`, 2026-10-25).
+- **The version it lands on is checked too.** Every newly locked version is looked up
+  in the GitHub Advisory Database; an advisory there raises the target and relocks.
 - **It stops instead of widening anything.** A fix a dependent's range holds back, or one
   that needs another too-new package, fails the run (`ERR_FIXES_UNRESOLVED`,
   `ERR_FIXES_LOCK`); a new locked package lands in the pull request under "Needs the
