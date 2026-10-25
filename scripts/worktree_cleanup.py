@@ -5,9 +5,10 @@ Usage:
     just worktree-clean-apply <worktree-root> <branch>
 
 Exit codes:
-    0  the cleanup helper completed
+    0  the cleanup helper completed with no failed removal
     2  invalid scope or arguments
-    otherwise the cleanup helper's exit code
+    otherwise the cleanup helper's exit code (1: a lookup or a requested removal
+       failed; its FAILED lines name what was kept)
 """
 
 from __future__ import annotations

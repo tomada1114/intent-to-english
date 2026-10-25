@@ -37,7 +37,8 @@ extends the run past its first merge.
 Preview first. Inspect the target branches, worktrees and any gitignored artifacts
 before confirming the concrete deletions, reusing an approval that covers them.
 Only after confirmation, run the same cleanup command without `--dry-run` and verify
-its result. The preflight cache update follows cleanup when applicable.
+its result: exit 1 with `FAILED` lines means those targets were kept and still need
+attention, even though the rest was cleaned. The preflight cache update follows cleanup when applicable.
 
 ```bash
 .agents/skills/shipping-issues/scripts/cleanup_run.sh --dry-run --branch <name> [--branch <name> ...] \

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -310,3 +311,32 @@ def test_apply_failing_gh_fails_without_removing_anything(
     assert result.returncode != 0
     assert path.is_dir()
     assert repo.has_branch("feat/offline")
+
+
+def test_apply_failed_worktree_removal_propagates_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _Repo(tmp_path, monkeypatch)
+    path = repo.add_worktree("feat/stuck")
+    head = _git(path, "rev-parse", "HEAD")
+    repo.set_gh(merged=f"feat/stuck\t{head}\n", open_="", exit_code=0)
+    real_git = shutil.which("git")
+    assert real_git is not None
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_git = bin_dir / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        'case " $* " in *" worktree remove "*) echo "fatal: simulated" >&2; exit 128 ;; esac\n'
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+
+    result = repo.clean("feat/stuck")
+
+    assert result.returncode == 1, result.stdout
+    assert "cleanup: done" not in result.stdout
+    assert path.is_dir()
+    assert repo.has_branch("feat/stuck")

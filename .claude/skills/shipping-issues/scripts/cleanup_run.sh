@@ -33,8 +33,20 @@
 # worktree-agent-* branch is deleted only if it independently clears the
 # merged-PR guard. Without --branch, behavior is unchanged.
 #
+# A target this script means to delete but cannot — its status unreadable, a
+# removal or deletion that fails, a worktree still registered after removal —
+# is kept, reported on a FAILED line, and the remaining targets are still
+# processed. Kept on purpose (SKIPPED: dirty, unmerged, unselected, open PR) is
+# not a failure.
+#
 # Usage: cleanup_run.sh [--dry-run] [--remote] [--worktree-root <path>]
 #                        [--merged-only] [--force] [--branch <name> ...]
+#
+# Exit codes:
+#   0 = every requested removal happened ("cleanup: done")
+#   1 = a GitHub lookup failed before anything was removed, or a FAILED line
+#       ("cleanup: incomplete" on stderr)
+#   2 = usage error
 set -euo pipefail
 
 # print_help — the script's own usage, derived straight from this header
@@ -68,6 +80,14 @@ while [ $# -gt 0 ]; do
 done
 
 run() { if [ "$dry" -eq 1 ]; then echo "DRY: $*"; else "$@"; fi; }
+
+# Counted in this shell, never in a pipeline's subshell, so every pass's
+# failures reach the exit status.
+failures=0
+failed() {  # failed <reason> <target>: keep the target and count it
+  echo "FAILED ($1): $2"
+  failures=$((failures + 1))
+}
 
 # --path-format=absolute --git-common-dir always points at the main .git,
 # regardless of which directory this script is invoked from.
@@ -161,18 +181,37 @@ else
         return 0
       fi
     fi
-    if [ "$force" -ne 1 ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
-      echo "SKIPPED (dirty — salvage, then rerun with --force): $wt_path"
-      surviving_worktrees="$surviving_worktrees $wt_path"
-      return 0
+    if [ "$force" -ne 1 ]; then
+      # An unreadable status is not a clean one: removing on it could destroy
+      # work no one has seen.
+      local status_out
+      if ! status_out=$(git -C "$wt_path" status --porcelain); then
+        failed "status unreadable — kept" "$wt_path"
+        surviving_worktrees="$surviving_worktrees $wt_path"
+        return 0
+      fi
+      if [ -n "$status_out" ]; then
+        echo "SKIPPED (dirty — salvage, then rerun with --force): $wt_path"
+        surviving_worktrees="$surviving_worktrees $wt_path"
+        return 0
+      fi
     fi
     # The script's own --force (above) governs the dirty check; the --force on
     # the `git worktree remove` command below is a separate, unconditional
     # thing — it's required even for a CLEAN worktree because gitignored files
     # (.venv, caches, ...) make plain `git worktree remove` refuse.
     # Do not "simplify" this to one flag.
-    run git -C "$repo_root" worktree remove --force "$wt_path" ||
-      { echo "SKIPPED (worktree remove failed): $wt_path"; surviving_worktrees="$surviving_worktrees $wt_path"; return 0; }
+    if ! run git -C "$repo_root" worktree remove --force "$wt_path"; then
+      failed "worktree remove failed — kept" "$wt_path"
+      surviving_worktrees="$surviving_worktrees $wt_path"
+      return 0
+    fi
+    [ "$dry" -eq 1 ] && return 0
+    if git -C "$repo_root" worktree list --porcelain | grep -qxF "worktree $wt_path"; then
+      failed "worktree still registered after remove" "$wt_path"
+      surviving_worktrees="$surviving_worktrees $wt_path"
+      return 0
+    fi
     echo "removed worktree: $wt_path"
   }
   while IFS= read -r line; do
@@ -194,7 +233,6 @@ if [ ${#wanted_branches[@]} -gt 0 ]; then
 else
   branch_list=$(git -C "$repo_root" branch --format='%(refname:short)')
 fi
-printf '%s\n' "$branch_list" |
 while IFS= read -r br; do
   [ -n "$br" ] || continue
   [ "$br" = "$default_branch" ] && continue
@@ -223,15 +261,18 @@ while IFS= read -r br; do
   # name must still clear the same guard as everything else.
   if [ ${#wanted_branches[@]} -eq 0 ]; then
     case "$br" in
-      worktree-agent-*) run git -C "$repo_root" branch -D "$br" || true; continue ;;
+      worktree-agent-*)
+        run git -C "$repo_root" branch -D "$br" || failed "branch -D failed — kept" "$br"
+        continue
+        ;;
     esac
   fi
   if deletable "$br" "$(local_tip "$br")"; then
     run git -C "$repo_root" branch -D "$br" ||
-      { echo "SKIPPED (branch -D failed): $br"; continue; }
+      { failed "branch -D failed — kept" "$br"; continue; }
     echo "deleted local branch: $br"
   fi
-done
+done <<< "$branch_list"
 
 # --- remote branches (opt-in) --------------------------------------------
 if [ "$remote" -eq 1 ]; then
@@ -253,7 +294,6 @@ if [ "$remote" -eq 1 ]; then
   else
     remote_source="$remote_heads"
   fi
-  printf '%s\n' "$remote_source" |
   while IFS= read -r br; do
     [ -n "$br" ] || continue
     [ "$br" = "$default_branch" ] && continue
@@ -263,12 +303,18 @@ if [ "$remote" -eq 1 ]; then
     printf '%s\n' "$remote_heads" | grep -qxF "$br" || continue
     remote_tip=$(printf '%s\n' "$remote_listing" | awk -F'\t' -v ref="refs/heads/$br" '$2 == ref { print $1; exit }')
     if deletable "$br" "$remote_tip"; then
+      # ls-remote listed the ref just now, so a failure here is reported, not
+      # assumed to mean the ref is already gone.
       run git -C "$repo_root" push origin --delete "$br" ||
-        { echo "SKIPPED (push --delete failed — likely already gone on origin): $br"; continue; }
+        { failed "push --delete failed — kept on origin" "$br"; continue; }
       echo "deleted remote branch: origin/$br"
     fi
-  done
+  done <<< "$remote_source"
 fi
 
 run git -C "$repo_root" fetch --prune --quiet
+if [ "$failures" -gt 0 ]; then
+  echo "cleanup: incomplete — $failures requested removal(s) failed; see the FAILED lines" >&2
+  exit 1
+fi
 echo "cleanup: done"

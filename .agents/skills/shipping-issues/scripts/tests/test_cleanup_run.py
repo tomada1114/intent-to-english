@@ -7,6 +7,8 @@ Run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -87,13 +89,36 @@ def with_merged_tips(repo, responses):
     return out
 
 
-def run_script(args, repo, responses, *, exits=None, stderrs=None, env=None):
+def failing_git(bin_dir, needle, *, silent=False):
+    """Install a `git` on `bin_dir` that runs the real one, except for a call
+    whose argv contains `needle` (space-separated words): that one fails with
+    nothing on stdout, or with `silent` exits 0 without doing anything. Returns
+    `bin_dir`, to put first on PATH."""
+    real = shutil.which("git")
+    action = "exit 0" if silent else 'echo "fatal: simulated failure" >&2; exit 128'
+    stub = bin_dir / "git"
+    stub.write_text(
+        "#!/usr/bin/env bash\n"
+        f'case " $* " in *" {needle} "*) {action} ;; esac\n'
+        f'exec "{real}" "$@"\n',
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+    return bin_dir
+
+
+def run_script(
+    args, repo, responses, *, exits=None, stderrs=None, env=None, path_prefix=None
+):
     responses = with_merged_tips(repo, responses)
     with FakeGh(responses, exits=exits, stderrs=stderrs) as fake:
+        run_env = {**fake.env, **(env or {})}
+        if path_prefix is not None:
+            run_env["PATH"] = f"{path_prefix}{os.pathsep}{run_env['PATH']}"
         proc = subprocess.run(
             ["bash", str(SCRIPT), *args],
             cwd=repo,
-            env={**fake.env, **(env or {})},
+            env=run_env,
             text=True,
             capture_output=True,
         )
@@ -752,6 +777,169 @@ class CleanupRunTest(unittest.TestCase):
         # claim a deletion for a ref ls-remote no longer reports.
         self.assertNotIn("push origin --delete feat/gone", proc.stdout)
         self.assertNotIn("deleted remote branch: origin/feat/gone", proc.stdout)
+
+    def _worktree_fixture(self, td, *names):
+        """A repo with a local origin and one worktree per name under a fresh
+        root: (repo, root, [worktree paths])."""
+        td = Path(td).resolve()
+        repo = td / "repo"
+        repo.mkdir()
+        make_repo(repo)
+        add_local_origin(repo, td)
+        wtroot = td / "wtroot"
+        wtroot.mkdir()
+        paths = []
+        for name in names:
+            wt = wtroot / name
+            git(repo, "worktree", "add", "-q", str(wt), "-b", f"feat/{name}")
+            paths.append(wt)
+        bin_dir = td / "bin"
+        bin_dir.mkdir()
+        return repo, wtroot, paths, bin_dir
+
+    def test_status_failure_preserves_worktree_and_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, wtroot, (wt,), bin_dir = self._worktree_fixture(td, "1")
+            (wt / "unsaved.txt").write_text("work\n", encoding="utf-8")
+
+            proc, _ = run_script(
+                ["--worktree-root", str(wtroot)],
+                repo,
+                {MERGED_LIST: "", OPEN_LIST: ""},
+                path_prefix=failing_git(bin_dir, "status --porcelain"),
+            )
+            worktrees = git(repo, "worktree", "list").stdout
+            kept = (wt / "unsaved.txt").is_file()
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn(f"FAILED (status unreadable — kept): {wt}\n", proc.stdout)
+        self.assertNotIn("removed worktree:", proc.stdout)
+        self.assertNotIn("cleanup: done", proc.stdout)
+        self.assertIn(str(wt), worktrees)
+        self.assertTrue(kept)
+
+    def test_failed_worktree_remove_fails_the_run(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, wtroot, (wt,), bin_dir = self._worktree_fixture(td, "1")
+
+            proc, _ = run_script(
+                ["--worktree-root", str(wtroot)],
+                repo,
+                {MERGED_LIST: "", OPEN_LIST: ""},
+                path_prefix=failing_git(bin_dir, "worktree remove"),
+            )
+            worktrees = git(repo, "worktree", "list").stdout
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn(f"FAILED (worktree remove failed — kept): {wt}\n", proc.stdout)
+        self.assertNotIn("removed worktree:", proc.stdout)
+        self.assertNotIn("cleanup: done", proc.stdout)
+        self.assertIn(str(wt), worktrees)
+
+    def test_worktree_still_registered_after_remove_fails_the_run(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, wtroot, (wt,), bin_dir = self._worktree_fixture(td, "1")
+
+            proc, _ = run_script(
+                ["--worktree-root", str(wtroot)],
+                repo,
+                {MERGED_LIST: "", OPEN_LIST: ""},
+                path_prefix=failing_git(bin_dir, "worktree remove", silent=True),
+            )
+            worktrees = git(repo, "worktree", "list").stdout
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn(
+            f"FAILED (worktree still registered after remove): {wt}\n", proc.stdout
+        )
+        self.assertNotIn("removed worktree:", proc.stdout)
+        self.assertIn(str(wt), worktrees)
+
+    def test_one_failed_removal_still_processes_the_next_target(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, wtroot, (bad, good), bin_dir = self._worktree_fixture(td, "1", "2")
+
+            proc, _ = run_script(
+                ["--worktree-root", str(wtroot)],
+                repo,
+                {MERGED_LIST: "", OPEN_LIST: ""},
+                path_prefix=failing_git(bin_dir, f"worktree remove --force {bad}"),
+            )
+            worktrees = git(repo, "worktree", "list").stdout
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn(str(bad), worktrees)
+        self.assertNotIn(str(good), worktrees)
+        self.assertIn(f"removed worktree: {good}\n", proc.stdout)
+        self.assertIn(
+            "cleanup: incomplete — 1 requested removal(s) failed", proc.stderr
+        )
+
+    def test_failed_local_branch_delete_fails_the_run(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td).resolve()
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            add_local_origin(repo, td)
+            git(repo, "branch", "feat/1-merged")
+            git(repo, "branch", "feat/2-merged")
+            bin_dir = td / "bin"
+            bin_dir.mkdir()
+
+            proc, _ = run_script(
+                [],
+                repo,
+                {MERGED_LIST: "feat/1-merged\nfeat/2-merged", OPEN_LIST: ""},
+                path_prefix=failing_git(bin_dir, "branch -D feat/1-merged"),
+            )
+            branches = git(
+                repo, "branch", "--format=%(refname:short)"
+            ).stdout.splitlines()
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("FAILED (branch -D failed — kept): feat/1-merged\n", proc.stdout)
+        self.assertIn("deleted local branch: feat/2-merged\n", proc.stdout)
+        self.assertNotIn("cleanup: done", proc.stdout)
+        self.assertIn("feat/1-merged", branches)
+        self.assertNotIn("feat/2-merged", branches)
+
+    def test_failed_remote_delete_fails_the_run(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td).resolve()
+            repo = td / "repo"
+            repo.mkdir()
+            make_repo(repo)
+            origin = td / "origin.git"
+            git(td, "init", "--bare", "-q", str(origin))
+            git(repo, "remote", "add", "origin", str(origin))
+            git(repo, "branch", "feat/1-merged")
+            git(repo, "push", "-q", "origin", "main", "feat/1-merged")
+            git(
+                repo,
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            )
+            bin_dir = td / "bin"
+            bin_dir.mkdir()
+
+            proc, _ = run_script(
+                ["--remote", "--branch", "feat/1-merged"],
+                repo,
+                {MERGED_LIST: "feat/1-merged", OPEN_LIST: ""},
+                path_prefix=failing_git(bin_dir, "push origin --delete feat/1-merged"),
+            )
+            remote_branches = git(origin, "branch", "--list").stdout
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn(
+            "FAILED (push --delete failed — kept on origin): feat/1-merged\n",
+            proc.stdout,
+        )
+        self.assertNotIn("deleted remote branch:", proc.stdout)
+        self.assertNotIn("cleanup: done", proc.stdout)
+        self.assertIn("feat/1-merged", remote_branches)
 
     def test_gh_lookup_failure_stops_cleanup(self):
         with tempfile.TemporaryDirectory() as td:
