@@ -2,13 +2,13 @@
 name: managing-dependencies
 description: >
   Covers whether a Python or JavaScript package may be added and how it lands: the
-  sign-off and review record, uv add into backend/ or the dev group, pnpm --dir frontend
-  or e2e add, ranges with uv.lock or pnpm-lock.yaml pinning, the 7-day window
-  (exclude-newer, pnpm-workspace.yaml's minimumReleaseAge) and the Dependabot cooldowns
-  equal to it, a one-package exception, allowBuilds and other pnpm-workspace.yaml
-  exceptions, OSV-Scanner and Dependency Review. Use when adding, bumping, or removing a
-  package, changing the window or an exception, or uv lock --check or a frozen pnpm
-  install fails.
+  sign-off and review record, uv add or pnpm add into the right member, ranges and lock
+  pinning, the 7-day window (exclude-newer, minimumReleaseAge) and the Dependabot
+  cooldowns equal to it, the Security Fixes workflow and its one-package exceptions,
+  allowBuilds and other pnpm-workspace.yaml exceptions, OSV-Scanner and Dependency
+  Review. Use when adding, bumping, or removing a package, changing the window or an
+  exception, a Security Fixes run or PR needs attention, or uv lock --check or a frozen
+  pnpm install fails.
 ---
 
 # Managing Dependencies
@@ -121,26 +121,38 @@ no date to move, and the floor still bounds what a hand-run command resolves.
   within the window: `uv lock --upgrade` or `uv lock --upgrade-package <package>`, then
   `just check` and `just verify`, then the changed manifests and `uv.lock` in one commit
   of their own. The same 7-day window bounds it.
-- **Security updates skip Dependabot's cooldown, not the window.** A fix younger than 7
-  days does not lock: Dependabot runs `uv lock` under the same window, so its job fails
-  and no PR opens — the signal is the Dependabot job log (Insights → Dependency graph →
-  Dependabot) and the alert, which stays open. Wait out the window, or take the
-  exception below.
+- **Security fixes arrive through the Security Fixes workflow, not Dependabot.**
+  Dependabot security updates skip their cooldown but not the window, so a fix younger
+  than 7 days never locks in their job, and this repository leaves them off.
+  `.github/workflows/security-fixes.yml` takes their place for `uv.lock` and
+  `pnpm-lock.yaml` alike (below).
 
-### An exception for one package
+### Security fixes and the one-package exception
 
-When a security fix is younger than the window, an `exclude-newer-package` entry in the
-root's `[tool.uv]` may give that one package (and any package the fix needs) an
-absolute timestamp just after its release, such as
-`exclude-newer-package = { virtualenv = "2026-09-22T00:00:00Z" }`.
-The entry's comment names the advisory, why waiting is riskier, and the date after
-which the entry is dropped — the day the fix turns 7 days old and the window admits it.
-Never a blanket exception and never a shorter global window to let one package through.
+The advisory is the trust signal: only the fix version it names — its first patched
+version — may skip the window, never the latest release and never a whole package.
+Daily, `.github/workflows/security-fixes.yml` runs `scripts/security_fixes.py` over the
+open Dependabot alerts and opens at most one pull request; the owner merges it,
+nothing merges on its own.
 
-Drop the entry once its date passes: a stale entry freezes that package at its date, so
-the window no longer moves it and every Dependabot proposal for it fails. The trigger is
-the review of every Dependabot `uv` PR — `merging-dependency-prs`' review checklist
-looks for an `exclude-newer-package` entry older than the window and plans its removal.
+- **A fix older than the window** is locked as is: `uv lock --upgrade-package <package>`,
+  which the window still bounds, so it may lock a later release than the fix.
+- **A fix inside the window** first gets an exception in the root `pyproject.toml`'s
+  `[tool.uv.exclude-newer-package]` table: `<package> = "<cutoff>"`, an absolute
+  timestamp a second past the fix's last upload, so the fix locks and nothing published
+  after it does. Its comment names the advisories and the day the window admits the fix.
+- **The workflow drops an entry** on its first run after that day, and only while
+  `uv lock` keeps every locked version without it. A stale entry would freeze the
+  package at its cutoff, so dropping it is never a judgment call; dropping it early
+  would move the lock back to a vulnerable version (observed with `uv lock`, 2026-10-25).
+- **It stops instead of widening anything.** A fix a dependent's range holds back, or one
+  that needs another too-new package, fails the run (`ERR_FIXES_UNRESOLVED`,
+  `ERR_FIXES_LOCK`); a new locked package lands in the pull request under "Needs the
+  owner's review" and needs the review record above before it merges.
+
+Never add a blanket exception or shorten the window to let one package through, by hand
+or in the script. How the workflow runs, the owner's one-time setup, and a manual run:
+[references/security-fixes.md](references/security-fixes.md).
 
 ## The JavaScript side
 
@@ -167,12 +179,12 @@ exceptions. Read it before any `pnpm add` or `pnpm-workspace.yaml` edit.
   documents that option for vulnerabilities only, so whether it also scopes the license
   check of a pnpm entry is unchecked until a run on a frontend change shows it.
 - **Dependabot alerts** read the same dependency graph, `pnpm-lock.yaml` included, once
-  the owner turns them on (`starting-an-app`).
+  the owner turns them on (`starting-an-app`); the Security Fixes workflow acts on them.
 - **The windows** (`exclude-newer`, `minimumReleaseAge`) catch the opposite case: a
   version too new to have a track record, advisory or not. None of these substitutes
   for another.
 
 A red scanner is a finding about a package this project installs. Update the package (a
-Dependabot `uv` or `npm` PR, or a hand-run `uv lock --upgrade-package`) or add a
-one-package exception; never relax the scanner — that is weakening a gate (AGENTS.md's
+Dependabot `uv` or `npm` PR, a Security Fixes PR, or a hand-run
+`uv lock --upgrade-package`); never relax the scanner — that is weakening a gate (AGENTS.md's
 "Security and human approval").

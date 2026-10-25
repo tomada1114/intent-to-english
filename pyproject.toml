@@ -34,6 +34,14 @@ required-version = ">=0.11.8"
 # Dependabot almost never proposes a version this window refuses to lock.
 exclude-newer = "7 days"
 
+# One-package exceptions to the window, for a security fix younger than it: an
+# absolute cutoff a second after the fix's last upload, so the fix the advisory
+# names locks and nothing published after it does. The Security Fixes workflow
+# (.github/workflows/security-fixes.yml, scripts/security_fixes.py) adds each
+# entry with a comment naming its advisories, and drops it once the window
+# admits the fix (managing-dependencies). Keep one `name = "cutoff"` per line.
+[tool.uv.exclude-newer-package]
+
 [tool.uv.workspace]
 members = ["backend"]
 

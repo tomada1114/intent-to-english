@@ -28,6 +28,14 @@ minimumReleaseAgeStrict: true
 # Fail closed when registry metadata has no publish time, rather than assuming
 # the version is old enough.
 minimumReleaseAgeIgnoreMissingTime: false
+# One-version exceptions to the window, for a security fix younger than it: the
+# exact `<name>@<version>` an advisory names, never a name or a pattern, which
+# would exempt every later release too. The Security Fixes workflow
+# (.github/workflows/security-fixes.yml, scripts/security_fixes.py) adds each
+# entry with a comment naming its advisories, and drops it once the window
+# admits that version (managing-dependencies). Keep `[]` or one quoted
+# `  - "<name>@<version>"` per line.
+minimumReleaseAgeExclude: []
 
 # Reject a dependency whose provenance or trusted-publisher level regressed
 # compared with a previously published version.

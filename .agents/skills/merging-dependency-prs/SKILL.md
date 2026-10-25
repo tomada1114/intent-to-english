@@ -176,18 +176,16 @@ These require a separate decision unless the owner has already settled it:
   dependency included. It needs `managing-dependencies`' review record and the owner's
   yes, like any new package.
 - A change to either `pyproject.toml` beyond an existing dependency's range (an
-  existing extra's entries included): a new entry, a new or removed extra, a `[tool.*]` table, a move of `exclude-newer`, or a new or extended
-  `exclude-newer-package` entry. Removing a stale one, as the review checklist plans, is
-  not.
+  existing extra's entries included): a new entry, a new or removed extra, a `[tool.*]` table, a move of `exclude-newer`, or any
+  `exclude-newer-package` entry: the Security Fixes workflow alone adds and drops those.
 - In an `npm_and_yarn` PR: a new package in `pnpm-lock.yaml`, a `package.json` change
   beyond an existing range, any `pnpm-workspace.yaml` change, a dependency build script
   that would need an `allowBuilds` entry, a changed lifecycle script, a regenerated API
   client that differs, or `typescript` moving past `~6.0` (the TypeScript 7 retry in the
   [review checklist](references/review-checklist.md) included).
 - A security update younger than the 7-day window, which `uv lock` or `pnpm install`
-  refuses — usually seen as a failed Dependabot job and an open alert rather than as a
-  PR ([F3](references/failure-modes.md)): whether to add a one-package exception is the
-  owner's call (`managing-dependencies`).
+  refuses ([F3](references/failure-modes.md)): the Security Fixes workflow's own PR
+  carries it, not a Dependabot PR; report the alert if that workflow has not acted.
 - A bump that is green only after relaxing a gate, a zizmor finding, or an Action pin.
 - An Action major whose migration changes inputs or behavior beyond a mechanical rename;
   a newly discovered breaking change outside the recorded plan.

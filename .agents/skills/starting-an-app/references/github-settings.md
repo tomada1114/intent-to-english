@@ -22,8 +22,11 @@ the job. These are separate repository settings to turn on:
 
 - Secret scanning, and its push protection
 - Private vulnerability reporting (the route `SECURITY.md` gives)
-- Dependabot alerts
+- Dependabot alerts, with Dependabot security updates left off
 - The dependency graph, which Dependency Review (`dependency-review.yml`) needs
+- The Security Fixes workflow's GitHub App and `security-fixes` environment
+  (`managing-dependencies`' `references/security-fixes.md`); until they exist, its
+  scheduled run fails at the step that opens a pull request
 
 Do not enable CodeQL "default setup": it rejects uploads from the advanced `codeql.yml`,
 which fails the required "Analyze" checks.

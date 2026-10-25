@@ -48,8 +48,8 @@ says which gate looks wrong and why, and a human decides.
 - **The supply-chain window:** shortening `[tool.uv] exclude-newer` in the root
   `pyproject.toml`, `minimumReleaseAge` in `pnpm-workspace.yaml`, or a Dependabot
   `cooldown` in `.github/dependabot.yml` (the `uv` and `npm` entries' must equal the
-  window), or a blanket or stale `exclude-newer-package` entry
-  (`managing-dependencies`).
+  window); a blanket or stale window exception, or `scripts/security_fixes.py` exempting
+  more than an advisory's patched version or skipping a check (`managing-dependencies`).
 - **The frontend and pnpm** ([references/frontend-gates.md](references/frontend-gates.md)
   has the full list): a lower `coverage.thresholds` value, a Biome rule off in
   `biome.json`, a strict `tsconfig.json` flag removed, `@ts-nocheck` outside
@@ -62,8 +62,8 @@ says which gate looks wrong and why, and a human decides.
   `paths`, or `paths-ignore`; dropping a context from `.github/rulesets/main.json`;
   adding a bypass actor; widening a workflow's `permissions`; unpinning an action from
   its commit SHA; `persist-credentials: true`.
-- **Spelling:** adding a real misspelling to `typos.toml`'s `extend-words`, or a path to
-  its `extend-exclude` to hide one.
+- **Spelling:** a real misspelling in `typos.toml`'s `extend-words`, a path in its
+  `extend-exclude`, or an `extend-ignore-re` beyond the generated window-exception lines.
 
 A change that tightens a gate is welcome, but still owes the pull request body three
 things: which rule or option moved, why, and what now fails that did not before.
