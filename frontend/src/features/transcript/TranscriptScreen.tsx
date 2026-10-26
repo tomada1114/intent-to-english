@@ -115,10 +115,12 @@ export function TranscriptScreen({
   });
 
   const status = useServerStatus();
+  const wrapUpAttempt = useRef<{ id: string; version: number } | null>(null);
   const wrapUp = useMutation({
     ...performSessionActionMutation(),
     onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
     onSuccess: async (next) => {
+      wrapUpAttempt.current = null;
       queryClient.setQueryData<SessionResponse>(sessionKey, (old) =>
         old === undefined || next.version >= old.version ? next : old,
       );
@@ -129,6 +131,8 @@ export function TranscriptScreen({
     onError: (error) => {
       if (toApiError(error).kind === "unknown") {
         status.report(WRAP_UP_KEY, () => latestSend.current());
+      } else {
+        wrapUpAttempt.current = null;
       }
       return queryClient.invalidateQueries({ queryKey: sessionKey });
     },
@@ -141,9 +145,15 @@ export function TranscriptScreen({
     if (inFlight.current) return;
     inFlight.current = true;
     status.resolve(WRAP_UP_KEY);
+    if (wrapUpAttempt.current?.version !== view.version)
+      wrapUpAttempt.current = { id: crypto.randomUUID(), version: view.version };
     wrapUp.mutate({
       path: { session_id: view.id },
-      body: { action: "wrap_up", version: view.version },
+      body: {
+        action: "wrap_up",
+        version: view.version,
+        attempt_id: wrapUpAttempt.current.id,
+      },
     });
   }
 

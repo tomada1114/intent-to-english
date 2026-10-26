@@ -130,7 +130,13 @@ async def test_postgres_reader_uses_typed_filters_and_read_only_transaction(
     writer = make_engine(migrated_postgres_url)
     try:
         async with writer.begin() as connection:
-            for table in ("model_calls", "submissions", "timeline_entries", "sessions"):
+            for table in (
+                "submission_cancellations",
+                "model_calls",
+                "submissions",
+                "timeline_entries",
+                "sessions",
+            ):
                 await connection.execute(metadata.tables[table].delete())
         records = await seed_call_log(migrated_postgres_url)
         assert (

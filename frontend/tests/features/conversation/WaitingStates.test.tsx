@@ -310,7 +310,10 @@ describe("ConversationScreen cancel (REQ-003)", () => {
     await user.click(coach().getByRole("button", { name: "中止" }));
     await advance(0);
 
-    expect(served.cancels).toEqual([{ version: 2 }]);
+    expect(served.bodies[0]?.attempt_id).toEqual(expect.any(String));
+    expect(served.cancels).toEqual([
+      { version: 2, attempt_id: served.bodies[0]?.attempt_id },
+    ]);
     const field = screen.getByRole("textbox", { name: "あなたの英語" });
     expect(field).toBeDisabled();
     expect(screen.queryByText(CANCELLED)).not.toBeInTheDocument();
@@ -385,7 +388,7 @@ describe("ConversationScreen cancel (REQ-003)", () => {
     release();
     await advance(0);
 
-    expect(served.cancels).toEqual([{ version: 4 }]);
+    expect(served.cancels).toEqual([{ attempt_id: expect.any(String), version: 4 }]);
     expect(partner().getByText(CANCELLED)).toBeInTheDocument();
     expect(partner().getByRole("button", { name: "もう一度" })).toHaveFocus();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -394,9 +397,10 @@ describe("ConversationScreen cancel (REQ-003)", () => {
     await advance(0);
 
     expect(served.bodies).toEqual([
-      { action: "partner_reply", version: 4 },
-      { action: "partner_reply", version: 4 },
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
     ]);
+    expect(served.bodies[1]?.attempt_id).not.toBe(served.bodies[0]?.attempt_id);
     expect(screen.queryByText(CANCELLED)).not.toBeInTheDocument();
   });
 });
@@ -405,6 +409,7 @@ describe("ConversationScreen pending from elsewhere (REQ-009)", () => {
   const pending: SessionResponse = {
     ...english,
     last_submission: {
+      attempt_id: "00000000-0000-4000-8000-000000000001",
       action: "english",
       input: { text: "I watched a movie" },
       state: "pending",
@@ -496,7 +501,7 @@ describe("ConversationScreen pending from elsewhere (REQ-009)", () => {
     await user.click(coach().getByRole("button", { name: "中止" }));
     await advance(0);
 
-    expect(served.posts).toEqual([{ version: 2 }]);
+    expect(served.posts).toEqual([{ attempt_id: expect.any(String), version: 2 }]);
     const field = screen.getByRole("textbox", { name: "あなたの英語" });
     expect(field).toBeEnabled();
     expect(field).toHaveFocus();
@@ -513,7 +518,18 @@ describe("ConversationScreen pending from elsewhere (REQ-009)", () => {
       http.get(`/api/sessions/${SESSION_ID}`, () => {
         reads += 1;
         // Another tab sends the same action again at the same version.
-        return HttpResponse.json<SessionResponse>(pending);
+        return HttpResponse.json<SessionResponse>({
+          ...pending,
+          last_submission: {
+            action: "english",
+            input: { text: "I watched a movie" },
+            state: "pending",
+            failure_code: null,
+            attempt_id: afterCancel
+              ? "00000000-0000-4000-8000-000000000002"
+              : "00000000-0000-4000-8000-000000000001",
+          },
+        });
       }),
       http.post(`/api/sessions/${SESSION_ID}/cancel`, () => {
         afterCancel = true;

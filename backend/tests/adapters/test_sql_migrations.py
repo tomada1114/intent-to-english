@@ -36,6 +36,7 @@ def _inspect(url: str) -> Iterator[Inspector]:
 
 
 APP_TABLES = {"sessions", "timeline_entries", "submissions", "model_calls"}
+CURRENT_TABLES = {*APP_TABLES, "submission_cancellations"}
 TODOS_REVISION = "f58f944d0d8e"
 SESSIONS_REVISION = "de3f10d569ec"
 
@@ -61,7 +62,7 @@ def test_upgrade_head_leaves_only_the_session_tables(alembic_config, sqlite_url)
     command.upgrade(alembic_config, "head")
 
     with _inspect(sqlite_url) as inspector:
-        assert set(inspector.get_table_names()) == {"alembic_version", *APP_TABLES}
+        assert set(inspector.get_table_names()) == {"alembic_version", *CURRENT_TABLES}
 
 
 def test_downgrade_to_session_revision_recreates_todos_as_its_revision_made_it(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -89,7 +89,12 @@ def test_logs_never_contain_body_or_query(make_container, caplog):
         session = client.post("/api/sessions").json()
         client.post(
             f"/api/sessions/{session['id']}/actions",
-            json={"action": "intent", "version": 0, "text": "SENTINEL-TEXT"},
+            json={
+                "attempt_id": str(uuid4()),
+                "action": "intent",
+                "version": 0,
+                "text": "SENTINEL-TEXT",
+            },
         )
         client.get("/api/sessions?limit=5&cursor=SENTINEL-CURSOR")
     assert "SENTINEL" not in caplog.text

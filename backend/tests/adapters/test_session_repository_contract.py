@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
@@ -14,6 +14,7 @@ from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.adapters.sql.tables import metadata
 from intent_to_english.core import coaching
+from intent_to_english.core import errors as m_errors
 from intent_to_english.core import models as m
 from intent_to_english.core.errors import (
     ActionCancelledError,
@@ -72,7 +73,13 @@ async def _sql_postgres(_: Path) -> AsyncIterator[SessionRepository]:
     engine = make_engine(POSTGRES_URL or "")
     try:
         async with engine.begin() as connection:
-            for name in ("model_calls", "submissions", "timeline_entries", "sessions"):
+            for name in (
+                "submission_cancellations",
+                "model_calls",
+                "submissions",
+                "timeline_entries",
+                "sessions",
+            ):
                 await connection.execute(metadata.tables[name].delete())
         yield SqlSessionRepository(engine)
     finally:
@@ -170,12 +177,16 @@ async def test_cancel_discards_late_output_without_changing_the_session(
 ):
     await repository.create(session)
     assert (
-        await repository.cancel_submission(session.id, session.version, fixed_now)
+        await repository.cancel_submission(
+            session.id, session.version, session.id, fixed_now
+        )
         is False
     )
     await repository.begin_submission(submission, frozenset({Stage.OPENING}), fixed_now)
     assert (
-        await repository.cancel_submission(session.id, session.version, fixed_now)
+        await repository.cancel_submission(
+            session.id, session.version, submission.id, fixed_now
+        )
         is True
     )
     with pytest.raises(ActionCancelledError, match="cancelled"):
@@ -295,7 +306,9 @@ async def test_record_model_calls_survive_cancel_and_keep_accounting(
         fixed_now,
     )
     await repository.record_model_call(record)
-    await repository.cancel_submission(session.id, session.version, fixed_now)
+    await repository.cancel_submission(
+        session.id, session.version, submission.id, fixed_now
+    )
     assert await repository.model_calls(session.id) == (record,)
     with pytest.raises(ValueError, match="already stored"):
         await repository.record_model_call(record)
@@ -342,9 +355,15 @@ async def test_cancel_names_the_pending_version_and_ignores_other_versions(
 ):
     await repository.create(session)
     await repository.begin_submission(submission, frozenset({Stage.OPENING}), fixed_now)
-    assert await repository.cancel_submission(session.id, 1, fixed_now) is False
+    assert (
+        await repository.cancel_submission(session.id, 1, submission.id, fixed_now)
+        is False
+    )
     assert (await repository.get(session.id)).last_submission == submission
-    assert await repository.cancel_submission(session.id, 0, fixed_now) is True
+    assert (
+        await repository.cancel_submission(session.id, 0, submission.id, fixed_now)
+        is True
+    )
     assert (
         await repository.get(session.id)
     ).last_submission.status is SubmissionStatus.CANCELLED
@@ -604,8 +623,57 @@ async def test_cancelled_submission_allows_another_at_the_same_version(
     await repository.begin_submission(
         submission, frozenset({Stage.OPENING}), session.started_at
     )
-    await repository.cancel_submission(session.id, 0, session.started_at)
+    await repository.cancel_submission(session.id, 0, submission.id, session.started_at)
     replacement = replace(submission, id=nth_id(3))
+    await repository.begin_submission(
+        replacement, frozenset({Stage.OPENING}), session.started_at
+    )
+    assert (await repository.get(session.id)).last_submission == replacement
+
+
+async def test_delayed_cancel_can_target_replacement_at_same_version(
+    repository, session, submission, nth_id
+):
+    submission = replace(submission, attempt_id=nth_id(60))
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    await repository.cancel_submission(
+        session.id, 0, submission.correlation_id, session.started_at
+    )
+    replacement = replace(submission, id=nth_id(3), attempt_id=nth_id(61))
+    await repository.begin_submission(
+        replacement, frozenset({Stage.OPENING}), session.started_at
+    )
+
+    assert (
+        await repository.cancel_submission(
+            session.id, 0, submission.correlation_id, session.started_at
+        )
+        is False
+    )
+
+    assert (await repository.get(session.id)).last_submission == replacement
+    assert (await repository.get(session.id)).session == session
+
+
+async def test_cancel_before_admission_prevents_that_attempt_only(
+    repository, session, submission, nth_id
+):
+    submission = replace(submission, attempt_id=nth_id(60))
+    await repository.create(session)
+    assert (
+        await repository.cancel_submission(
+            session.id, 0, submission.correlation_id, session.started_at
+        )
+        is False
+    )
+    with pytest.raises(ActionCancelledError, match="cancelled"):
+        await repository.begin_submission(
+            submission, frozenset({Stage.OPENING}), session.started_at
+        )
+    replacement = replace(submission, id=nth_id(3), attempt_id=nth_id(61))
     await repository.begin_submission(
         replacement, frozenset({Stage.OPENING}), session.started_at
     )
@@ -669,3 +737,67 @@ async def test_model_call_provider_http_status_round_trips(
 
     assert await repository.model_calls(session.id) == (record,)
     assert (await repository.model_calls(session.id))[0].call.status == status
+
+
+async def test_wrong_attempt_cancel_leaves_pending_input_and_accounting_unchanged(
+    repository, session, submission, nth_id
+):
+    submission = replace(submission, attempt_id=nth_id(60))
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    assert (
+        await repository.cancel_submission(
+            session.id, 0, nth_id(61), session.started_at
+        )
+        is False
+    )
+    assert await repository.get(session.id) == m.StoredSession(session, (), submission)
+
+
+async def test_failed_attempt_identity_cannot_admit_a_new_submission(
+    repository, session, submission, nth_id
+):
+    submission = replace(submission, attempt_id=nth_id(60))
+    await repository.create(session)
+    await repository.begin_submission(
+        submission, frozenset({Stage.OPENING}), session.started_at
+    )
+    await repository.fail_submission(submission.id, "model_timeout", session.started_at)
+    before = await repository.get(session.id)
+    with pytest.raises(m_errors.AttemptAlreadyUsedError, match="already used"):
+        await repository.begin_submission(
+            replace(submission, id=nth_id(3)),
+            frozenset({Stage.OPENING}),
+            session.started_at,
+        )
+    assert await repository.get(session.id) == before
+
+
+async def test_cancel_and_admission_concurrently_leave_no_live_attempt(
+    repository, session, submission
+):
+    await repository.create(session)
+
+    async def begin():
+        with suppress(ActionCancelledError):
+            await repository.begin_submission(
+                submission, frozenset({Stage.OPENING}), session.started_at
+            )
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(begin)
+        tasks.start_soon(
+            repository.cancel_submission,
+            session.id,
+            0,
+            submission.correlation_id,
+            session.started_at,
+        )
+    stored = await repository.get(session.id)
+    assert (
+        stored.last_submission is None
+        or stored.last_submission.status is SubmissionStatus.CANCELLED
+    )
+    assert stored.session == session

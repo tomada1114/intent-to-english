@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from http import HTTPStatus
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -66,9 +68,9 @@ def test_unknown_session_returns_not_found(client, suffix):
         if not suffix
         else client.post(
             path,
-            json={"action": "open", "version": 0}
+            json={"attempt_id": str(uuid4()), "action": "open", "version": 0}
             if suffix == "/actions"
-            else {"version": 0},
+            else {"attempt_id": str(uuid4()), "version": 0},
         )
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -95,7 +97,12 @@ def test_action_text_limits_come_from_the_core(
     view = act_session(start_session(), "open")
     response = client.post(
         f"/api/sessions/{view['id']}/actions",
-        json={"action": action, "version": view["version"], "text": text},
+        json={
+            "attempt_id": str(uuid4()),
+            "action": action,
+            "version": view["version"],
+            "text": text,
+        },
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
     assert response.json() == {
@@ -112,7 +119,10 @@ def test_action_text_limits_come_from_the_core(
 @pytest.mark.parametrize(
     ("body", "error_type"),
     [
-        ({"action": "unknown", "version": 0}, "union_tag_invalid"),
+        (
+            {"attempt_id": str(uuid4()), "action": "unknown", "version": 0},
+            "union_tag_invalid",
+        ),
         ({"action": "open"}, "missing"),
     ],
     ids=["unknown-action", "missing-version"],
@@ -135,10 +145,12 @@ def test_cancel_requires_version_and_is_idempotent_without_pending_work(
     view = start_session()
     path = f"/api/sessions/{view['id']}/cancel"
     for version in (0, 0, 99):
-        response = client.post(path, json={"version": version})
+        response = client.post(
+            path, json={"attempt_id": str(uuid4()), "version": version}
+        )
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert response.content == b""
-    response = client.post(path, json={})
+    response = client.post(path, json={"attempt_id": str(uuid4())})
     assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
     assert response.json()["code"] == "request_invalid"
     assert response.json()["errors"] == [
@@ -155,7 +167,7 @@ def test_version_is_an_integer_token_without_coercion(
     client, start_session, version, suffix
 ):
     view = start_session()
-    body = {"version": version}
+    body = {"attempt_id": str(uuid4()), "version": version}
     if suffix == "actions":
         body["action"] = "open"
     response = client.post(f"/api/sessions/{view['id']}/{suffix}", json=body)
@@ -177,6 +189,7 @@ def test_stale_action_does_not_change_the_session(client, start_session, act_ses
     response = client.post(
         f"/api/sessions/{view['id']}/actions",
         json={
+            "attempt_id": str(uuid4()),
             "action": "intent",
             "version": initial["version"],
             "text": "散歩しました",
@@ -200,7 +213,12 @@ def test_action_stage_and_ended_guards_are_conflicts(
     view = start_session()
     response = client.post(
         f"/api/sessions/{view['id']}/actions",
-        json={"action": "english", "version": 0, "text": "Hello"},
+        json={
+            "attempt_id": str(uuid4()),
+            "action": "english",
+            "version": 0,
+            "text": "Hello",
+        },
     )
     assert response.status_code == HTTPStatus.CONFLICT
     assert response.json()["code"] == "action_not_allowed"
@@ -209,7 +227,11 @@ def test_action_stage_and_ended_guards_are_conflicts(
     for action, code in [("open", "session_ended"), ("wrap_up", "action_not_allowed")]:
         response = client.post(
             f"/api/sessions/{view['id']}/actions",
-            json={"action": action, "version": ended["version"]},
+            json={
+                "attempt_id": str(uuid4()),
+                "action": action,
+                "version": ended["version"],
+            },
         )
         assert response.status_code == HTTPStatus.CONFLICT
         assert response.json()["code"] == code
@@ -255,7 +277,8 @@ def test_model_failure_keeps_the_pending_input_and_uses_problem_details(
         assert created.status_code == HTTPStatus.CREATED
         view = created.json()
         response = client.post(
-            f"/api/sessions/{view['id']}/actions", json={"action": "open", "version": 0}
+            f"/api/sessions/{view['id']}/actions",
+            json={"attempt_id": str(uuid4()), "action": "open", "version": 0},
         )
         assert response.status_code == status
         expected_error = failure or errors.ModelOutputInvalidError(m.ModelTask.OPEN)
@@ -268,11 +291,25 @@ def test_model_failure_keeps_the_pending_input_and_uses_problem_details(
             "detail": str(expected_error),
             "code": code,
         }
+        replay = client.post(
+            f"/api/sessions/{view['id']}/actions",
+            json=json.loads(response.request.content),
+        )
+        assert replay.status_code == HTTPStatus.CONFLICT
+        assert replay.json() == {
+            "request_id": replay.headers["X-Request-ID"],
+            "type": "about:blank",
+            "title": "Conflict",
+            "status": 409,
+            "detail": "The submission attempt was already used",
+            "code": "attempt_already_used",
+        }
         recovered = client.get(f"/api/sessions/{view['id']}").json()
         assert recovered["stage"] == "opening"
         assert recovered["version"] == 0
         assert recovered["entries"] == []
         assert recovered["last_submission"] == {
+            "attempt_id": json.loads(response.request.content)["attempt_id"],
             "state": "failed",
             "action": "open",
             "input": {},

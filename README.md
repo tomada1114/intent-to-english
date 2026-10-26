@@ -62,8 +62,8 @@ The interactive API docs are at <http://127.0.0.1:8000/docs>.
 | `POST /api/sessions` | 201 with the new session at `opening`, version 0; no model call |
 | `GET /api/sessions?cursor=<cursor>&limit=<n>` | 200 with one page, newest first: `{"items": [<session row>, ...], "next_cursor": "<cursor>" \| null}`; default 20, maximum 100 |
 | `GET /api/sessions/{id}` | 200 with the complete session view; 404 `session_not_found` when unknown |
-| `POST /api/sessions/{id}/actions` | 200 with the new view; a body discriminated by `action`, with `version` and that action's fields |
-| `POST /api/sessions/{id}/cancel` `{"version": 0}` | 204 whether or not that version has pending work; 404 for an unknown session; a missing version is 422 |
+| `POST /api/sessions/{id}/actions` | 200 with the new view; a body discriminated by `action`, with required `version`, UUID `attempt_id`, and that action's fields |
+| `POST /api/sessions/{id}/cancel` `{"version": 0, "attempt_id": "<uuid>"}` | 204 for the exact attempt, including an early or repeated cancel; 404 for an unknown session; missing or invalid identity/version is 422 |
 | `GET /api/meta` | 200 with the container's selected `model_mode`; `{"model_mode": "fixed"}` or `{"model_mode": "openrouter"}` |
 
 A session's `id` is a UUID (version 7) the application generates, so ids sort in
@@ -76,13 +76,19 @@ the last one. `GET /api/sessions` with no parameters is the first page,
 
 A session view includes its stage, version, allowed actions, ordered timeline,
 start/end times, recoverable input and wrap-up. Action bodies use flat input
-fields: `{"action": "intent", "version": 1, "text": "..."}`, or `gap` and
+fields: `{"action": "intent", "version": 1, "attempt_id": "<uuid>", "text": "..."}`, or `gap` and
 `partial_english` for a hint, `reading` for a reading choice, and `mode` for a
-restatement. Actions such as `open`, `end` and `wrap_up` need only action/version.
+restatement. Actions such as `open`, `end` and `wrap_up` need action, version and attempt ID.
 `end` returns immediately without calling a model. An ended session with feedback
 has `wrap_up: null` and allows `wrap_up`; that separate action creates the summary.
 An empty `{"items": []}` means no summary is needed. Cancellation affects only
-pending work at the supplied version and does not advance the session.
+the named attempt at the supplied version and does not advance the session. The client
+creates a fresh UUID before each logical submission and keeps it for a transport retry;
+a deliberate new attempt uses a new ID. Pending/recoverable input exposes `attempt_id`,
+so reloaded screens and other tabs can name the same attempt before its response.
+A delayed cancel cannot cancel a same-version replacement. An early cancel is retained
+and prevents that attempt from being admitted. Apply migrations and reload the browser
+together: action and cancel requests now require `attempt_id`.
 
 Every error uses RFC 9457 `application/problem+json`: `type: "about:blank"`,
 `title` (the status phrase), numeric `status`, client-safe `detail`, and a stable
@@ -92,7 +98,7 @@ An unknown session is 404 `session_not_found`. An invalid cursor or page limit i
 422 `invalid_cursor` or `invalid_page_limit`. An unmapped
 domain error falls back to 400 with its own code (`AppError` uses `app_error`).
 Session conflicts are 409 `stale_session`, `action_in_progress`, `action_not_allowed`,
-`session_ended` or `action_cancelled`. Core text limits return 422 `invalid_input`.
+`session_ended`, `action_cancelled` or `attempt_already_used`. Core text limits return 422 `invalid_input`.
 Model failures return 504 `model_timeout`, 503 `model_rate_limited`, or 502
 `model_unavailable` / `model_output_invalid`; failed input stays recoverable in the view.
 A request that does not parse is 422 `request_invalid`, detail `Request validation
@@ -216,7 +222,7 @@ e2e/        # The Playwright test from the screen to the database (just e2e)
 the API nor any framework or driver, the API only translates between HTTP and
 the core, and `composition.py` is the one place adapters are wired in.
 `docs/architecture/overview.md` holds the app's own design: the stage machine, the
-Partner and Coach model roles behind ports, the four tables, the API, and the
+Partner and Coach model roles behind ports, the five tables, the API, and the
 decisions behind them. `frontend/AGENTS.md` holds the frontend's toolchain. The schema lives in
 `backend/src/intent_to_english/adapters/sql/tables.py` and its history in Alembic revisions
 under `backend/migrations/` (the `persisting-data` skill).

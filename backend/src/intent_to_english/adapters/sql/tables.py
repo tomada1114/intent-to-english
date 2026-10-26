@@ -123,6 +123,8 @@ submissions = Table(
     Column("boot_id", Uuid, nullable=False),
     Column("created_at", UtcDateTime, nullable=False),
     Column("finished_at", UtcDateTime),
+    Column("attempt_id", Uuid),
+    UniqueConstraint("session_id", "attempt_id"),
 )
 Index(
     "uq_submissions_session_id_base_version_active",
@@ -131,6 +133,16 @@ Index(
     unique=True,
     sqlite_where=submissions.c.status.in_(("pending", "completed")),
     postgresql_where=submissions.c.status.in_(("pending", "completed")),
+)
+
+# A cancellation can arrive before its action, so it has no submission FK.
+submission_cancellations = Table(
+    "submission_cancellations",
+    metadata,
+    Column("session_id", Uuid, ForeignKey("sessions.id"), primary_key=True),
+    Column("base_version", Integer, primary_key=True),
+    Column("attempt_id", Uuid, primary_key=True),
+    Column("created_at", UtcDateTime, nullable=False),
 )
 
 model_calls = Table(

@@ -98,7 +98,9 @@ describe("in-session restate control", () => {
       await user.type(screen.getByRole("textbox", { name: "あなたの英語" }), "I study");
       await press(user, label);
       await screen.findByText(`言い換え（${label}）`);
-      expect(served.bodies).toEqual([{ action: "restate", mode, version: 2 }]);
+      expect(served.bodies).toEqual([
+        { attempt_id: expect.any(String), action: "restate", mode, version: 2 },
+      ]);
       expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
         "I study",
       );
@@ -198,7 +200,12 @@ describe("in-session rewrite control", () => {
     await user.keyboard("{Meta>}{Enter}{/Meta}");
     await screen.findByText("最近は料理を勉強している");
     expect(served.bodies).toEqual([
-      { action: "rewrite_intent", text: "最近は料理を勉強している", version: 2 },
+      {
+        attempt_id: expect.any(String),
+        action: "rewrite_intent",
+        text: "最近は料理を勉強している",
+        version: 2,
+      },
     ]);
     expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
       "I study",
@@ -283,7 +290,12 @@ describe("in-session Coach question", () => {
     await user.keyboard("{Enter}");
     await screen.findByText("その通りです。");
     expect(served.bodies).toEqual([
-      { action: "ask", text: "これでいい？", version: 4 },
+      {
+        attempt_id: expect.any(String),
+        action: "ask",
+        text: "これでいい？",
+        version: 4,
+      },
     ]);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "続ける" })).toHaveFocus(),
@@ -318,7 +330,12 @@ describe("in-session Coach question", () => {
     await user.keyboard("{Enter}");
     await screen.findByText("最近という意味です。");
     expect(served.bodies).toEqual([
-      { action: "ask", text: "these days は？", version: 2 },
+      {
+        attempt_id: expect.any(String),
+        action: "ask",
+        text: "these days は？",
+        version: 2,
+      },
     ]);
     expect(composer).toHaveValue("I study");
     await waitFor(() => expect(composer).toHaveFocus());
@@ -472,7 +489,12 @@ describe("in-session practice again", () => {
     await user.keyboard("{Meta>}{Enter}{/Meta}");
     await screen.findByText("もう一度言えました。");
     expect(served.bodies).toEqual([
-      { action: "practice_again", text: "Actually, I study English.", version: 5 },
+      {
+        attempt_id: expect.any(String),
+        action: "practice_again",
+        text: "Actually, I study English.",
+        version: 5,
+      },
     ]);
     expect(screen.getByRole("textbox", { name: "あなたの日本語" })).toHaveValue(
       "猫が好き",
@@ -502,7 +524,12 @@ describe("in-session practice again", () => {
     await user.keyboard("{Meta>}{Enter}{/Meta}");
     await screen.findByText("伝わりました。");
     expect(served.bodies).toEqual([
-      { action: "practice_again", text: "Actually, I study English.", version: 4 },
+      {
+        attempt_id: expect.any(String),
+        action: "practice_again",
+        text: "Actually, I study English.",
+        version: 4,
+      },
     ]);
     expect(
       screen.queryByRole("textbox", { name: "もう一度練習" }),
@@ -576,6 +603,7 @@ it.each(
     served.set({
       ...view,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action,
         input: { text: "Stored side draft" },
         state,
@@ -656,6 +684,7 @@ it.each(
     served.set({
       ...view,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action,
         input: { text: "Original side" },
         state: "pending",
@@ -736,6 +765,7 @@ it.each(["ask", "rewrite_intent", "practice_again"] as const)(
     served.set({
       ...view,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action,
         input: { text: "Another tab's draft" },
         state: "failed",
@@ -814,6 +844,7 @@ it.each(["ask", "practice_again"] as const)(
     const pending: SessionResponse = {
       ...base,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action,
         input: { text: "Restored input" },
         state: "pending",

@@ -18,7 +18,6 @@ import { useServerStatus } from "../../lib/ServerStatus";
 import { SUBMISSION_POLL_MS, submissionPending } from "../../lib/submission";
 import {
   type ActionInput,
-  hasMatchingSubmission,
   hasRecordedInput,
   type SessionView,
   sessionQueryOptions,
@@ -39,8 +38,9 @@ export type SessionActionEvent =
 /** One request this tab is waiting for. */
 interface Attempt {
   id: number;
+  attemptId: string;
   input: ActionInput;
-  /** The version the action answers, which a cancel names. */
+  /** The conversation version shared by action admission and exact cancellation. */
   version: number;
   /** Last timeline entry before this send, excluding older identical input. */
   afterSeq: number;
@@ -55,6 +55,7 @@ const STALE_CODES: ReadonlySet<string> = new Set([
   "stale_session",
   "action_in_progress",
   "action_not_allowed",
+  "attempt_already_used",
 ]);
 
 /** The keys this screen reports a request with no response under. */
@@ -89,10 +90,10 @@ export function useSessionActions(
   const receivedAttempt = useRef<Attempt | null>(null);
   const attempts = useRef(0);
   const ending = useRef(false);
+  const endAttempt = useRef<{ id: string; version: number } | null>(null);
   const latestVersion = useRef(view.version);
   const stored = view.last_submission;
-  const storedKey =
-    stored === null ? null : `${view.version}:${JSON.stringify(stored)}`;
+  const storedKey = stored === null ? null : `${stored.attempt_id}:${stored.state}`;
   // A later read can prove that a request whose response was lost did land.
   // Drop its retry before it can resend old input at the newer stage.
   useEffect(() => {
@@ -101,7 +102,7 @@ export function useSessionActions(
     if (
       !advanced &&
       (storedKey === unanswered.storedKey ||
-        !hasMatchingSubmission(view.last_submission, unanswered.input))
+        view.last_submission?.attempt_id !== unanswered.attemptId)
     )
       return;
     const input = unanswered.input;
@@ -126,7 +127,7 @@ export function useSessionActions(
 
   const storedLive = stored !== null && storedKey !== settledKey ? stored : null;
   // The marker holds only while the view still shows that submission: a later
-  // one with the same version, action, and state is another submission.
+  // one has its own correlation ID even with identical version, input and state.
   useEffect(() => {
     if (settledKey !== null && storedKey !== settledKey) setSettledKey(null);
   }, [settledKey, storedKey]);
@@ -165,12 +166,17 @@ export function useSessionActions(
     onMutate: () => queryClient.cancelQueries({ queryKey: sessionKey }),
   });
 
-  async function send(input: ActionInput) {
+  async function send(input: ActionInput, retry?: Attempt) {
+    if (retry !== undefined && retry.version !== view.version) {
+      await readAgain();
+      return false;
+    }
     if (attemptRef.current !== null) return false;
     receivedAttempt.current = unanswered;
     attempts.current += 1;
     const sent: Attempt = {
       id: attempts.current,
+      attemptId: retry?.attemptId ?? crypto.randomUUID(),
       input,
       version: view.version,
       afterSeq: view.entries.at(-1)?.seq ?? 0,
@@ -188,7 +194,7 @@ export function useSessionActions(
       next = await settleAfterMinimum(() =>
         action.mutateAsync({
           path: { session_id: view.id },
-          body: { ...input, version: sent.version },
+          body: { ...input, version: sent.version, attempt_id: sent.attemptId },
         }),
       );
     } catch (error) {
@@ -215,7 +221,10 @@ export function useSessionActions(
     setAttempt(null);
     if (error.kind === "unknown") {
       setUnanswered(sent);
-      status.report(UNANSWERED.action, () => void latest.current.send(sent.input));
+      status.report(
+        UNANSWERED.action,
+        () => void latest.current.send(sent.input, sent),
+      );
       return;
     }
     if (code !== undefined && STALE_CODES.has(code)) {
@@ -230,22 +239,47 @@ export function useSessionActions(
     emit({ kind: "failed", input: sent.input, error });
   }
 
-  async function cancel() {
+  async function cancel(target?: { version: number; attemptId: string }) {
     const current = attemptRef.current;
+    // A retry belongs to its original target even if another tab replaced it.
+    if (
+      target !== undefined &&
+      target.attemptId !== (current?.attemptId ?? storedPending?.attempt_id)
+    ) {
+      try {
+        await cancelAction.mutateAsync({
+          path: { session_id: view.id },
+          body: { version: target.version, attempt_id: target.attemptId },
+        });
+        status.resolve(UNANSWERED.cancel);
+        await readAgain();
+      } catch (error) {
+        if (toApiError(error).kind === "unknown")
+          status.report(UNANSWERED.cancel, () => void latest.current.cancel(target));
+      }
+      return;
+    }
     if (current !== null) {
       if (current.cancelling) return;
       setAttempt({ ...current, cancelling: true });
       try {
         await cancelAction.mutateAsync({
           path: { session_id: view.id },
-          body: { version: current.version },
+          body: { version: current.version, attempt_id: current.attemptId },
         });
       } catch (error) {
         const now = attemptRef.current;
         if (now?.id !== current.id) return;
         setAttempt({ ...now, cancelling: false });
         if (toApiError(error).kind === "unknown") {
-          status.report(UNANSWERED.cancel, () => void latest.current.cancel());
+          status.report(
+            UNANSWERED.cancel,
+            () =>
+              void latest.current.cancel({
+                version: current.version,
+                attemptId: current.attemptId,
+              }),
+          );
         }
         return;
       }
@@ -253,6 +287,7 @@ export function useSessionActions(
       if (!waitingFor(current.id)) return;
       setAttempt(null);
       emit({ kind: "cancelled", action: current.input.action });
+      await readAgain();
       return;
     }
     const pending = storedPending;
@@ -262,12 +297,15 @@ export function useSessionActions(
     try {
       await cancelAction.mutateAsync({
         path: { session_id: view.id },
-        body: { version },
+        body: { version, attempt_id: pending.attempt_id },
       });
     } catch (error) {
       setCancellingStored(null);
       if (toApiError(error).kind === "unknown") {
-        status.report(UNANSWERED.cancel, () => void latest.current.cancel());
+        status.report(
+          UNANSWERED.cancel,
+          () => void latest.current.cancel({ version, attemptId: pending.attempt_id }),
+        );
       }
       return;
     }
@@ -294,11 +332,18 @@ export function useSessionActions(
     emit({ kind: "ending", retry: endError !== null });
     setEndError(null);
     status.resolve(UNANSWERED.end);
+    if (endAttempt.current?.version !== view.version)
+      endAttempt.current = { id: crypto.randomUUID(), version: view.version };
     try {
       const next = await end.mutateAsync({
         path: { session_id: view.id },
-        body: { action: "end", version: view.version },
+        body: {
+          action: "end",
+          version: view.version,
+          attempt_id: endAttempt.current.id,
+        },
       });
+      endAttempt.current = null;
       // Ending supersedes the request in flight: its answer is discarded.
       setAttempt(null);
       emit({ kind: "started" });
@@ -306,6 +351,7 @@ export function useSessionActions(
     } catch (caught) {
       const error = toApiError(caught);
       const code = error.kind === "problem" ? error.code : undefined;
+      if (error.kind !== "unknown") endAttempt.current = null;
       if (error.kind === "unknown") {
         status.report(UNANSWERED.end, () => void latest.current.endSession());
       } else if (code !== undefined && STALE_CODES.has(code)) {
@@ -370,7 +416,7 @@ export function useSessionActions(
       const input =
         received !== null &&
         received.version === before.version &&
-        hasMatchingSubmission(before.pending, received.input)
+        before.pending.attempt_id === received.attemptId
           ? received.input
           : toActionInput(before.pending);
       receivedAttempt.current = null;

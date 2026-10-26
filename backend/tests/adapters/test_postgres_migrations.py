@@ -18,7 +18,13 @@ if TYPE_CHECKING:
 
 pytestmark = [pytest.mark.anyio, pytest.mark.postgres]
 
-APP_TABLES = {"sessions", "timeline_entries", "submissions", "model_calls"}
+APP_TABLES = {
+    "sessions",
+    "timeline_entries",
+    "submissions",
+    "model_calls",
+    "submission_cancellations",
+}
 TODOS_REVISION = "f58f944d0d8e"
 SESSIONS_REVISION = "de3f10d569ec"
 

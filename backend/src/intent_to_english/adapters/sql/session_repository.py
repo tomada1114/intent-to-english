@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Integer, bindparam, insert, select, update
+from sqlalchemy import Integer, bindparam, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from intent_to_english.adapters.cursor import (
@@ -16,6 +16,7 @@ from intent_to_english.adapters.sql import session_values as values
 from intent_to_english.adapters.sql.tables import (
     model_calls,
     sessions,
+    submission_cancellations,
     submissions,
     timeline_entries,
 )
@@ -95,9 +96,23 @@ _CANCEL = (
         submissions.c.session_id == bindparam("target_session_id"),
         submissions.c.base_version == bindparam("version"),
         submissions.c.status == "pending",
+        func.coalesce(submissions.c.attempt_id, submissions.c.id)
+        == bindparam("target_attempt_id"),
     )
     .values(status="cancelled", finished_at=bindparam("finished_at"))
 )
+_ATTEMPT = select(submissions.c.id).where(
+    submissions.c.session_id == bindparam("session_id"),
+    func.coalesce(submissions.c.attempt_id, submissions.c.id)
+    == bindparam("attempt_id"),
+)
+_CANCELLATION = select(submission_cancellations.c.attempt_id).where(
+    submission_cancellations.c.session_id == bindparam("session_id"),
+    submission_cancellations.c.base_version == bindparam("base_version"),
+    submission_cancellations.c.attempt_id == bindparam("attempt_id"),
+)
+_INSERT_CANCELLATION = insert(submission_cancellations)
+
 _CALLS = (
     select(model_calls)
     .where(model_calls.c.session_id == bindparam("session_id"))
@@ -202,6 +217,15 @@ class SqlSessionRepository:
                 if existing is not None:
                     message = "A submission with this id is already stored"
                     raise ValueError(message)
+                identity = {
+                    "session_id": session.id,
+                    "base_version": submission.base_version,
+                    "attempt_id": submission.correlation_id,
+                }
+                if await connection.scalar(_CANCELLATION, identity) is not None:
+                    raise errors.ActionCancelledError
+                if await connection.scalar(_ATTEMPT, identity) is not None:
+                    raise errors.AttemptAlreadyUsedError
                 if pending is not None:
                     await connection.execute(
                         _UPDATE_PENDING,
@@ -293,15 +317,31 @@ class SqlSessionRepository:
             )
 
     async def cancel_submission(
-        self, session_id: UUID, base_version: int, finished_at: datetime
+        self,
+        session_id: UUID,
+        base_version: int,
+        attempt_id: UUID,
+        finished_at: datetime,
     ) -> bool:
-        """Cancel only the named version, retaining its input and accounting."""
+        """Serialize admission and exact cancellation, including an early cancel."""
         async with self._engine.begin() as connection:
-            await _require_session(connection, session_id)
+            session = await _require_session(connection, session_id)
+            if session.version != base_version:
+                return False
+            identity = {
+                "session_id": session_id,
+                "base_version": base_version,
+                "attempt_id": attempt_id,
+            }
+            if await connection.scalar(_CANCELLATION, identity) is None:
+                await connection.execute(
+                    _INSERT_CANCELLATION, {**identity, "created_at": finished_at}
+                )
             result = await connection.execute(
                 _CANCEL,
                 {
                     "target_session_id": session_id,
+                    "target_attempt_id": attempt_id,
                     "version": base_version,
                     "finished_at": finished_at,
                 },

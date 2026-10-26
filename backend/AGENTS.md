@@ -71,11 +71,15 @@ backend/
   SDK imports stay under `adapters/models/`; the suite blocks real model requests.
 - Domain errors derive from `core.errors.AppError`; the API maps them in one
   place (`api/app.py`), per `designing-errors`.
+- Submission attempts carry a client correlation UUID separately from internal UUIDv7
+  record IDs. Admission and cancellation serialize on the session; retained cancellation
+  identities prevent an early cancel from being lost or a delayed one from affecting
+  a same-version replacement.
 - The schema belongs to the migrations: the app never creates or alters a table,
   and `just backend db-upgrade` (which `just backend dev` runs first) applies them
   (`persisting-data`).
 - The app's own design — the stage machine, the two model roles and their ports, the
-  four tables, the API, and the decisions behind them — is
+  five tables, the API, and the decisions behind them — is
   `docs/architecture/overview.md`; its "Shape" table says which module each new piece
   goes in.
 - The model roles are ports in `core/`; `pydantic_ai` and `openai` are imported only by

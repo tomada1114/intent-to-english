@@ -201,7 +201,7 @@ export const performSessionActionMutation = (options?: Partial<Options<PerformSe
 /**
  * Cancel Session Action
  *
- * Cancel pending work at the supplied version, including an absent target.
+ * Cancel the exact attempt, retaining a cancellation received before admission.
  */
 export const cancelSessionActionMutation = (options?: Partial<Options<CancelSessionActionData>>): UseMutationOptions<CancelSessionActionResponse, CancelSessionActionError, Options<CancelSessionActionData>> => {
     const mutationOptions: UseMutationOptions<CancelSessionActionResponse, CancelSessionActionError, Options<CancelSessionActionData>> = {

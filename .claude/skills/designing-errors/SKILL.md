@@ -102,6 +102,7 @@ table is `_status_for` in `api/app.py`, and nowhere else:
 | `ActionNotAllowedError` | 409 | `action_not_allowed` |
 | `SessionEndedError` | 409 | `session_ended` |
 | `ActionCancelledError` | 409 | `action_cancelled` |
+| `AttemptAlreadyUsedError` | 409 | `attempt_already_used` |
 | `ModelTimeoutError` | 504 | `model_timeout` |
 | `ModelRateLimitedError` | 503 | `model_rate_limited` |
 | `ModelUnavailableError` | 502 | `model_unavailable` |

@@ -25,6 +25,7 @@ SESSION_ERRORS = [
     ),
     pytest.param(errors.SessionEndedError(), id="ended"),
     pytest.param(errors.ActionCancelledError(), id="cancelled"),
+    pytest.param(errors.AttemptAlreadyUsedError(), id="attempt-used"),
     pytest.param(errors.InvalidInputError("text", 1000, 1001), id="invalid-input"),
     pytest.param(errors.ModelError("test", "model", 0), id="model"),
     pytest.param(errors.ModelTimeoutError("test", "model", 60000), id="timeout"),

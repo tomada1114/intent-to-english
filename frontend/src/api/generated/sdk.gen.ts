@@ -63,7 +63,7 @@ export const performSessionAction = <ThrowOnError extends boolean = false>(optio
 /**
  * Cancel Session Action
  *
- * Cancel pending work at the supplied version, including an absent target.
+ * Cancel the exact attempt, retaining a cancellation received before admission.
  */
 export const cancelSessionAction = <ThrowOnError extends boolean = false>(options: Options<CancelSessionActionData, ThrowOnError>): RequestResult<CancelSessionActionResponses, CancelSessionActionErrors, ThrowOnError> => (options.client ?? client).post<CancelSessionActionResponses, CancelSessionActionErrors, ThrowOnError>({
     url: '/api/sessions/{session_id}/cancel',

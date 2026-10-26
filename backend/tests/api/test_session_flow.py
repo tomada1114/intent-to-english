@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from http import HTTPStatus
 from threading import Event
+from uuid import uuid4
 
 import anyio
 import pytest
@@ -101,6 +102,7 @@ def test_second_retry_miss_serializes_the_given_piece(start_session, act_session
 def test_cancel_or_end_supersedes_only_the_named_pending_action(
     conversation_container, operation
 ):
+    attempt_id = str(uuid4())
     started = Event()
     release = Event()
 
@@ -117,29 +119,45 @@ def test_cancel_or_end_supersedes_only_the_named_pending_action(
         path = f"/api/sessions/{view['id']}"
         with ThreadPoolExecutor(max_workers=1) as pool:
             waiting = pool.submit(
-                client.post, path + "/actions", json={"action": "open", "version": 0}
+                client.post,
+                path + "/actions",
+                json={"attempt_id": attempt_id, "action": "open", "version": 0},
             )
             try:
                 assert started.wait(timeout=5)
+                assert (
+                    client.get(path).json()["last_submission"]["attempt_id"]
+                    == attempt_id
+                )
                 duplicate = client.post(
-                    path + "/actions", json={"action": "open", "version": 0}
+                    path + "/actions",
+                    json={"attempt_id": str(uuid4()), "action": "open", "version": 0},
                 )
                 assert duplicate.status_code == HTTPStatus.CONFLICT
                 assert duplicate.json()["code"] == "action_in_progress"
                 assert (
-                    client.post(path + "/cancel", json={"version": 99}).status_code
+                    client.post(
+                        path + "/cancel", json={"attempt_id": attempt_id, "version": 99}
+                    ).status_code
                     == HTTPStatus.NO_CONTENT
                 )
                 assert client.get(path).json()["last_submission"]["state"] == "pending"
                 if operation == "end":
                     response = client.post(
-                        path + "/actions", json={"action": "end", "version": 0}
+                        path + "/actions",
+                        json={
+                            "attempt_id": str(uuid4()),
+                            "action": "end",
+                            "version": 0,
+                        },
                     )
                     assert response.status_code == HTTPStatus.OK
                     assert response.json()["stage"] == "ended"
                     assert response.json()["wrap_up"] == {"items": []}
                 else:
-                    response = client.post(path + "/cancel", json={"version": 0})
+                    response = client.post(
+                        path + "/cancel", json={"attempt_id": attempt_id, "version": 0}
+                    )
                     assert response.status_code == HTTPStatus.NO_CONTENT
             finally:
                 release.set()
@@ -168,7 +186,12 @@ def test_sql_session_reopens_partial_practice_and_preserves_wrap_up_states(
     def act(client, view, action, **fields):
         response = client.post(
             f"/api/sessions/{view['id']}/actions",
-            json={"action": action, "version": view["version"], **fields},
+            json={
+                "attempt_id": str(uuid4()),
+                "action": action,
+                "version": view["version"],
+                **fields,
+            },
         )
         assert response.status_code == HTTPStatus.OK, response.text
         return response.json()
@@ -194,3 +217,44 @@ def test_sql_session_reopens_partial_practice_and_preserves_wrap_up_states(
     with TestClient(create_app(settings)) as final:
         assert final.get(f"/api/sessions/{wrapped['id']}").json() == wrapped
         assert final.get(f"/api/sessions/{empty['id']}").json() == empty
+
+
+@pytest.mark.parametrize("suffix", ["actions", "cancel"])
+def test_attempt_identity_is_required_before_any_action_response(
+    client, start_session, suffix
+):
+    view = start_session()
+    body: dict[str, object] = {"version": 0}
+    if suffix == "actions":
+        body["action"] = "open"
+    response = client.post(f"/api/sessions/{view['id']}/{suffix}", json=body)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_CONTENT
+    assert response.json()["code"] == "request_invalid"
+    assert response.json()["errors"][0]["loc"][-1] == "attempt_id"
+
+
+def test_early_cancel_and_replay_leave_a_same_version_replacement_usable(
+    client, start_session
+):
+    view = start_session()
+    path = f"/api/sessions/{view['id']}"
+    attempt_id = str(uuid4())
+    cancelled = {"version": 0, "attempt_id": attempt_id}
+    assert (
+        client.post(path + "/cancel", json=cancelled).status_code
+        == HTTPStatus.NO_CONTENT
+    )
+    refused = client.post(path + "/actions", json={"action": "open", **cancelled})
+    assert refused.status_code == HTTPStatus.CONFLICT
+    assert refused.json()["code"] == "action_cancelled"
+    assert client.get(path).json() == view
+    assert (
+        client.post(path + "/cancel", json=cancelled).status_code
+        == HTTPStatus.NO_CONTENT
+    )
+    replacement = client.post(
+        path + "/actions",
+        json={"action": "open", "version": 0, "attempt_id": str(uuid4())},
+    )
+    assert replacement.status_code == HTTPStatus.OK
+    assert replacement.json()["version"] == 1

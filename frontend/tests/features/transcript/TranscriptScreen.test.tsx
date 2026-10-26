@@ -310,7 +310,9 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(
       screen.queryByText("コーチが振り返りを作っています…"),
     ).not.toBeInTheDocument();
-    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "wrap_up", version: 9 },
+    ]);
   });
 
   it.each([
@@ -332,6 +334,7 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     const view = ended({
       ...DUE,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "wrap_up",
         state: "failed",
         failure_code: "model_timeout",
@@ -359,7 +362,9 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     await user.click(screen.getByRole("button", { name: "もう一度" }));
 
     expect(await screen.findByText("these days")).toBeInTheDocument();
-    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "wrap_up", version: 9 },
+    ]);
   });
 
   it("shows an interrupted wrap-up without a reason, and [もう一度] sends it at the current version", async () => {
@@ -367,6 +372,7 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
       ...DUE,
       version: 11,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "wrap_up",
         state: "interrupted",
         failure_code: "interrupted",
@@ -389,7 +395,9 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(
       await screen.findByText("振り返りを作れませんでした（時間切れ）。"),
     ).toBeInTheDocument();
-    expect(server.bodies).toEqual([{ action: "wrap_up", version: 11 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "wrap_up", version: 11 },
+    ]);
   });
 
   it("leaves a wrap-up with no answer to the layout's banner, with no failure line of its own", async () => {
@@ -440,6 +448,7 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     const view = ended({
       ...DUE,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "english",
         state: "failed",
         failure_code: "model_timeout",
@@ -456,7 +465,9 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     renderTranscript(view, { strict: true });
 
     expect(await screen.findByText("these days")).toBeInTheDocument();
-    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "wrap_up", version: 9 },
+    ]);
   });
 
   it("waits for another tab's wrap-up when its own request gets 409 action_in_progress", async () => {
@@ -464,6 +475,7 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     const pending = ended({
       ...DUE,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "wrap_up",
         state: "pending",
         failure_code: null,
@@ -512,7 +524,9 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(screen.getByText("コーチが振り返りを作っています…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "もう一度" })).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "wrap_up", version: 9 },
+    ]);
 
     await advance(1999);
     expect(server.reads()).toBe(baseline);
@@ -529,7 +543,9 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     expect(screen.getByText("these days")).toBeInTheDocument();
     await advance(6000);
     expect(server.reads()).toBe(baseline + 1);
-    expect(server.bodies).toEqual([{ action: "wrap_up", version: 9 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "wrap_up", version: 9 },
+    ]);
   });
 
   it("waits for a wrap-up pending elsewhere, reading the session every 2 s until it settles", async () => {
@@ -537,6 +553,7 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
     const view = ended({
       ...DUE,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "wrap_up",
         state: "pending",
         failure_code: null,
@@ -614,8 +631,8 @@ describe("the session route ending into S3 (REQ-008)", () => {
     expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}`);
     await waitFor(() =>
       expect(server.bodies).toEqual([
-        { action: "end", version: 4 },
-        { action: "wrap_up", version: 5 },
+        { attempt_id: expect.any(String), action: "end", version: 4 },
+        { attempt_id: expect.any(String), action: "wrap_up", version: 5 },
       ]),
     );
   });

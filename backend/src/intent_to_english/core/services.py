@@ -386,6 +386,7 @@ class ConversationService:
             ActionNotAllowedError: The stage or extra guard rejects the action.
             InvalidInputError: The input kind, limit or reading is invalid.
             ActionCancelledError: Cancel or end superseded this action.
+            AttemptAlreadyUsedError: This logical attempt was previously admitted.
             ModelError: A provider failed; the input remains recoverable.
             ModelOutputInvalidError: The one repair still failed its checks.
         """
@@ -424,6 +425,7 @@ class ConversationService:
             normalized,
             self._boot_id,
             now,
+            attempt_id=request.attempt_id,
         )
         await self._repository.begin_submission(
             submission, flow.ACTION_STAGES[request.action], now - SUBMISSION_MAX_AGE
@@ -446,12 +448,13 @@ class ConversationService:
             raise
         return self._view(finished)
 
-    async def cancel(self, session_id: UUID, version: int) -> None:
-        """Cancel only work sent at that version, without advancing the turn.
+    async def cancel(self, session_id: UUID, version: int, attempt_id: UUID) -> None:
+        """Cancel one exact attempt without advancing the conversation.
 
         Args:
             session_id: The session whose pending action is being abandoned.
             version: The base version sent with that action.
+            attempt_id: The correlation ID shared before the action response.
 
         Returns:
             None, including when this session has no pending work at that version.
@@ -459,7 +462,9 @@ class ConversationService:
         Raises:
             SessionNotFoundError: No session has this id.
         """
-        await self._repository.cancel_submission(session_id, version, self._clock())
+        await self._repository.cancel_submission(
+            session_id, version, attempt_id, self._clock()
+        )
 
     def _is_live(self, submission: models.Submission | None) -> bool:
         return (
@@ -485,6 +490,7 @@ class ConversationService:
                     else models.LastSubmissionState.INTERRUPTED
                 )
             visible = models.LastSubmission(
+                last.correlation_id,
                 state,
                 last.action,
                 last.input,

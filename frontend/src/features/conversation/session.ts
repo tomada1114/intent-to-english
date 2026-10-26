@@ -21,7 +21,7 @@ type ActionBody = PerformSessionActionData["body"];
 /** An action's body without the version, which the screen adds when it sends. */
 export type ActionInput = ActionBody extends infer Body
   ? Body extends unknown
-    ? Omit<Body, "version">
+    ? Omit<Body, "version" | "attempt_id">
     : never
   : never;
 

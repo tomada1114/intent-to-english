@@ -62,5 +62,5 @@ async def perform_session_action(
 async def cancel_session_action(
     session_id: UUID, body: CancelSessionRequest, service: ConversationServiceDep
 ) -> None:
-    """Cancel pending work at the supplied version, including an absent target."""
-    await service.cancel(session_id, body.version)
+    """Cancel the exact attempt, retaining a cancellation received before admission."""
+    await service.cancel(session_id, body.version, body.attempt_id)
