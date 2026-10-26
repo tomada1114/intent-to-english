@@ -706,7 +706,9 @@ async def test_conversation_failed_call_retains_input_and_marks_submission_faile
 async def _cancel_pending(
     service: services.ConversationService, session_id: UUID
 ) -> None:
-    await service.cancel(session_id, 0)
+    pending = (await service.get(session_id)).last_submission
+    assert pending is not None
+    await service.cancel(session_id, 0, pending.attempt_id)
 
 
 async def _end_pending(service: services.ConversationService, session_id: UUID) -> None:
@@ -773,7 +775,7 @@ async def test_conversation_cancel_or_end_discards_late_output_and_keeps_call_lo
         assert pending.last_submission.state is m.LastSubmissionState.PENDING
         with pytest.raises(e.ActionInProgressError, match="progress"):
             await h.service.act(view.id, m.ActionRequest(m.Action.OPEN, 0))
-        await h.service.cancel(view.id, 99)
+        await h.service.cancel(view.id, 99, pending.last_submission.attempt_id)
         assert (
             await h.service.get(view.id)
         ).last_submission.state is m.LastSubmissionState.PENDING
@@ -857,7 +859,7 @@ async def test_conversation_pending_error_precedes_ended_but_end_refusal_preserv
     with pytest.raises(e.SessionEndedError, match="ended"):
         await h.service.act(session.id, m.ActionRequest(m.Action.END, 0))
     assert await h.repository.get(session.id) == before
-    await h.service.cancel(session.id, 0)
+    await h.service.cancel(session.id, 0, pending.correlation_id)
     with pytest.raises(e.SessionEndedError, match="ended"):
         await h.service.act(
             session.id, m.ActionRequest(m.Action.OPEN, 0, m.TextInput("private"))

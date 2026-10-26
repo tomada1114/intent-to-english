@@ -191,6 +191,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -203,6 +208,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "AskActionRequest",
@@ -241,15 +247,21 @@
       },
       "CancelSessionRequest": {
         "additionalProperties": false,
-        "description": "The version of the awaited action being abandoned.",
+        "description": "The version and exact attempt identity to abandon, even before admission.",
         "properties": {
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
           }
         },
         "required": [
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "CancelSessionRequest",
         "type": "object"
@@ -452,6 +464,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -459,7 +476,8 @@
         },
         "required": [
           "action",
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "EndActionRequest",
         "type": "object"
@@ -471,6 +489,11 @@
           "action": {
             "const": "english",
             "title": "Action",
+            "type": "string"
+          },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
             "type": "string"
           },
           "text": {
@@ -485,6 +508,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "EnglishActionRequest",
@@ -499,6 +523,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -511,6 +540,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "EnglishDirectActionRequest",
@@ -860,6 +890,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "gap": {
             "title": "Gap",
             "type": "string"
@@ -877,6 +912,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "gap"
         ],
         "title": "HintActionRequest",
@@ -979,6 +1015,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -991,6 +1032,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "IntentActionRequest",
@@ -1066,10 +1108,15 @@
       },
       "LastSubmissionResponse": {
         "additionalProperties": false,
-        "description": "Pending or recoverable input without internal submission identity.",
+        "description": "Pending or recoverable input with opaque correlation identity.",
         "properties": {
           "action": {
             "$ref": "#/components/schemas/Action"
+          },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
           },
           "failure_code": {
             "anyOf": [
@@ -1090,6 +1137,7 @@
           }
         },
         "required": [
+          "attempt_id",
           "state",
           "action",
           "input",
@@ -1153,6 +1201,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -1160,7 +1213,8 @@
         },
         "required": [
           "action",
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "OpenActionRequest",
         "type": "object"
@@ -1257,6 +1311,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -1264,7 +1323,8 @@
         },
         "required": [
           "action",
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "PartnerReplyActionRequest",
         "type": "object"
@@ -1321,6 +1381,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -1333,6 +1398,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "PracticeAgainActionRequest",
@@ -1633,6 +1699,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "reading": {
             "title": "Reading",
             "type": "string"
@@ -1645,6 +1716,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "reading"
         ],
         "title": "ReadingActionRequest",
@@ -1840,6 +1912,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "mode": {
             "$ref": "#/components/schemas/RestateMode"
           },
@@ -1851,6 +1928,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "mode"
         ],
         "title": "RestateActionRequest",
@@ -1911,6 +1989,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -1923,6 +2006,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "RetryActionRequest",
@@ -2080,6 +2164,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -2092,6 +2181,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "RewriteIntentActionRequest",
@@ -2284,6 +2374,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -2291,7 +2386,8 @@
         },
         "required": [
           "action",
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "ShowAnswerActionRequest",
         "type": "object"
@@ -2305,6 +2401,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -2312,7 +2413,8 @@
         },
         "required": [
           "action",
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "SkipActionRequest",
         "type": "object"
@@ -2577,6 +2679,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "text": {
             "title": "Text",
             "type": "string"
@@ -2589,6 +2696,7 @@
         "required": [
           "action",
           "version",
+          "attempt_id",
           "text"
         ],
         "title": "TypedCopyActionRequest",
@@ -2666,6 +2774,11 @@
             "title": "Action",
             "type": "string"
           },
+          "attempt_id": {
+            "format": "uuid",
+            "title": "Attempt Id",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
@@ -2673,7 +2786,8 @@
         },
         "required": [
           "action",
-          "version"
+          "version",
+          "attempt_id"
         ],
         "title": "WrapUpActionRequest",
         "type": "object"
@@ -3181,7 +3295,7 @@
     },
     "/api/sessions/{session_id}/cancel": {
       "post": {
-        "description": "Cancel pending work at the supplied version, including an absent target.",
+        "description": "Cancel the exact attempt, retaining a cancellation received before admission.",
         "operationId": "cancel_session_action",
         "parameters": [
           {

@@ -333,3 +333,75 @@ test("three direct replies reach the check-in, and ending shows the transcript",
   await expect(row).toContainText("終了");
   await expect(row).toContainText("3往復");
 });
+
+test("an early cancellation and its delayed replay leave an identical replacement usable", async ({
+  page,
+}) => {
+  const { id } = await startSession(page);
+  await send(page, "あなたの日本語", INTENT);
+  const coach = page.getByRole("region", { name: "コーチ" });
+  const field = coach.getByRole("textbox", { name: "あなたの英語" });
+  await expect(field).toBeEnabled();
+  await page.clock.install();
+  const held: { release: () => void; body: { version: number; attempt_id: string } }[] =
+    [];
+  await page.route(`**/api/sessions/${id}/actions`, async (route) => {
+    const body = route.request().postDataJSON() as {
+      action: string;
+      version: number;
+      attempt_id: string;
+    };
+    if (body.action === "english")
+      await new Promise<void>((release) => held.push({ release, body }));
+    await route.continue();
+  });
+  try {
+    await send(page, "あなたの英語", ENGLISH);
+    await expect.poll(() => held.length).toBe(1);
+    const original = held[0];
+    if (original === undefined)
+      throw new Error("The original request was not captured");
+    await page.clock.fastForward(10_001);
+    const cancelled = page.waitForResponse((response) =>
+      response.url().endsWith(`/sessions/${id}/cancel`),
+    );
+    await coach.getByRole("button", { name: "中止" }).click();
+    const cancelResponse = await cancelled;
+    expect(cancelResponse.status()).toBe(204);
+    expect(cancelResponse.request().postDataJSON()).toEqual({
+      version: original.body.version,
+      attempt_id: original.body.attempt_id,
+    });
+    await expect(field).toBeEnabled();
+    await expect(field).toHaveValue(ENGLISH);
+    await send(page, "あなたの英語", ENGLISH);
+    await expect.poll(() => held.length).toBe(2);
+    const replacement = held[1];
+    if (replacement === undefined)
+      throw new Error("The replacement request was not captured");
+    expect(replacement.body.version).toBe(original.body.version);
+    expect(replacement.body.attempt_id).not.toBe(original.body.attempt_id);
+    const replay = await page.request.post(`/api/sessions/${id}/cancel`, {
+      data: { version: original.body.version, attempt_id: original.body.attempt_id },
+    });
+    expect(replay.status()).toBe(204);
+    const late = page.waitForResponse(
+      (response) =>
+        response.request().postDataJSON()?.attempt_id === original.body.attempt_id,
+    );
+    original.release();
+    expect((await late).status()).toBe(409);
+    await expect(field).toBeDisabled();
+    const accepted = page.waitForResponse(
+      (response) =>
+        response.request().postDataJSON()?.attempt_id === replacement.body.attempt_id,
+    );
+    replacement.release();
+    expect((await accepted).status()).toBe(200);
+    await page.clock.fastForward(501);
+    await expect(coach.getByRole("article", { name: "コーチの添削" })).toBeVisible();
+    await expect(field).toHaveValue("");
+  } finally {
+    for (const request of held) request.release();
+  }
+});

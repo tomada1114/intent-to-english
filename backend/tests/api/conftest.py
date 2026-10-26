@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from http import HTTPStatus
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -44,7 +45,12 @@ def act_session(client):
     def act(view, action, **fields):
         response = client.post(
             f"/api/sessions/{view['id']}/actions",
-            json={"action": action, "version": view["version"], **fields},
+            json={
+                "attempt_id": str(uuid4()),
+                "action": action,
+                "version": view["version"],
+                **fields,
+            },
         )
         assert response.status_code == HTTPStatus.OK, response.text
         return response.json()

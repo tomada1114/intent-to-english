@@ -185,8 +185,8 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     hold.release();
     await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
     expect(served.bodies).toEqual([
-      { action: "end", version: 1 },
-      { action: "end", version: 1 },
+      { attempt_id: expect.any(String), action: "end", version: 1 },
+      { attempt_id: expect.any(String), action: "end", version: 1 },
     ]);
   });
 
@@ -223,6 +223,21 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     expect(heading).toHaveFocus();
   });
 
+  it("reuses the end attempt ID after a response is lost", async () => {
+    let ends = 0;
+    const served = serveSession(intent, () =>
+      ++ends === 1 ? HttpResponse.error() : ended,
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSession(intent);
+    await confirm(user);
+    await user.click(screen.getByRole("button", { name: "終える" }));
+    const retry = await screen.findByRole("button", { name: "再試行" });
+    await user.click(retry);
+    await waitFor(() => expect(served.bodies).toHaveLength(2));
+    expect(served.bodies[1]).toEqual(served.bodies[0]);
+  });
+
   it("shows a Japanese end failure and lets the learner retry", async () => {
     let ends = 0;
     const served = serveSession(intent, () => {
@@ -252,8 +267,8 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     await user.click(within(banner).getByRole("button", { name: "もう一度" }));
     await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
     expect(served.bodies).toEqual([
-      { action: "end", version: 1 },
-      { action: "end", version: 1 },
+      { attempt_id: expect.any(String), action: "end", version: 1 },
+      { attempt_id: expect.any(String), action: "end", version: 1 },
     ]);
   });
 
@@ -281,8 +296,13 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     await waitFor(() => expect(screen.queryByRole("textbox")).not.toBeInTheDocument());
     expect(screen.queryByText(/👉 次/)).not.toBeInTheDocument();
     expect(served.bodies).toEqual([
-      { action: "intent", text: "久しぶりに映画を見た", version: 1 },
-      { action: "end", version: 1 },
+      {
+        attempt_id: expect.any(String),
+        action: "intent",
+        text: "久しぶりに映画を見た",
+        version: 1,
+      },
+      { attempt_id: expect.any(String), action: "end", version: 1 },
     ]);
     hold.release();
     await act(() => vi.advanceTimersByTimeAsync(1000));

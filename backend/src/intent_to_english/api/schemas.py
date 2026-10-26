@@ -75,13 +75,19 @@ class _ActionRequest(_SessionWireModel):
 
     action: str
     version: StrictInt
+    attempt_id: UUID
 
     def _input(self) -> m.ActionInput:
         return m.NoInput()
 
     def to_domain(self) -> m.ActionRequest:
         """Leave normalization, lengths and stage rules to the core."""
-        return m.ActionRequest(m.Action(self.action), self.version, self._input())
+        return m.ActionRequest(
+            m.Action(self.action),
+            self.version,
+            self._input(),
+            attempt_id=self.attempt_id,
+        )
 
 
 class _TextActionRequest(_ActionRequest):
@@ -246,9 +252,10 @@ type SessionActionBody = Annotated[
 
 
 class CancelSessionRequest(_SessionWireModel):
-    """The version of the awaited action being abandoned."""
+    """The version and exact attempt identity to abandon, even before admission."""
 
     version: StrictInt
+    attempt_id: UUID
 
 
 class MetaResponse(_SessionWireModel):
@@ -671,8 +678,9 @@ type ActionInputResponse = (
 
 
 class LastSubmissionResponse(_SessionWireModel):
-    """Pending or recoverable input without internal submission identity."""
+    """Pending or recoverable input with opaque correlation identity."""
 
+    attempt_id: UUID
     state: m.LastSubmissionState
     action: m.Action
     input: ActionInputResponse

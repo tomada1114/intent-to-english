@@ -107,8 +107,8 @@ def test_session_tables_have_the_documented_columns_and_nullability():
             set(),
         ),
         "submissions": (
-            "id session_id base_version action input status failure_code boot_id created_at finished_at",
-            {"failure_code", "finished_at"},
+            "id session_id base_version action input status failure_code boot_id created_at finished_at attempt_id",
+            {"failure_code", "finished_at", "attempt_id"},
         ),
         "model_calls": (
             "id session_id submission_id turn_index role task attempt provider model input_tokens output_tokens cost latency_ms outcome status violations created_at",
@@ -220,7 +220,7 @@ async def test_sql_operations_reject_an_unknown_session_before_writing(
             submission, frozenset({models.Stage.OPENING}), fixed_now
         ),
         lambda: repository.finish_submission(submission.id, session, (), fixed_now),
-        lambda: repository.cancel_submission(session.id, 0, fixed_now),
+        lambda: repository.cancel_submission(session.id, 0, submission.id, fixed_now),
     ):
         with pytest.raises(SessionNotFoundError, match="not found"):
             await operation()

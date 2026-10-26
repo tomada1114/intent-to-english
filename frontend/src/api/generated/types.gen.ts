@@ -118,6 +118,10 @@ export type AskActionRequest = {
      */
     action: 'ask';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Text
      */
     text: string;
@@ -150,9 +154,13 @@ export type BlankOffResponse = {
 /**
  * CancelSessionRequest
  *
- * The version of the awaited action being abandoned.
+ * The version and exact attempt identity to abandon, even before admission.
  */
 export type CancelSessionRequest = {
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Version
      */
@@ -306,6 +314,10 @@ export type EndActionRequest = {
      */
     action: 'end';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Version
      */
     version: number;
@@ -321,6 +333,10 @@ export type EnglishActionRequest = {
      * Action
      */
     action: 'english';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Text
      */
@@ -341,6 +357,10 @@ export type EnglishDirectActionRequest = {
      * Action
      */
     action: 'english_direct';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Text
      */
@@ -578,6 +598,10 @@ export type HintActionRequest = {
      */
     action: 'hint';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Gap
      */
     gap: string;
@@ -667,6 +691,10 @@ export type IntentActionRequest = {
      */
     action: 'intent';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Text
      */
     text: string;
@@ -728,10 +756,14 @@ export type IntentPayloadResponse = {
 /**
  * LastSubmissionResponse
  *
- * Pending or recoverable input without internal submission identity.
+ * Pending or recoverable input with opaque correlation identity.
  */
 export type LastSubmissionResponse = {
     action: Action;
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Failure Code
      */
@@ -785,6 +817,10 @@ export type OpenActionRequest = {
      * Action
      */
     action: 'open';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Version
      */
@@ -853,6 +889,10 @@ export type PartnerReplyActionRequest = {
      */
     action: 'partner_reply';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Version
      */
     version: number;
@@ -900,6 +940,10 @@ export type PracticeAgainActionRequest = {
      * Action
      */
     action: 'practice_again';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Text
      */
@@ -1117,6 +1161,10 @@ export type ReadingActionRequest = {
      */
     action: 'reading';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Reading
      */
     reading: string;
@@ -1265,6 +1313,10 @@ export type RestateActionRequest = {
      * Action
      */
     action: 'restate';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     mode: RestateMode;
     /**
      * Version
@@ -1314,6 +1366,10 @@ export type RetryActionRequest = {
      * Action
      */
     action: 'retry';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Text
      */
@@ -1428,6 +1484,10 @@ export type RewriteIntentActionRequest = {
      */
     action: 'rewrite_intent';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Text
      */
     text: string;
@@ -1540,6 +1600,10 @@ export type ShowAnswerActionRequest = {
      */
     action: 'show_answer';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Version
      */
     version: number;
@@ -1555,6 +1619,10 @@ export type SkipActionRequest = {
      * Action
      */
     action: 'skip';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Version
      */
@@ -1721,6 +1789,10 @@ export type TypedCopyActionRequest = {
      */
     action: 'typed_copy';
     /**
+     * Attempt Id
+     */
+    attempt_id: string;
+    /**
      * Text
      */
     text: string;
@@ -1785,6 +1857,10 @@ export type WrapUpActionRequest = {
      * Action
      */
     action: 'wrap_up';
+    /**
+     * Attempt Id
+     */
+    attempt_id: string;
     /**
      * Version
      */

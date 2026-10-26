@@ -710,6 +710,7 @@ class ActionRequest:
     action: Action
     version: int
     input: ActionInput = field(default_factory=NoInput)
+    attempt_id: UUID | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -726,17 +727,24 @@ class Submission:
     status: SubmissionStatus = SubmissionStatus.PENDING
     failure_code: str | None = None
     finished_at: datetime | None = None
+    attempt_id: UUID | None = field(default=None, kw_only=True)
 
     def __post_init__(self) -> None:
         """Refuse structurally invalid values at every boundary."""
         check_aware(self.created_at)
         check_aware(self.finished_at)
 
+    @property
+    def correlation_id(self) -> UUID:
+        """Use a legacy row's server ID when no client correlation was stored."""
+        return self.attempt_id or self.id
+
 
 @dataclass(frozen=True, slots=True)
 class LastSubmission:
     """The pending or recoverable input shown after reopening."""
 
+    attempt_id: UUID
     state: LastSubmissionState
     action: Action
     input: ActionInput

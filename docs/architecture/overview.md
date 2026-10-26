@@ -50,7 +50,7 @@ like this:
 | Call-log summary | core | `core/call_log.py` | pure grouped counts, reported tokens/credits and nearest-rank latency |
 | Call-log read | adapters | `adapters/sql/call_log.py` | one constant query with typed optional filters and an owned read-only connection |
 | Call-log command | root | `call_log.py` | `python -m intent_to_english.call_log`, exposed as `just backend call-log` |
-| Storage | adapters | `adapters/sql/`, `adapters/memory.py` | the four tables below; the in-memory repository for tests and a run without a database URL |
+| Storage | adapters | `adapters/sql/`, `adapters/memory.py` | the five tables below; the in-memory repository for tests and a run without a database URL |
 | Model roles | adapters | `adapters/models/` | `fixed.py` (the fixed-response mode), `openrouter.py` (PydanticAI agents on OpenRouter), `prompts.py` (the messages each task sends), `schemas.py` (the Pydantic models each task's JSON schema comes from) |
 | HTTP | api | `api/routers/sessions.py`, `api/routers/meta.py`, `api/schemas.py` | the routes in § Decisions › The API |
 | Evaluation | its own package | `evaluation/cases.py`, `expectations.py`, `observed.py`, `harness.py`, `reports.py`, `__main__.py` | strict TOML, code expectations, observed task-runner calls, JSON/Markdown reports and `just backend eval` |
@@ -60,7 +60,7 @@ The screen lives under `frontend/src/`: `routes/index.tsx` (S1), `routes/session
 (S2 and S3), a not-found route (S4), `features/sessions/` (S1: start, resume, and the list), `features/conversation/`
 (both panes, the composer, the controls, the feedback card), and the tokens in `styles.css`.
 
-What crosses each boundary: the API hands the core an action and the version the screen
+What crosses each boundary: the API hands the core an action, an opaque attempt UUID, and the version the screen
 showed, and gets a `SessionView` back; the core hands a model port a request value and gets
 an output value with its call's usage, or a model error; the repository stores and returns
 core values only.
@@ -76,7 +76,8 @@ rejects a mismatched pair before it can enter the append-only timeline.
 |---|---|---|
 | `sessions` | `id`, `started_at`, `ended_at`, `status` (`in_progress` / `ended`), `stage`, `turn_index`, `turn_state` (JSON), `version`, `finished_replies`, `opener`, `wrap_up` (JSON) | one row per session; `version` goes up by one with every accepted action |
 | `timeline_entries` | `id`, `session_id`, `seq`, `turn_index`, `kind`, `payload` (JSON), `created_at` | append-only: never updated or deleted; `(session_id, seq)` unique |
-| `submissions` | `id`, `session_id`, `base_version`, `action`, `input` (JSON), `status` (`pending` / `completed` / `failed` / `cancelled`), `failure_code`, `boot_id`, `created_at`, `finished_at` | one row per action the learner sent; a partial unique index on `(session_id, base_version)` where `status` is `pending` or `completed` |
+| `submissions` | `id`, `session_id`, `base_version`, `action`, `input` (JSON), `status` (`pending` / `completed` / `failed` / `cancelled`), `failure_code`, `boot_id`, `created_at`, `finished_at`, `attempt_id` (nullable for legacy rows) | one row per action the learner sent; a partial unique index on `(session_id, base_version)` where `status` is `pending` or `completed` |
+| `submission_cancellations` | `session_id`, `base_version`, `attempt_id`, `created_at` | primary key on the three identity fields; retains a cancel even before action admission |
 | `model_calls` | `id`, `session_id`, `submission_id`, `turn_index`, `role`, `task`, `attempt` (1, or 2 for the repair), `provider`, `model`, `input_tokens`, `output_tokens`, `cost`, `latency_ms`, `outcome`, `status` (nullable provider HTTP status), `violations` (JSON), `created_at` | one row per request to a model; never the key or the prompt text |
 
 - `turn_state` holds only what the current stage's next action needs: the intent in force,
@@ -181,13 +182,17 @@ is 「終わる」.
 ### One action, end to end
 
 1. The screen sends `POST /api/sessions/{id}/actions` with the action, its input, and the
-   session `version` it shows.
+   session `version` it shows and a client-created UUID `attempt_id`. The ID exists
+   before the request is sent; a transport retry retains it, a new logical submission
+   creates another. Internal record IDs still come from the injected UUIDv7 factory.
 2. One transaction checks that the session exists, then the version (`stale_session`
    otherwise). A live pending submission means `action_in_progress`, except that `end`
    supersedes it. An ended session rejects every action but `wrap_up` (`session_ended`);
    the stage must allow the action (`action_not_allowed`). Only when every check passes
-   does the transaction mark superseded work `cancelled` and store the new submission
-   `pending` with the process's boot id. A refused begin cancels nothing.
+   does the transaction check the attempt: a retained early cancel means
+   `action_cancelled`, a previously admitted correlation means `attempt_already_used`.
+   Only a new, uncancelled attempt can mark superseded work `cancelled` and store
+   the new submission `pending` with the process's boot id. A refused begin cancels nothing.
    Before beginning, `ConversationService` checks the same order against its snapshot,
    then the extra action guards, normalized input limits and chosen reading. Invalid input
    stores no submission; the transaction repeats the existence, version, pending, ended
@@ -212,10 +217,14 @@ is 「終わる」.
    「もう一度」. Any other exception also marks the submission `failed` before it propagates,
    so a bug never leaves a session stuck.
 
-A cancel names the session and the submission's base version. It marks only a pending
-submission at that version `cancelled`; no matching pending submission is a no-op. A delayed
-cancel cannot affect a later action. The screen then shows the stage as before with the
-text back in the composer. `end` also supersedes a live pending submission atomically, so
+A cancel names the session, base version and opaque `attempt_id`. Admission and cancel
+hold the same session transition lock (a row lock on PostgreSQL, `BEGIN IMMEDIATE` on
+SQLite). A cancel at the current version records its identity even if the action has
+not arrived; admission of that identity is then refused before a model call. It marks
+only the matching pending attempt `cancelled`. A repeated cancel or a cancel for another
+version changes no submission; a delayed cancel of A cannot affect a replacement B,
+even at the same version with identical input. A completed action is never undone.
+The screen then shows the stage as before with the text back in the composer. `end` also supersedes a live pending submission atomically, so
 ending never waits for its model call; the late output is discarded and its call log stays.
 
 ### Interrupted calls
@@ -408,9 +417,15 @@ Every action names the version it answers, so a second tab or a reloaded screen 
 admits one pending or completed submission per version, so a double click is 409
 `action_in_progress` and is processed once. `end` supersedes a live pending submission:
 the transaction changes the old row to `cancelled` before inserting the new pending row,
-so the partial index admits it; a refused begin changes nothing. A cancel names the base
-version and discards output only from that pending action. Calls from cancelled work stay
-in `model_calls`. The next begin marks an interrupted pending row `failed` before storing a
+so the partial index admits it; a refused begin changes nothing. Cancellation matches
+the base version and attempt UUID, so the slot can be reused without changing what an
+old cancellation names. A retained cancellation also prevents admission if cancel
+arrives first. The unique `(session_id, attempt_id)` constraint prevents one logical
+attempt from being admitted twice, including after failure. Legacy rows retain null
+correlation and expose their existing record UUID as a stable fallback. No primary or
+model-call foreign key changes during migration. Cancelled input and call history are
+retained; a request cancelled before admission creates no submission and the browser
+keeps its draft. Calls from cancelled work stay in `model_calls`. The next begin marks an interrupted pending row `failed` before storing a
 replacement, using the boot id and cutoff to recognize it (§ Core flows).
 
 ### Keys, models, and the mode
@@ -460,8 +475,8 @@ and a blank still off included), and report provider `fixed` with no tokens or c
 | `POST /api/sessions` | 201 with the new session at `opening`, version 0; no model call |
 | `GET /api/sessions?cursor=&limit=` | one page, newest first, 20 by default: id, start time, status, finished replies, opener |
 | `GET /api/sessions/{id}` | the `SessionView` |
-| `POST /api/sessions/{id}/actions` | the new `SessionView`; 17 body models discriminated by `action`, each with `version`; text actions use `text`, hints use `gap` and `partial_english`, readings use `reading`, restatements use `mode`, and model-free actions carry no input fields |
-| `POST /api/sessions/{id}/cancel` | body `{"version": <int>}`; 204 whether or not that version has pending work, 404 for an unknown session, and 422 when version is missing; the session version does not move |
+| `POST /api/sessions/{id}/actions` | the new `SessionView`; 17 body models discriminated by `action`, each with required `version` and UUID `attempt_id`; text actions use `text`, hints use `gap` and `partial_english`, readings use `reading`, restatements use `mode`, and model-free actions carry no input fields |
+| `POST /api/sessions/{id}/cancel` | body `{"version": <int>, "attempt_id": "<uuid>"}`; 204 for the exact attempt, including an early/repeated cancel, 404 for an unknown session, and 422 for missing/invalid fields; the session version does not move |
 | `GET /api/meta` | `{"model_mode": "fixed" \| "openrouter"}`, for the header badge on every screen |
 
 | Error | Status | Code |
@@ -469,6 +484,7 @@ and a blank still off included), and report provider `fixed` with no tokens or c
 | unknown session | 404 | `session_not_found` |
 | the version moved on | 409 | `stale_session` |
 | a submission is pending | 409 | `action_in_progress` |
+| a correlation ID was already admitted | 409 | `attempt_already_used` |
 | the stage does not allow the action | 409 | `action_not_allowed` |
 | the session has ended | 409 | `session_ended` |
 | the output arrived after a cancel | 409 | `action_cancelled` |

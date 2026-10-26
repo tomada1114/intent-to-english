@@ -40,7 +40,7 @@ describe("generated API contract", () => {
       const result = await cancelSessionAction({
         client: testClient,
         path: { session_id: "0199c1f0-0000-7000-8000-000000000001" },
-        body: { version: 1 },
+        body: { version: 1, attempt_id: "00000000-0000-4000-8000-000000000001" },
         parseAs,
         throwOnError: true,
       });
@@ -68,7 +68,7 @@ describe("generated API contract", () => {
 
     await mutation.mutate({
       path: { session_id: "0199c1f0-0000-7000-8000-000000000001" },
-      body: { version: 1 },
+      body: { version: 1, attempt_id: "00000000-0000-4000-8000-000000000001" },
     });
 
     expect(successData).toBeUndefined();

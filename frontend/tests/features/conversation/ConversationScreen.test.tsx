@@ -136,7 +136,9 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
       "lang",
       "en",
     );
-    expect(server.bodies).toEqual([{ action: "open", version: 0 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "open", version: 0 },
+    ]);
     expect(
       within(pane("コーチ")).getByRole("button", { name: "進め方" }),
     ).toHaveAttribute("aria-expanded", "true");
@@ -183,7 +185,9 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
     expect(
       await within(pane("会話")).findByText(SHARE.payload.text),
     ).toBeInTheDocument();
-    expect(server.bodies).toEqual([{ action: "partner_reply", version: 4 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
+    ]);
     expect(
       within(pane("会話")).queryByText("Partner が返事を考えています…"),
     ).not.toBeInTheDocument();
@@ -225,6 +229,7 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
       const view = {
         ...opening,
         last_submission: {
+          attempt_id: "00000000-0000-4000-8000-000000000001",
           action: "open" as const,
           input: {},
           state,
@@ -399,6 +404,7 @@ const stageRows: StageRow[] = [
     view: {
       ...opening,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "open",
         input: {},
         state: "pending",
@@ -816,7 +822,9 @@ describe("ConversationScreen sending (REQ-004)", () => {
 
       await perform(user);
 
-      await waitFor(() => expect(server.bodies).toEqual([body]));
+      await waitFor(() =>
+        expect(server.bodies).toEqual([{ ...body, attempt_id: expect.any(String) }]),
+      );
       // The waiting line shows once the request passes 300 ms.
       if (waiting === "partner") {
         expect(
@@ -884,7 +892,9 @@ describe("ConversationScreen sending (REQ-004)", () => {
     await user.click(screen.getByRole("button", { name: "終わる" }));
 
     await waitFor(() => expect(screen.queryByText(/👉 次/)).not.toBeInTheDocument());
-    expect(server.bodies).toEqual([{ action: "end", version: 6 }]);
+    expect(server.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "end", version: 6 },
+    ]);
   });
 });
 

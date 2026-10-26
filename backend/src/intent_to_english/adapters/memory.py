@@ -14,6 +14,7 @@ from intent_to_english.core.errors import (
     ActionCancelledError,
     ActionInProgressError,
     ActionNotAllowedError,
+    AttemptAlreadyUsedError,
     InvalidCursorError,
     SessionEndedError,
     SessionNotFoundError,
@@ -49,6 +50,7 @@ class InMemorySessionRepository:
         self._sessions: dict[UUID, Session] = {}
         self._entries: dict[UUID, tuple[TimelineEntry, ...]] = {}
         self._submissions: dict[UUID, Submission] = {}
+        self._cancellations: set[tuple[UUID, int, UUID]] = set()
         self._calls: dict[UUID, ModelCallRecord] = {}
 
     def _require_session(self, session_id: UUID) -> Session:
@@ -138,6 +140,17 @@ class InMemorySessionRepository:
         if submission.id in self._submissions:
             msg = "A submission with this id is already stored"
             raise ValueError(msg)
+        if (
+            session.id,
+            submission.base_version,
+            submission.correlation_id,
+        ) in self._cancellations:
+            raise ActionCancelledError
+        if any(
+            s.session_id == session.id and s.correlation_id == submission.correlation_id
+            for s in self._submissions.values()
+        ):
+            raise AttemptAlreadyUsedError
         if pending is not None:
             self._submissions[pending.id] = replace(
                 pending,
@@ -195,16 +208,24 @@ class InMemorySessionRepository:
             )
 
     async def cancel_submission(
-        self, session_id: UUID, base_version: int, finished_at: datetime
+        self,
+        session_id: UUID,
+        base_version: int,
+        attempt_id: UUID,
+        finished_at: datetime,
     ) -> bool:
-        """A stale cancel never affects the pending action at another version."""
-        self._require_session(session_id)
+        """Match exact identity and retain early cancellation across admission."""
+        session = self._require_session(session_id)
+        if session.version != base_version:
+            return False
+        self._cancellations.add((session_id, base_version, attempt_id))
         pending = next(
             (
                 s
                 for s in self._submissions.values()
                 if s.session_id == session_id
                 and s.base_version == base_version
+                and s.correlation_id == attempt_id
                 and s.status is SubmissionStatus.PENDING
             ),
             None,

@@ -34,6 +34,7 @@ from intent_to_english.core.errors import (
     ActionInProgressError,
     ActionNotAllowedError,
     AppError,
+    AttemptAlreadyUsedError,
     InvalidCursorError,
     InvalidInputError,
     InvalidPageLimitError,
@@ -223,6 +224,7 @@ def _status_for(error: AppError) -> HTTPStatus:
             | ActionNotAllowedError()
             | SessionEndedError()
             | ActionCancelledError()
+            | AttemptAlreadyUsedError()
         ):
             status = HTTPStatus.CONFLICT
         case ModelTimeoutError():

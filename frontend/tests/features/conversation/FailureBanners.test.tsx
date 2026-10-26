@@ -189,8 +189,18 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
         await screen.findByPlaceholderText("穴を埋めた英文全体を"),
       ).toBeInTheDocument();
       expect(served.bodies).toEqual([
-        { action: "english", text: "I watched a movie", version: 2 },
-        { action: "english", text: "I watched a movie", version: 2 },
+        {
+          attempt_id: expect.any(String),
+          action: "english",
+          text: "I watched a movie",
+          version: 2,
+        },
+        {
+          attempt_id: expect.any(String),
+          action: "english",
+          text: "I watched a movie",
+          version: 2,
+        },
       ]);
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     },
@@ -217,15 +227,17 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
         queryKey: sessionQueryOptions(SESSION_ID).queryKey,
       }),
     );
-    expect(served.bodies).toEqual([{ action: "partner_reply", version: 4 }]);
+    expect(served.bodies).toEqual([
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
+    ]);
     expect(pane("会話").getAllByRole("button", { name: "もう一度" })).toHaveLength(1);
 
     await user.click(within(banner).getByRole("button", { name: "もう一度" }));
 
     expect(await pane("会話").findByText(SHARE.payload.text)).toBeInTheDocument();
     expect(served.bodies).toEqual([
-      { action: "partner_reply", version: 4 },
-      { action: "partner_reply", version: 4 },
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
     ]);
   });
 
@@ -234,6 +246,7 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
     const view: SessionResponse = {
       ...intent,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "restate",
         input: { mode: "shorter" },
         state: "failed",
@@ -256,7 +269,12 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
 
     await waitFor(() =>
       expect(served.bodies).toEqual([
-        { action: "restate", mode: "shorter", version: 1 },
+        {
+          attempt_id: expect.any(String),
+          action: "restate",
+          mode: "shorter",
+          version: 1,
+        },
       ]),
     );
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
@@ -308,6 +326,7 @@ describe("ConversationScreen stale state (REQ-005)", () => {
       await user.keyboard("{Meta>}{Enter}{/Meta}");
       await waitFor(() => expect(served.bodies).toHaveLength(2));
       expect(served.bodies[1]).toEqual({
+        attempt_id: expect.any(String),
         action: "retry",
         text: "Actually, I watched a movie",
         version: 8,
@@ -378,10 +397,21 @@ describe("ConversationScreen with no response (REQ-006)", () => {
       await screen.findByPlaceholderText("穴を埋めた英文全体を"),
     ).toBeInTheDocument();
     expect(served.bodies).toEqual([
-      { action: "english", text: "I watched a movie", version: 2 },
-      { action: "english", text: "I watched a movie", version: 2 },
+      {
+        attempt_id: expect.any(String),
+        action: "english",
+        text: "I watched a movie",
+        version: 2,
+      },
+      {
+        attempt_id: expect.any(String),
+        action: "english",
+        text: "I watched a movie",
+        version: 2,
+      },
     ]);
     expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
+    expect(served.bodies[1]?.attempt_id).toBe(served.bodies[0]?.attempt_id);
   });
 });
 
@@ -421,6 +451,7 @@ describe("ConversationScreen unanswered action reconciliation", () => {
           served.set({
             ...english,
             last_submission: {
+              attempt_id: "00000000-0000-4000-8000-000000000001",
               action: "english",
               input: { text: "I watched a movie" },
               state: "pending",
@@ -489,6 +520,7 @@ describe("ConversationScreen unanswered action reconciliation", () => {
     served.set({
       ...english,
       last_submission: {
+        attempt_id: served.bodies[0]?.attempt_id ?? "missing-attempt",
         action: "hint",
         input: { gap: "久しぶり", partial_english: "I watched" },
         state: "pending",
@@ -543,6 +575,7 @@ describe("ConversationScreen unanswered action reconciliation", () => {
       served.set({
         ...english,
         last_submission: {
+          attempt_id: served.bodies[0]?.attempt_id ?? "missing-attempt",
           action: "english",
           input: { text: "I watched a movie" },
           state: "pending",
@@ -587,6 +620,7 @@ describe("ConversationScreen unanswered action reconciliation", () => {
       const loaded: SessionResponse = {
         ...view,
         last_submission: {
+          attempt_id: "00000000-0000-4000-8000-000000000001",
           action,
           input,
           state,
@@ -614,8 +648,8 @@ describe("ConversationScreen unanswered action reconciliation", () => {
       await user.click(within(banner).getByRole("button", { name: "再試行" }));
       await waitFor(() => expect(served.bodies).toHaveLength(2));
       expect(served.bodies).toEqual([
-        { action, ...input, version: view.version },
-        { action, ...input, version: view.version },
+        { attempt_id: expect.any(String), action, ...input, version: view.version },
+        { attempt_id: expect.any(String), action, ...input, version: view.version },
       ]);
       expect(await screen.findByText(UNREACHABLE)).toBeInTheDocument();
     },
@@ -652,34 +686,40 @@ describe("ConversationScreen unanswered action reconciliation", () => {
     expect(served.bodies).toHaveLength(1);
   });
 
-  it("resolves the network retry when a matching submission is observed pending", async () => {
-    const served = serveSession(english, () => HttpResponse.error());
-    const user = userEvent.setup();
-    const { queryClient } = renderSession(english);
-    await sendEnglish(user, "I watched a movie");
-    await screen.findByText(UNREACHABLE);
-    served.set({
-      ...english,
-      last_submission: {
-        action: "english",
-        input: { text: "I watched a movie" },
-        state: "pending",
-        failure_code: null,
-      },
-    });
-    await act(() =>
-      queryClient.invalidateQueries({
-        queryKey: sessionQueryOptions(SESSION_ID).queryKey,
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument(),
-    );
-    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
-      "I watched a movie",
-    );
-    expect(served.bodies).toHaveLength(1);
-  });
+  it.each([true, false])(
+    "resolves the network retry only for the same attempt ID: %s",
+    async (matching) => {
+      const served = serveSession(english, () => HttpResponse.error());
+      const user = userEvent.setup();
+      const { queryClient } = renderSession(english);
+      await sendEnglish(user, "I watched a movie");
+      await screen.findByText(UNREACHABLE);
+      served.set({
+        ...english,
+        last_submission: {
+          attempt_id: matching
+            ? (served.bodies[0]?.attempt_id ?? "missing-attempt")
+            : "00000000-0000-4000-8000-000000000099",
+          action: "english",
+          input: { text: "I watched a movie" },
+          state: "pending",
+          failure_code: null,
+        },
+      });
+      await act(() =>
+        queryClient.invalidateQueries({
+          queryKey: sessionQueryOptions(SESSION_ID).queryKey,
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(UNREACHABLE) === null).toBe(matching),
+      );
+      expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+        "I watched a movie",
+      );
+      expect(served.bodies).toHaveLength(1);
+    },
+  );
 
   it("keeps an edited draft through observing pending and then completed", async () => {
     const served = serveSession(english, () => HttpResponse.error());
@@ -693,6 +733,7 @@ describe("ConversationScreen unanswered action reconciliation", () => {
     served.set({
       ...english,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action: "english",
         input: { text: "I watched a movie" },
         state: "pending",
@@ -774,7 +815,12 @@ describe("ConversationScreen unanswered action reconciliation", () => {
     expect(screen.queryByText(UNREACHABLE)).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue("");
     expect(served.bodies).toEqual([
-      { action: "english", text: "I watched a movie", version: 2 },
+      {
+        attempt_id: expect.any(String),
+        action: "english",
+        text: "I watched a movie",
+        version: 2,
+      },
     ]);
   });
 });
@@ -802,8 +848,8 @@ describe("ConversationScreen auto-sent action with no response (REQ-006)", () =>
 
     expect(await pane("会話").findByText(SHARE.payload.text)).toBeInTheDocument();
     expect(served.bodies).toEqual([
-      { action: "partner_reply", version: 4 },
-      { action: "partner_reply", version: 4 },
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
+      { attempt_id: expect.any(String), action: "partner_reply", version: 4 },
     ]);
   });
 });
@@ -819,6 +865,7 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     return {
       ...view,
       last_submission: {
+        attempt_id: "00000000-0000-4000-8000-000000000001",
         action,
         input,
         state,
@@ -851,7 +898,12 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
 
     await screen.findByPlaceholderText("穴を埋めた英文全体を");
     expect(served.bodies).toEqual([
-      { action: "english", text: "I watched a movie", version: 2 },
+      {
+        attempt_id: expect.any(String),
+        action: "english",
+        text: "I watched a movie",
+        version: 2,
+      },
     ]);
   });
 
@@ -877,7 +929,12 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
 
     await screen.findByPlaceholderText("穴を埋めた英文全体を");
     expect(served.bodies).toEqual([
-      { action: "english_direct", text: "I watched a movie", version: 1 },
+      {
+        attempt_id: expect.any(String),
+        action: "english_direct",
+        text: "I watched a movie",
+        version: 1,
+      },
     ]);
   });
 
@@ -887,6 +944,7 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
       const view: SessionResponse = {
         ...intent,
         last_submission: {
+          attempt_id: "00000000-0000-4000-8000-000000000001",
           action: "english_direct",
           input: { text: "I watched a movie" },
           state,
@@ -931,7 +989,12 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
 
     await screen.findByRole("textbox", { name: "あなたの英語" });
     expect(served.bodies).toEqual([
-      { action: "intent", text: "久しぶりに映画を見た", version: 1 },
+      {
+        attempt_id: expect.any(String),
+        action: "intent",
+        text: "久しぶりに映画を見た",
+        version: 1,
+      },
     ]);
   });
 
@@ -978,7 +1041,9 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
       await user.click(again);
 
       await waitFor(() =>
-        expect(served.bodies).toEqual([{ action, version: view.version }]),
+        expect(served.bodies).toEqual([
+          { attempt_id: expect.any(String), action, version: view.version },
+        ]),
       );
       expect(
         await pane("会話").findByText(
@@ -1141,6 +1206,7 @@ it("settles a reload-restored hint without clearing the retained English draft",
   const pending: SessionResponse = {
     ...english,
     last_submission: {
+      attempt_id: "00000000-0000-4000-8000-000000000001",
       action: "hint",
       input: { gap: "久しぶり", partial_english: "I watched" },
       state: "pending",

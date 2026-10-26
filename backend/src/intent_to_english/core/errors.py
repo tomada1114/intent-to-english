@@ -49,6 +49,16 @@ class ActionInProgressError(AppError):
         return "An action is already in progress"
 
 
+class AttemptAlreadyUsedError(AppError):
+    """A logical submission ID cannot admit another action."""
+
+    code: ClassVar[str] = "attempt_already_used"
+
+    def __str__(self) -> str:
+        """Explain the identity conflict without echoing input."""
+        return "The submission attempt was already used"
+
+
 class StaleSessionError(AppError):
     """The session version has changed."""
 
