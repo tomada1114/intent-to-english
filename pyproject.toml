@@ -41,9 +41,6 @@ exclude-newer = "7 days"
 # entry with a comment naming its advisories, and drops it once the window
 # admits the fix (managing-dependencies). Keep one `name = "cutoff"` per line.
 [tool.uv.exclude-newer-package]
-# GHSA-6q48-6c7w-9gw2: version 2026.10.19, published 2026-10-20T02:24:16Z.
-# The window admits it from 2026-10-27T02:24:16Z; the next run after drops this.
-certifi = "2026-10-20T02:24:17Z"
 # GHSA-394h-qwmc-48pf, GHSA-43mp-35q3-x3fq, GHSA-494p-63j8-28p3, GHSA-558c-9hv2-4prj, GHSA-5vjq-rrrf-7h2q, GHSA-6w3r-xr62-4xcp, GHSA-8rjx-v5ww-45pp, GHSA-c947-3pg5-gm8q, GHSA-c978-59m8-c77v, GHSA-cw65-gx24-rc82, GHSA-cx28-75q4-x26q, GHSA-cx6f-vjhg-g3cc, GHSA-fc2g-4w5p-6whm, GHSA-hhxq-47xx-j5xx, GHSA-qmx5-4p3x-wvqf, GHSA-vxj4-q4g9-crj7: version 21.14.13, published 2026-10-22T20:10:16Z.
 # The window admits it from 2026-10-29T20:10:16Z; the next run after drops this.
 virtualenv = "2026-10-22T20:10:17Z"
