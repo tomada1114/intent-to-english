@@ -29,7 +29,7 @@ Both hold a `tests` package, so each tree runs on its own.
 
 | Code under test | Its test file |
 |---|---|
-| `backend/src/intent_to_english/<layer>/<module>.py` (`core`, `adapters`, `api`) | `backend/tests/<layer>/test_<module>.py` |
+| `backend/src/intent_to_english/<layer>/<module>.py` (`core`, `adapters`, `api`, `evaluation`) | `backend/tests/<layer>/test_<module>.py`; today `adapters/models/*` maps to `backend/tests/adapters/models/test_*.py` and `adapters/sql/*` to the flat `backend/tests/adapters/test_sql_*.py` |
 | A top-level app module (`settings.py`, `composition.py`) | `backend/tests/test_<module>.py` |
 | `scripts/<script>.py` | `tests/test_<script>.py` |
 | Agent tier definitions in `.claude/agents/` and `.codex/agents/` | `tests/test_agent_tiers.py` |

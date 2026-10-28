@@ -2,7 +2,8 @@
 name: writing-repo-scripts
 description: >
   Covers the contract for a repository script under scripts/*.py (sync_agents,
-  sync_labels, apply_ruleset, check_staged, bootstrap): stdlib-only imports, the module
+  sync_labels, apply_ruleset, check_staged, check_generated_client, security_fixes,
+  worktree_cleanup): stdlib-only imports, the module
   docstring with Usage, main(argv) returning an exit code, failures reported on stderr
   as ERR_<STAGE>_<KIND> with Expected and Next lines, a gh or git subprocess with a
   fixed argv, scripts that write to GitHub, and tests in tests/test_<script>.py that

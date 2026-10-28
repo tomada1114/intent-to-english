@@ -123,8 +123,8 @@ Neither `create_app`, `build_container`, nor the lifespan runs Alembic or
 `just backend db-upgrade`, which `just backend dev` runs first. A database nobody
 migrated fails its first request with a 500 ("no such table"): that is a deployment
 bug, and the fix is the migration, never a start-up `create_all`, which would mask a
-missing revision and race between processes. Only the contract suite's own fixture
-builds a schema with `metadata.create_all`, on a throwaway file.
+missing revision and race between processes. Only test fixtures (the contract suite's and
+`test_sql_tables.py`'s) build a schema with `metadata.create_all`, on a throwaway file.
 
 ## Changing the schema
 
@@ -175,7 +175,8 @@ migrations" without it) unless a caller passes a connection in
 
 ## PostgreSQL
 
-The optional `postgres` extra installs asyncpg, approved in tracker #3. It supplies
+The optional `postgres` extra installs asyncpg, approved in tracker
+`tomada1114/fastapi-react-template#3`. It supplies
 the async PostgreSQL driver without making a server part of the first run; its
 Apache-2.0 license fits the dependency gate, unlike psycopg's LGPL license
 (https://pypi.org/project/asyncpg/0.31.0/ and https://pypi.org/project/psycopg/,
