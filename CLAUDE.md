@@ -13,6 +13,12 @@ above). This file only records what Claude Code adds on top of them.
   marketplaces, and personal hooks such as format-on-edit (its snippet is in
   the `changing-gates` skill's `references/pre-commit-layer.md`) belong in
   `~/.claude/settings.json` or the gitignored `.claude/settings.local.json`.
+- `.mcp.json` holds one server: `awsknowledge`, the AWS Knowledge MCP server
+  (AWS documentation search and the AWS agent skills through `retrieve_skill`).
+  It needs no credentials and is the AWS reference a cloud session has, because
+  a cloud session loads no plugin, even one a committed `enabledPlugins` names.
+  A server that acts on an AWS account needs credentials, so it stays a
+  personal plugin (`aws-core`) in `.claude/settings.local.json`.
 - `.claude/skills/` is a generated mirror of `.agents/skills/`. Never hand-edit
   it: edit `.agents/skills/`, run `just agents-sync`, and commit both.
 - Each area's `CLAUDE.md` (`backend/CLAUDE.md`) only imports the `AGENTS.md`
