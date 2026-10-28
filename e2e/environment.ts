@@ -65,12 +65,12 @@ export function settingsEnvironment(databaseUrl: string): Record<string, string>
     INTENT_TO_ENGLISH_CORS_ORIGINS: "",
     INTENT_TO_ENGLISH_LOG_LEVEL: "INFO",
     INTENT_TO_ENGLISH_LOG_FORMAT: "text",
-    OPENROUTER_API_KEY: "",
+    ANTHROPIC_API_KEY: "",
     INTENT_TO_ENGLISH_MODEL_MODE: "fixed",
-    INTENT_TO_ENGLISH_COACH_MODEL: "anthropic/claude-sonnet-5.5",
-    INTENT_TO_ENGLISH_PARTNER_MODEL: "anthropic/claude-haiku-5.5",
-    INTENT_TO_ENGLISH_COACH_REASONING_EFFORT: "",
-    INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT: "",
+    INTENT_TO_ENGLISH_COACH_MODEL: "claude-sonnet-5-5",
+    INTENT_TO_ENGLISH_PARTNER_MODEL: "claude-haiku-5-5",
+    INTENT_TO_ENGLISH_COACH_REASONING_EFFORT: "medium",
+    INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT: "medium",
   };
 }
 
@@ -82,7 +82,7 @@ export function isolatedEnvironment(
     (entry): entry is [string, string] =>
       entry[1] !== undefined &&
       !entry[0].toUpperCase().startsWith("INTENT_TO_ENGLISH_") &&
-      entry[0].toUpperCase() !== "OPENROUTER_API_KEY",
+      entry[0].toUpperCase() !== "ANTHROPIC_API_KEY",
   );
   return { ...Object.fromEntries(inherited), ...settings };
 }

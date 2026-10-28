@@ -24,11 +24,11 @@ ConversationServiceDep = Annotated[
 """The process-owned conversation service."""
 
 
-def get_model_mode(request: Request) -> Literal["fixed", "openrouter"]:
+def get_model_mode(request: Request) -> Literal["fixed", "anthropic"]:
     """Read the selected mode rather than inferring it from settings again."""
     container: Container = request.app.state.container
     return container.model_mode
 
 
-ModelModeDep = Annotated[Literal["fixed", "openrouter"], Depends(get_model_mode)]
+ModelModeDep = Annotated[Literal["fixed", "anthropic"], Depends(get_model_mode)]
 """The mode selected by the injected container."""

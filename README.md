@@ -64,7 +64,7 @@ The interactive API docs are at <http://127.0.0.1:8000/docs>.
 | `GET /api/sessions/{id}` | 200 with the complete session view; 404 `session_not_found` when unknown |
 | `POST /api/sessions/{id}/actions` | 200 with the new view; a body discriminated by `action`, with required `version`, UUID `attempt_id`, and that action's fields |
 | `POST /api/sessions/{id}/cancel` `{"version": 0, "attempt_id": "<uuid>"}` | 204 for the exact attempt, including an early or repeated cancel; 404 for an unknown session; missing or invalid identity/version is 422 |
-| `GET /api/meta` | 200 with the container's selected `model_mode`; `{"model_mode": "fixed"}` or `{"model_mode": "openrouter"}` |
+| `GET /api/meta` | 200 with the container's selected `model_mode`; `{"model_mode": "fixed"}` or `{"model_mode": "anthropic"}` |
 
 A session's `id` is a UUID (version 7) the application generates, so ids sort in
 creation order. A session row holds its `id`, `started_at`, `status`,
@@ -117,7 +117,7 @@ error occurred`, while the traceback is logged on `intent_to_english.api.errors`
 
 ## Configuration
 
-Settings read `INTENT_TO_ENGLISH_` variables and the unprefixed `OPENROUTER_API_KEY`
+Settings read `INTENT_TO_ENGLISH_` variables and the unprefixed `ANTHROPIC_API_KEY`
 alias, then optional UTF-8
 `backend/.env`. The file's path is resolved from the module, so changing the
 working directory does not change which file is read. A missing file is fine.
@@ -141,22 +141,25 @@ unprefixed keys other than the declared provider-key alias are ignored.
 | `INTENT_TO_ENGLISH_LOG_FORMAT` | `text` | `text` or one JSON object per line with timestamp, level, logger, message, request ID, access fields, and exception type/traceback when present; blank keeps text. |
 | `INTENT_TO_ENGLISH_CORS_ORIGINS` | empty (CORS disabled) | Comma-separated HTTP(S) origins, e.g. `http://localhost:5173,https://app.example.com`. Spaces and empty items are removed, hosts use lowercase/punycode, default ports are removed, and duplicates kept once. Paths, queries, fragments, user info, invalid ports, trailing slashes, wildcards, and origins without an HTTP(S) scheme are rejected at startup. JSON requests from listed origins are allowed without credentials. |
 | `INTENT_TO_ENGLISH_DATABASE_URL` | unset (`just dev`: `sqlite+aiosqlite:///./var/dev.db`) | Unset (or empty) keeps sessions in memory, so they vanish when the process exits. `sqlite+aiosqlite:///<path>` stores them in a SQLite file at `<path>`, relative to the working directory (an absolute path adds a fourth slash: `sqlite+aiosqlite:////var/lib/intent-to-english.db`). `postgresql+asyncpg://<user>:<password>@<host>/<database>` names a PostgreSQL database; include the optional `postgres` extra in workspace commands (`uv run --locked --directory backend --extra postgres ...`) or install the built app with that extra. Anything else is rejected at startup, naming the fix: a URL without the async driver (`sqlite:` or `postgresql:` alone), an in-memory SQLite target (including `:memory:` with options and native URI memory mode), an empty target, and a directory target ending in `/`, even when query options follow. File options are preserved; migrations and the app use separate engine/process lifetimes, so in-memory SQL cannot retain the separately migrated schema. |
-| `OPENROUTER_API_KEY` | unset | Unprefixed secret; unset or whitespace-only means no key. It is omitted from settings repr and never returned by the API. |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. `auto` with a key selects OpenRouter for both roles; `fixed` always uses offline responses. |
-| `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | The configured Coach model id; empty keeps the default, whitespace-only is rejected. |
-| `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | The configured Partner model id; empty keeps the default, whitespace-only is rejected. |
-| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT` | unset | The Coach's OpenRouter reasoning effort: `xhigh`, `high`, `medium`, `low`, `minimal`, or `none`, case-insensitive. Unset or empty sends no effort, so the model's default thinking applies; any other value is rejected at startup. |
-| `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | unset | The Partner's reasoning effort, read the same way. |
+| `ANTHROPIC_API_KEY` | unset | Unprefixed Anthropic API key; unset or whitespace-only means no key. It is omitted from settings repr and never returned by the API. |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` or `fixed`; empty keeps auto. `auto` with a key selects the Anthropic API for both roles; `fixed` always uses offline responses. |
+| `INTENT_TO_ENGLISH_COACH_MODEL` | `claude-sonnet-5-5` | The configured Coach model id; empty keeps the default, whitespace-only is rejected. |
+| `INTENT_TO_ENGLISH_PARTNER_MODEL` | `claude-haiku-5-5` | The configured Partner model id; empty keeps the default, whitespace-only is rejected. |
+| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT` | `medium` | The Coach's Anthropic effort: `low`, `medium`, `high`, `xhigh`, or `max`, case-insensitive. Unset or empty keeps `medium`; any other value is rejected at startup. |
+| `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | `medium` | The Partner's effort, read the same way. |
 
-To use live models, set `OPENROUTER_API_KEY` in the process environment or in the
+To use live models, set `ANTHROPIC_API_KEY` in the process environment or in the
 local, gitignored `backend/.env`, and leave `INTENT_TO_ENGLISH_MODEL_MODE=auto`.
 Set `INTENT_TO_ENGLISH_MODEL_MODE=fixed` to force offline responses even with a key.
-The header reports the selected mode. Configure the spending limit and privacy settings
-in the owner's OpenRouter account; the application imposes no cost cap.
+The header reports the selected mode. Configure the spending limit in the owner's
+Anthropic Console account; the application imposes no cost cap. Each call's cost is
+recorded in USD from its reported tokens and the model's price in
+`backend/src/intent_to_english/adapters/models/anthropic_provider.py`; a model without a
+price there records no cost.
 
-Session data stays in the local SQLite database except for the text sent to OpenRouter
-and its upstream model provider for each call. The owner's OpenRouter privacy settings
-determine whether a provider may log or train on that text. The Partner receives only
+Session data stays in the local SQLite database except for the text sent to Anthropic
+for each call. The owner's Anthropic account settings and Anthropic's data policies
+determine how that text is retained. The Partner receives only
 finished English; the Coach also receives the Japanese intent and relevant learning context.
 
 Every browser-test process explicitly selects fixed mode with an empty key and the
@@ -193,7 +196,7 @@ URL to both migration and server. If the result is unset or empty, they use
 `sqlite+aiosqlite:///./var/dev.db`, including when `.env` is a copy of the sample.
 A direct API factory or uvicorn run with no resolved URL uses the in-memory store.
 
-`just backend call-log [--session UUID] [--since YYYY-MM-DD|ISO-datetime]` reads that database without writing or billing: grouped request counts, outcomes with provider HTTP status counts, reported tokens, cost in credits and nearest-rank latency; an offsetless date or datetime uses local time.
+`just backend call-log [--session UUID] [--since YYYY-MM-DD|ISO-datetime]` reads that database without writing or billing: grouped request counts, outcomes with provider HTTP status counts, reported tokens, cost in USD and nearest-rank latency; an offsetless date or datetime uses local time.
 
 Provider error outcomes include reported status counts, such as `4 (400: 2, 503: 1)`;
 historical calls and errors without an HTTP response remain in the total.
@@ -235,7 +238,7 @@ when either target report already exists, or when the summary markers are invali
 To verify refusal without billing, explicitly override both variables:
 
 ```bash
-INTENT_TO_ENGLISH_MODEL_MODE=fixed OPENROUTER_API_KEY= just backend eval
+INTENT_TO_ENGLISH_MODEL_MODE=fixed ANTHROPIC_API_KEY= just backend eval
 ```
 
 The 16 TOML cases in `backend/evals/cases/` contain `task`, `source`, `[request]`,
@@ -246,9 +249,9 @@ render reports and update a temporary README without requiring a quality pass ra
 
 Reports are new `.md` and `.json` files under `backend/evals/reports/`, named
 `<UTC-date>_<coach-id>_<partner-id>` with `/` replaced by `-`, plus
-`_coach-effort-<level>` or `_partner-effort-<level>` for each reasoning effort set. They
-record both reasoning efforts, the source commit and dirty state, first/final check and expectation rates, outcomes, reported
-cost in credits and nearest-rank p50/p95 latency per task. Missing cost stays empty.
+`_coach-effort-<level>` or `_partner-effort-<level>` for each effort other than the default
+`medium`. They record both efforts, the source commit and dirty state, first/final check and expectation rates, outcomes,
+cost in USD and nearest-rank p50/p95 latency per task. Missing cost stays empty.
 A JSON case with a failed final expectation also includes its final parsed model
 output in `final_output`; passing and unobserved cases omit it.
 Commit both reports after an owner-run evaluation; the summary below links the latest.

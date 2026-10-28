@@ -72,7 +72,7 @@ async def test_checks_and_expectations_capture_both_real_attempts_without_double
     }
     assert data["tasks"]["partner.open"]["calls"] == 2
     assert data["tasks"]["partner.open"]["outcomes"]["repaired"] == 1
-    assert data["tasks"]["partner.open"]["cost_credits"] == "0.20"
+    assert data["tasks"]["partner.open"]["cost_usd"] == "0.20"
     assert data["tasks"]["partner.open"]["latency_p50_ms"] == 10
     assert data["tasks"]["partner.open"]["latency_p95_ms"] == 20
     assert data["metadata"]["commit"] == "abc123"
@@ -112,8 +112,8 @@ async def test_schema_failure_excludes_content_denominators_then_provider_error_
     assert "final_output" not in data["cases"][0]
     assert data["cases"][1]["error"] is None
     assert data["tasks"]["partner.open"]["outcomes"]["timeout"] == 1
-    assert data["tasks"]["partner.open"]["cost_credits"] is None
-    assert "credits" in report.render_markdown()
+    assert data["tasks"]["partner.open"]["cost_usd"] is None
+    assert "Cost (USD)" in report.render_markdown()
     assert '"coach_model": "coach/model"' in report.render_json()
 
 
@@ -121,7 +121,7 @@ async def test_provider_http_status_reaches_the_error_column_and_json():
     class Rejecting(FixedPartnerModel):
         async def open(self, request, repair=None):
             del request, repair
-            provider = "openrouter"
+            provider = "anthropic"
             raise ModelUnavailableError(provider, "partner/model", 30, status=400)
 
     report = await run_cases(
@@ -208,7 +208,7 @@ async def test_task_percentiles_and_reported_cost_completeness(
     task = report.as_dict()["tasks"]["partner.open"]
     assert task["latency_p50_ms"] == 10
     assert task["latency_p95_ms"] == 19
-    assert task["cost_credits"] == expected
+    assert task["cost_usd"] == expected
 
 
 async def test_failed_final_expectation_retains_fixed_output_in_json(tmp_path):

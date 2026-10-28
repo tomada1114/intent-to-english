@@ -82,7 +82,7 @@ def test_export_ignores_environment_and_creates_no_database(tmp_path, monkeypatc
         "PARTNER_MODEL": " ",
     }.items():
         monkeypatch.setenv(f"INTENT_TO_ENGLISH_{name}", value)
-    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy-never-exported")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy-never-exported")
 
     assert main(["--output", str(target)]) == 0
 
@@ -124,16 +124,16 @@ def test_export_sets_every_field_explicitly_and_never_uses_a_runtime_key(
         captured.append(settings)
         return settings
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy-never-used")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy-never-used")
     monkeypatch.setattr(contract_module, "Settings", record_settings)
     assert main(["--output", str(tmp_path / "contract.json")]) == 0
     assert len(captured) == 1
     settings = captured[0]
     assert settings.model_fields_set == set(Settings.model_fields)
-    assert settings.openrouter_api_key is None
+    assert settings.anthropic_api_key is None
     assert settings.model_mode == "fixed"
-    assert settings.coach_model == "anthropic/claude-sonnet-5.5"
-    assert settings.partner_model == "anthropic/claude-haiku-5.5"
+    assert settings.coach_model == "claude-sonnet-5-5"
+    assert settings.partner_model == "claude-haiku-5-5"
 
 
 def test_export_is_deterministic_and_preserves_unicode(tmp_path, monkeypatch):

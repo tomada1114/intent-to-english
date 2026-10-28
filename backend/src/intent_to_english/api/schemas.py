@@ -261,7 +261,7 @@ class CancelSessionRequest(_SessionWireModel):
 class MetaResponse(_SessionWireModel):
     """The mode selected by the process container."""
 
-    model_mode: Literal["fixed", "openrouter"]
+    model_mode: Literal["fixed", "anthropic"]
 
 
 class FixResponse(_SessionWireModel):

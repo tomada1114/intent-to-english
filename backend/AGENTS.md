@@ -38,11 +38,11 @@ backend/
 ├── var/             # Gitignored: the development database, dev.db
 ├── src/intent_to_english/
 │   ├── core/            # Framework-free: domain model, ports (Protocols), services, errors
-│   ├── adapters/        # Memory/SQL repositories and fixed/OpenRouter model roles
+│   ├── adapters/        # Memory/SQL repositories and fixed/Anthropic model roles
 │   ├── api/             # FastAPI: create_app(settings) factory, routers (api/routers/), Pydantic schemas
 │   ├── evaluation/      # Strict cases, code expectations, task runner, reports and the billed command
 │   ├── call_log.py      # Read-only call-log CLI: SQL records to pure core summaries
-│   ├── settings.py      # Prefixed settings and the unprefixed OPENROUTER_API_KEY secret alias
+│   ├── settings.py      # Prefixed settings and the unprefixed ANTHROPIC_API_KEY secret alias
 │   └── composition.py   # Composition root: wires adapters into services for the API
 └── tests/           # The app's suite, mirroring src/intent_to_english/ (`placing-tests`)
 ```
@@ -58,7 +58,7 @@ backend/
   (`designing-core-logic`).
 - The container supplies the ConversationService. Its SQL session repository owns
   one lazy engine and disposal callback; without a database URL the store is in
-  memory. In auto mode with a key both model roles use OpenRouter over one owned client;
+  memory. In auto mode with a key both model roles use the Anthropic API over one owned client;
   otherwise both use fixed responses. Meta reads that selection from the container.
 - `Container.models` holds the same two model ports the conversation service uses.
   Evaluation calls those ports through the shared task runner, with memory storage
@@ -66,9 +66,11 @@ backend/
 - `call_log.py` invokes a SQL-only reader and the pure `core/call_log.py` summary.
   The reader owns a separate read-only engine and disposes it on the same loop;
   this entry point constructs no service or model (`persisting-data`).
-- The OpenRouter adapters have three Partner and seven Coach task agents, all retry-free,
-  over one explicitly owned client. Native JSON schemas keep feedback a top-level object. Model
-  SDK imports stay under `adapters/models/`; the suite blocks real model requests.
+- The model adapters have three Partner and seven Coach task agents, all retry-free, in
+  provider-neutral `agents.py`, over one explicitly owned client that
+  `anthropic_provider.py` builds; that module holds everything Anthropic-specific.
+  Native JSON schemas keep feedback a top-level object. Model SDK imports stay under
+  `adapters/models/`; the suite blocks real model requests.
 - Domain errors derive from `core.errors.AppError`; the API maps them in one
   place (`api/app.py`), per `designing-errors`.
 - Submission attempts carry a client correlation UUID separately from internal UUIDv7
@@ -82,7 +84,7 @@ backend/
   five tables, the API, and the decisions behind them — is
   `docs/architecture/overview.md`; its "Shape" table says which module each new piece
   goes in.
-- The model roles are ports in `core/`; `pydantic_ai` and `openai` are imported only by
+- The model roles are ports in `core/`; `pydantic_ai` and `anthropic` are imported only by
   the model adapters, and no test makes a live model call (`calling-models`).
 
 ## Skills for the backend

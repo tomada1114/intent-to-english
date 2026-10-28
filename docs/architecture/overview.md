@@ -47,11 +47,11 @@ like this:
 | Ports | core | `core/ports.py` | `SessionRepository`, `PartnerModel`, `CoachModel`, `Clock`, `IdFactory` |
 | Use cases | core | `core/services.py` | `ConversationService`: start, list, get, act, cancel |
 | Domain errors | core | `core/errors.py` | the `AppError` subclasses in § Decisions › The API |
-| Call-log summary | core | `core/call_log.py` | pure grouped counts, reported tokens/credits and nearest-rank latency |
+| Call-log summary | core | `core/call_log.py` | pure grouped counts, reported tokens, USD cost and nearest-rank latency |
 | Call-log read | adapters | `adapters/sql/call_log.py` | one constant query with typed optional filters and an owned read-only connection |
 | Call-log command | root | `call_log.py` | `python -m intent_to_english.call_log`, exposed as `just backend call-log` |
 | Storage | adapters | `adapters/sql/`, `adapters/memory.py` | the five tables below; the in-memory repository for tests and a run without a database URL |
-| Model roles | adapters | `adapters/models/` | `fixed.py` (the fixed-response mode), `openrouter.py` (PydanticAI agents on OpenRouter), `prompts.py` (the messages each task sends), `schemas.py` (the Pydantic models each task's JSON schema comes from) |
+| Model roles | adapters | `adapters/models/` | `fixed.py` (the fixed-response mode), `agents.py` (the provider-neutral PydanticAI task agents, run wrapper, and usage), `anthropic_provider.py` (everything Anthropic: the client, the PydanticAI model and settings, the failure mapping, refusal detection, and the price table), `prompts.py` (the messages each task sends), `schemas.py` (the Pydantic models each task's JSON schema comes from) |
 | HTTP | api | `api/routers/sessions.py`, `api/routers/meta.py`, `api/schemas.py` | the routes in § Decisions › The API |
 | Evaluation | its own package | `evaluation/cases.py`, `expectations.py`, `observed.py`, `harness.py`, `reports.py`, `__main__.py` | strict TOML, code expectations, observed task-runner calls, JSON/Markdown reports and `just backend eval` |
 | Wiring | root | `settings.py`, `composition.py` | the settings in § Decisions › Keys, models, and the mode; the adapter choice |
@@ -254,7 +254,7 @@ means there is nothing to make. The screen derives both panes and the next-actio
 |---|---|
 | Every model output passes its checks before it is stored or shown | core tests per check, from conversation-rules' list of checkable rules; a service test where a fake returns an invalid output, then a valid one, and one where both fail (502 `model_output_invalid`) |
 | The Partner never receives the intent, hints, feedback, or questions | a test that builds every Partner request from a session full of marked Japanese and Coach text and finds none of the markers in it or in the prompt `prompts.py` renders |
-| No live model call in tests or CI | PydanticAI's `ALLOW_MODEL_REQUESTS` set false for the backend suite; the settings isolation fixture removes `OPENROUTER_API_KEY`; the browser test runs with the mode forced to fixed; a composition test pins the fixed adapter without a key |
+| No live model call in tests or CI | PydanticAI's `ALLOW_MODEL_REQUESTS` set false for the backend suite; the settings isolation fixture removes `ANTHROPIC_API_KEY`; the browser test runs with the mode forced to fixed; a composition test pins the fixed adapter without a key |
 | An action is processed at most once, and a stale one is rejected | repository contract tests (concurrent inserts against the partial unique index) and service tests (double send, stale version, cancel during a call, a pending submission from another boot) |
 | The whole conversation works in the browser | `just e2e` drives F-1, F-2 (a turn with a fix and its retry), F-3, and F-5 in the fixed-response mode |
 | Waiting states follow ux-guidelines (300 ms, 10 s, 60 s) | component tests with fake timers |
@@ -265,65 +265,109 @@ means there is nothing to make. The screen derives both panes and the next-actio
 
 ### Models are called through PydanticAI, inside the model adapters
 
-The app locks `pydantic-ai-slim[openrouter]` 2.55.0 under the seven-day dependency window,
-imported only under
-`adapters/models/`: the core's import test and ruff's banned-api rule keep `pydantic_ai` and
-`openai` out of `core/`, and review keeps them out of `api/` and the storage adapters. PydanticAI supplies the OpenRouter model and provider, typed structured output,
-and test models, and Bedrock later is its Bedrock model with the `bedrock` extra (boto3)
-behind the same ports. The app turns off what would hide calls from the core:
+The app calls Claude through Anthropic's API with an Anthropic API key, through PydanticAI's
+Anthropic model: it locks `pydantic-ai-slim[anthropic]` 2.55.0 and declares `anthropic`
+(`>=1.12.1,<2`, locked at 1.17.0) itself, because the adapter builds the SDK client, under the
+seven-day dependency window. Both are imported only under `adapters/models/`: the core's import
+test and ruff's banned-api rule keep `pydantic_ai`, `anthropic`, and `openai` out of `core/`,
+and review keeps them out of `api/` and the storage adapters. The SDK stays below 2 because
+pydantic-ai-slim 2.55.0 builds message parameters with `BetaMessageParam(...)`, which
+anthropic 2.0.0 made a `Union` alias, so every request raised `TypeError` (`_map_message` in
+`pydantic_ai/models/anthropic.py`, run against both versions on 2026-10-28); the cap lifts
+with a PydanticAI release that supports anthropic 2. PydanticAI supplies the Anthropic model and
+provider, typed structured output, and test models. The app turns off what would hide calls
+from the core:
 
-- **No automatic retries.** PydanticAI's output retries are 0, and the provider gets an
-  `openai.AsyncOpenAI` client with `max_retries=0` (the SDK's default is 2): one request is
-  one recorded, billed call, and the 60 s budget per call holds.
-- **JSON schema output.** Each implemented task's `output_type` is wrapped in `NativeOutput`, which
-  sends a JSON schema `response_format`. PydanticAI's default is a forced tool call, which
-  Claude Sonnet 5.5 rejects.
-- **Usage per request.** Tokens come from each `ModelResponse.usage`; the provider-reported
-  cost from `ModelResponse.provider_details["cost"]`.
+- **No automatic retries and no fallback.** PydanticAI's output retries are 0, and the provider
+  gets an `anthropic.AsyncAnthropic` client with `max_retries=0` (the SDK's default is 2): one
+  request is one recorded, billed call, and the 60 s budget per call holds. No fallback model
+  or server-side refusal fallback is configured, for the same reason.
+- **JSON schema output.** Each task's `output_type` is wrapped in `NativeOutput`, which
+  PydanticAI's Anthropic model sends as `output_config.format = {"type": "json_schema",
+  "schema": ...}`, and its `prepare_request` forces the schema strict (it refuses
+  `strict=False`) — `_build_output_config` and `prepare_request` in
+  `pydantic_ai/models/anthropic.py`, pydantic-ai-slim 2.55.0, read in the locked install and
+  confirmed on the wire by the adapter tests, 2026-10-28. PydanticAI's default is a forced
+  tool call, which Claude Sonnet 5.5 rejects.
+- **Bounded output, sent in one response.** Every call sends `max_tokens` 16,000: room for
+  adaptive thinking at medium effort plus the JSON answer. Without it PydanticAI sends the
+  model's maximum output (128K) and, above its 21,333-token non-streaming cap, streams the
+  request behind the scenes (`_default_max_tokens` and `_messages_create`, same file and
+  version).
+- **Usage per request, priced here.** Tokens come from each response's usage (`input_tokens`,
+  and `output_tokens`, which include thinking); Anthropic reports no cost, so the provider
+  module prices them from its own table (§ Keys, models, and the mode).
 
-The Partner's three and Coach's seven task agents are built once over their role models.
-Both models share one provider and one client with one registered close callback.
-The client builder registers its close callback with `ResourceClosers`, uses the
-explicit key and `X-OpenRouter-Title` app name, and supplies no provider credentials
-or attribution arguments that could pick up shell values. The per-agent
-`instrument = False` overrides global instrumentation. A 60-second scope also bounds
-the complete run, not only SDK socket waits. Parse failures retain response usage,
-while provider failures carry only safe core errors, latency, and the provider's HTTP
-status when it answered with one: an integer that tells a rejected request (400) from an
-outage (503) without carrying the provider's text. Coach feedback uses one
-top-level JSON object with a `kind` discriminator and exactly
-one matching feedback or reading-question payload. Retry results use a kind-tagged
-payload inside a top-level object too, so every task supports native structured output.
-The schemas stay inside what Anthropic's native structured output accepts, because
-OpenRouter answers anything else with a 400 that the adapter reports as unavailable:
-unions are `anyOf`, the documented union form (a pydantic discriminator would emit
-`oneOf`, which the supported keywords do not include), and arrays carry no
-length beyond `minItems` 1, so the two readings are checked when the output converts. A
-test walks every task's schema for those keywords.
+The adapter is split so another provider replaces one module. `agents.py` holds what does not
+depend on the provider: the Partner's three and the Coach's seven task agents, built once over
+their role models, the run wrapper (the 60 s scope, parse failures, refusals), and usage
+handling. It reaches the provider only through a small `ProviderCalls` value: its name, its
+settings, its failure mapping, its refusal check, and its cost. `anthropic_provider.py` holds
+everything Anthropic: the client, `AnthropicModel` and `AnthropicProvider`,
+`AnthropicModelSettings` (`timeout` 60, `max_tokens`, and `anthropic_effort`), the SDK error
+mapping, the `refusal` stop reason, and the price table. Moving to Amazon Bedrock means one new
+provider module and the selection in `composition.py`, nothing under `core/`, `api/`, or the
+prompts. The owner expects that move once the account's Bedrock quota allows it, by either of
+two routes: the Anthropic SDK's Bedrock client (`AsyncAnthropicBedrock`) behind PydanticAI's
+same Anthropic provider and model, or PydanticAI's Bedrock model with the `bedrock` extra.
 
-Rejected: calling OpenRouter with httpx2 directly — no new package and full control, but the
-request, the schema, parsing, retries, and error mapping would all be hand-written, and Bedrock
-would be a second adapter written from scratch.
+Both models share one provider and one client with one registered close callback. The client
+builder passes the key and the base URL `https://api.anthropic.com` explicitly, so
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_PROFILE`,
+`ANTHROPIC_CONFIG_DIR`, and the Workload Identity Federation variables change no request (an
+explicit credential skips the SDK's credential chain; anthropic 1.17.0 `_client.py`). The SDK
+still merges `ANTHROPIC_CUSTOM_HEADERS` into every request with no option to turn it off, so the
+builder resets the client's private `_custom_headers` to empty right after construction; it sets
+no headers of its own. It passes `open_telemetry={"traces": False, "propagation": False}`, so
+the SDK's own spans and trace propagation stay off, as PydanticAI's are: the per-agent
+`instrument = False` overrides global instrumentation. A test sets each of those variables and
+finds the request unchanged. A 60-second scope also bounds the complete run, not only SDK
+socket waits. Parse failures retain response usage, while provider failures carry only safe
+core errors, latency, and the provider's HTTP status when it answered with one: an integer that
+tells a rejected request (400) from an outage (529) without carrying the provider's text.
 
-Sources, checked 2026-10-18 against the resolved tag and installed metadata:
-https://github.com/pydantic/pydantic-ai/releases/tag/v2.55.0 (released 2026-10-09,
-Python ≥3.11, MIT; extra `openrouter` requires `openai>=3.26.0`);
-https://github.com/pydantic/pydantic-ai/tree/v2.55.0 (`providers/openrouter.py`: the base URL
-`https://openrouter.ai/api/v1` and `openai_client=`; `models/openrouter.py`: OpenRouter's cost
-copied into `provider_details`; `profiles/__init__.py`: the default output mode is a tool
-call); https://github.com/pydantic/pydantic-ai/blob/main/docs/version-policy.md (no
-intentional breaking change in a minor release; the next major at least three months after
-2.0.0 of 2026-06-23); https://github.com/openai/openai-python/blob/v3.29.0/src/openai/_constants.py
-(`DEFAULT_MAX_RETRIES = 2`). Claude Sonnet 5.5 returns 400 on a forced `tool_choice`:
+A response whose stop reason is `refusal` is not a parse failure and gets no repair: re-asking
+would only repeat the refused request. PydanticAI raises `ContentFilterError` (a subclass of
+`UnexpectedModelBehavior`) when a refusal carries no usable text, and validates whatever text it
+does carry, so the run wrapper asks the provider module whether the last response was a refusal
+before it treats any outcome as a parse failure or a success. A refusal becomes
+`model_unavailable` (HTTP 502) and its `model_calls` row the outcome `provider_error`, with no
+status; like every model error's row, it records no tokens or cost.
+
+Coach feedback uses one top-level JSON object with a `kind` discriminator and exactly one
+matching feedback or reading-question payload. Retry results use a kind-tagged payload inside a
+top-level object too, so every task supports native structured output. The schemas stay inside
+what Anthropic's structured output accepts, because anything else is a 400 that the adapter
+reports as unavailable (https://platform.claude.com/docs/en/build-with-claude/structured-outputs,
+"JSON Schema limitations", observed 2026-10-28): unions are `anyOf` (a pydantic discriminator
+would emit `oneOf`, which the supported keywords do not include), objects close with
+`additionalProperties: false`, and arrays carry no length beyond `minItems` 0 or 1, so the two
+readings are checked when the output converts. A test walks the schema each task sends on the
+wire against that list.
+
+Rejected: calling Anthropic's API with httpx2 directly — no new package and full control, but
+the request, the schema, parsing, retries, and error mapping would all be hand-written, and
+Bedrock would be a second adapter written from scratch. Rejected: Strands Agents — its
+structured output is a tool call that retries on a validation failure and forces `tool_choice`
+on that retry, and its default retry strategy repeats throttled calls up to six times, both of
+which break "one request is one recorded, billed call".
+
+Sources: https://github.com/pydantic/pydantic-ai/releases/tag/v2.55.0 (released 2026-10-09,
+Python ≥3.11, MIT; extra `anthropic` requires `anthropic>=1.12.1`);
+https://github.com/pydantic/pydantic-ai/blob/main/docs/version-policy.md (no intentional
+breaking change in a minor release; the next major at least three months after 2.0.0 of
+2026-06-23). Claude Sonnet 5.5 returns 400 on a forced `tool_choice`:
 https://platform.claude.com/docs/en/about-claude/models/migration-guide (Migrating to Claude
-Sonnet 5.5; Anthropic's reference as cached on 2026-10-06). This lock adds nine packages:
-pydantic-ai-slim, pydantic-graph, openai, griffelib, opentelemetry-api, genai-prices,
-logfire-api, jiter and sniffio. Their installed metadata declares MIT, Apache-2.0, or
-ISC, with pure or cp314 wheels. OSV's version-specific query returned no advisories
-for the nine resolved versions on 2026-10-18; Dependency Review and OSV CI remain gates.
-OpenRouter documents `X-OpenRouter-Title` as its current app-name header
-(https://openrouter.ai/docs/app-attribution, checked 2026-10-18); without a configured
-app URL the builder sends no `HTTP-Referer` and creates no public attribution page.
+Sonnet 5.5; Anthropic's reference as cached on 2026-10-06).
+
+The model stack's lock holds ten packages: pydantic-ai-slim, pydantic-graph, anthropic,
+docstring-parser, griffelib, opentelemetry-api, genai-prices, logfire-api, jiter and sniffio.
+Of those, the `anthropic` extra is what brings anthropic 1.17.0 (MIT, one `py3-none-any`
+wheel, Python ≥3.10) and docstring-parser 0.18.0 (MIT, pure Python); anthropic's other
+requirements (anyio, httpx2, jiter, opentelemetry-api, pydantic, sniffio, typing-extensions)
+are shared with the rest of the lock, and no `openai` package is locked. OSV's version-specific query returned no advisories
+for anthropic 1.17.0 or docstring-parser 0.18.0 on 2026-10-28; Dependency Review and OSV CI
+remain gates. anthropic 2.x is Apache-2.0, also on the license allow-list, should the cap lift.
 
 ### Two role ports, shaped by their tasks
 
@@ -402,9 +446,9 @@ The CLI converts offsetless dates/datetimes from historical local time to UTC;
 an explicit offset is honored. The constant query combines optional session and
 inclusive `created_at >= since` filters. Pure summaries sort by role, model and
 task, count each request including repairs and all six outcomes, sum reported
-tokens and credits (unknown throughout a group is `—`, reported zero is zero),
-and use the ceiling-ranked 50th/95th percentiles. The shared core credit helper
-preserves provider decimals; mixed known/unknown costs sum only the reported
+tokens and USD cost (unknown throughout a group is `—`, a recorded zero is zero),
+and use the ceiling-ranked 50th/95th percentiles. The shared core cost helper
+preserves recorded decimals; mixed known/unknown costs sum only the reported
 values, as this command's contract requires. This differs from evaluation's
 complete-task-cost display. Only accounting appears on stdout; no prompt, learner
 text or key. An empty filtered log prints `No model calls recorded.` and returns
@@ -432,24 +476,25 @@ replacement, using the boot id and cutoff to recognize it (§ Core flows).
 
 | Setting | Default | Effect |
 |---|---|---|
-| `OPENROUTER_API_KEY` | unset | the OpenRouter key, unprefixed (the name OpenRouter documents), read through a validation alias as a secret; unset or blank runs the fixed-response mode |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` with a key selects OpenRouter for both roles; `fixed` explicitly pins offline responses |
-| `INTENT_TO_ENGLISH_COACH_MODEL` | `anthropic/claude-sonnet-5.5` | the Coach's OpenRouter model id |
-| `INTENT_TO_ENGLISH_PARTNER_MODEL` | `anthropic/claude-haiku-5.5` | the Partner's OpenRouter model id |
-| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT` | unset | the Coach's OpenRouter reasoning effort (`xhigh` … `none`); unset sends none |
-| `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | unset | the Partner's, read the same way |
+| `ANTHROPIC_API_KEY` | unset | the Anthropic API key, unprefixed (the name Anthropic documents), read through a validation alias as a secret; unset or blank runs the fixed-response mode |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` | `auto` with a key selects the Anthropic adapters for both roles; `fixed` explicitly pins offline responses |
+| `INTENT_TO_ENGLISH_COACH_MODEL` | `claude-sonnet-5-5` | the Coach's Anthropic model id |
+| `INTENT_TO_ENGLISH_PARTNER_MODEL` | `claude-haiku-5-5` | the Partner's Anthropic model id |
+| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT` | `medium` | the Coach's `output_config.effort`: `low`, `medium`, `high`, `xhigh`, or `max` |
+| `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | `medium` | the Partner's, read the same way |
 
-The composition root selects both OpenRouter adapters when auto mode has a key,
+The composition root selects both Anthropic adapters when auto mode has a key,
 otherwise both fixed adapters, and exposes the selection through `Container.model_mode`.
 Only composition unwraps the secret for the shared-client builder. The provider-key alias
 is a `SecretStr`,
 omitted from settings repr; a blank key is none. Empty model ids keep their defaults,
 while whitespace-only ids fail at startup naming their variables. Each role's reasoning
 effort is its own setting, because the Coach is nearly all of a run's cost and the slow
-side of a turn while the Partner is neither, so the two are tuned apart. Unset sends no
-`reasoning` parameter and keeps the model's default thinking, so adding the setting
-changes no call until the owner sets it; an unknown level fails at startup naming its
-variable. One boot id is made
+side of a turn while the Partner is neither, so the two are tuned apart. Every call sends
+its role's effort as `anthropic_effort`; empty keeps `medium`, the levels are
+case-insensitive, and any other value (`minimal` and `none` included) fails at
+startup naming its variable. The adapter sets no `thinking`: both models think adaptively by
+default, and Sonnet 5.5 rejects disabled thinking. One boot id is made
 per container build, independently of entity ids. With SQL selected, the two repository
 ports share one lazy engine and one disposal callback. This keeps the full HTTP flow
 usable without a key and lets fixed mode prevent billing even with one set.
@@ -457,14 +502,21 @@ usable without a key and lets fixed mode prevent billing even with one set.
 evaluation uses the same container and selected mode with memory storage explicitly
 selected, so it shares model choice and owned cleanup without opening a database.
 
-The adapter builds the `openai.AsyncOpenAI` client with the key, OpenRouter's base URL, the
-app's attribution header, and `max_retries=0`, and hands it to the provider, so no environment
-value reaches a request (`calling-models`' adapter reference). OpenRouter's catalogue is the authority on model ids, so a model id is
-only checked to be non-empty. Both default ids are listed in
-https://openrouter.ai/api/v1/models (checked 2026-10-17): Sonnet 5.5 at $2 / $10 and Haiku 5.5
-at $0.10 / $0.50 per million input / output tokens, Haiku 5.5 at $0.50 / $2.50 above 100,000
-prompt tokens; both list `response_format` and `structured_outputs` among their supported
-parameters. The fixed-response mode is in `adapters/models/fixed.py`: its outputs are
+The defaults follow the owner's rule: the cheap model where it holds quality, a stronger one
+only where it does not, and Sonnet is the ceiling — no Opus or Fable default; whether the
+Coach can move to Haiku is the evaluation's call. Anthropic's model list is the authority on
+model ids, so a model id is only checked to be non-empty.
+
+Cost is recorded in USD, computed from each response's reported tokens and the configured
+model's price in `anthropic_provider.py`'s table; a model without a price there records a
+null cost. The table holds the base input / output prices per million tokens from
+https://platform.claude.com/docs/en/about-claude/pricing (observed 2026-10-28): Sonnet 5.5 at
+$2 / $10, Haiku 5.5 at $0.10 / $0.50 for a prompt of up to 100,000 tokens and $0.50 / $2.50 for
+a prompt over that. The prompt length counts every input token including cache reads and
+writes; the adapter sends no cache control, so the reported input tokens are the prompt.
+Thinking is billed as output and is inside the reported output tokens. Rows recorded under
+OpenRouter keep their cost: OpenRouter's credits are USD-denominated, so the column's unit is
+unchanged. The fixed-response mode is in `adapters/models/fixed.py`: its outputs are
 deterministic functions of the request, pass every check, reach every stage (a reading check
 and a blank still off included), and report provider `fixed` with no tokens or cost.
 
@@ -477,7 +529,7 @@ and a blank still off included), and report provider `fixed` with no tokens or c
 | `GET /api/sessions/{id}` | the `SessionView` |
 | `POST /api/sessions/{id}/actions` | the new `SessionView`; 17 body models discriminated by `action`, each with required `version` and UUID `attempt_id`; text actions use `text`, hints use `gap` and `partial_english`, readings use `reading`, restatements use `mode`, and model-free actions carry no input fields |
 | `POST /api/sessions/{id}/cancel` | body `{"version": <int>, "attempt_id": "<uuid>"}`; 204 for the exact attempt, including an early/repeated cancel, 404 for an unknown session, and 422 for missing/invalid fields; the session version does not move |
-| `GET /api/meta` | `{"model_mode": "fixed" \| "openrouter"}`, for the header badge on every screen |
+| `GET /api/meta` | `{"model_mode": "fixed" \| "anthropic"}`, for the header badge on every screen |
 
 | Error | Status | Code |
 |---|---|---|
@@ -526,7 +578,7 @@ grader or candidate checks (§3.11).
 shared task runner and one repair, observes each actual return without another call,
 and holds attempt records only in memory. A provider error is recorded and the next
 case still runs. Fixed mode refuses before calls or writes, naming the key and mode
-variables. Auto mode with a key runs the selected OpenRouter roles. Both report paths and
+variables. Auto mode with a key runs the selected Anthropic roles. Both report paths and
 exactly one ordered README marker pair are checked before calls. Existing reports
 are never overwritten; exclusive writes also guard against a concurrent writer.
 Publication stages the README and replaces it only after both reports close
@@ -535,12 +587,11 @@ leaving the original README and any concurrent writer's files intact.
 
 The Markdown and JSON reports under `backend/evals/reports/` use
 `<UTC-date>_<coach-id>_<partner-id>`, replacing `/` with `-` in model ids, followed by
-`_coach-effort-<level>` and `_partner-effort-<level>` for each reasoning effort that was
-set, so a run at a lower effort is its own report pair beside the default run of the same
-day. They include both configured ids and both efforts (null, shown as the provider
-default, when unset), the UTC date, commit and dirty state passed by the recipe,
-first-attempt and final rates per check and expectation, all outcomes per task,
-reported cost labelled credits, and nearest-rank p50/p95 latency. Repairs count as
+`_coach-effort-<level>` and `_partner-effort-<level>` for each effort other than the default
+`medium`, so a run at another effort is its own report pair beside the default run of the
+same day. They include both configured ids and both efforts, the UTC date, commit and dirty
+state passed by the recipe, first-attempt and final rates per check and expectation, all
+outcomes per task, the recorded cost in USD (`cost_usd`), and nearest-rank p50/p95 latency. Repairs count as
 separate calls. A task's cost is empty if any attempt has no reported cost; known
 costs are summed without rounding provider decimals through the shared core helper.
 Provider failures and unparsed content are
@@ -623,13 +674,9 @@ source of every value named here.
 
 ## Open
 
-- The unit of OpenRouter's reported cost: its usage accounting page says "credits"
-  (https://openrouter.ai/docs/use-cases/usage-accounting, checked 2026-10-17); that a credit
-  is one US dollar is unchecked. The report labels the column with the provider's unit until
-  it is checked.
-- Whether either role should default to a lower reasoning effort: both default models think by
-  default, which costs output tokens and latency. The per-role setting exists and is unset; the
-  owner's evaluation run with a lower Coach effort settles whether a default changes.
+- Whether either role should default to another effort than `medium`: effort trades output
+  tokens and latency for quality. The per-role setting exists; the owner's evaluation runs
+  settle whether a default changes (#85, #91).
 - The tag of a missing nuance that is not a core point — ミス or 改善 (conversation-rules
   §5.3). The owner decides; until then evaluation cases assert no tag for it.
 - A one-word reply: its fill-in template is a single blank, so the blank's 直す is the whole
@@ -637,8 +684,8 @@ source of every value named here.
   result that gives the piece (conversation-rules §5.3, §5.4, §6). The owner decides how such a
   reply is coached; until then the checks apply as written and the fixed-response mode answers a
   one-word reply with no fix.
-- The Bedrock adapter's output mode: Claude Sonnet 5.5 rejects a forced tool call there too, so
-  the adapter must use the JSON schema mode Bedrock's model supports — checked when the
+- The Bedrock provider module's output mode: Claude Sonnet 5.5 rejects a forced tool call there
+  too, so the module must use the JSON schema mode its route supports — checked when the
   account's Bedrock quota allows (§2 Later).
 
 ## Follow-ups
@@ -653,7 +700,7 @@ Code work these decisions imply; each becomes an issue (`planning-tickets`).
 - The API routes, the contract, and the generated client.
 - The screens: S1, S2 below and above 1024 px, S3, S4, the header badge, the waiting states.
 - The browser test over F-1, F-2, F-3, and F-5 in the fixed-response mode.
-- The PydanticAI dependency, the OpenRouter adapter, its prompts, and its tests.
+- The PydanticAI dependency, the Anthropic adapter, its prompts, and its tests.
 - The model call log's summary command.
 - The evaluation harness, 10–20 cases from conversation-rules' examples and requirements
   §3.11's edge cases, the human-run recipe, and the README's evaluation section.

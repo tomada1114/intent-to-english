@@ -26,7 +26,7 @@ const BADGE = "固定応答モード";
 const UNREACHABLE =
   "アプリのサーバーに接続できません。起動しているか確認してください。";
 const TOOLTIP =
-  "OpenRouter のキーが未設定のため、決まった応答で動いています。品質の確認には使えません。";
+  "Anthropic の API キーが未設定のため、決まった応答で動いています。品質の確認には使えません。";
 
 function renderAt(path: string) {
   const queryClient = createQueryClient();
@@ -52,8 +52,8 @@ function useMeta(model_mode: MetaResponse["model_mode"]) {
 }
 
 describe("the root layout", () => {
-  it("renders the header with the app name linking home and no badge for openrouter", async () => {
-    const requests = useMeta("openrouter");
+  it("renders the header with the app name linking home and no badge for anthropic", async () => {
+    const requests = useMeta("anthropic");
     renderAt("/");
 
     const header = await screen.findByRole("banner");
@@ -140,7 +140,7 @@ describe("the root layout", () => {
   it.each(["/settings", "/sessions/"])(
     "renders S4 inside the header frame for %s",
     async (path) => {
-      useMeta("openrouter");
+      useMeta("anthropic");
       renderAt(path);
 
       expect(
@@ -158,7 +158,7 @@ describe("the root layout", () => {
   );
 
   it("shows the server-unreachable banner under the header on S1, and 再試行 reads the list again", async () => {
-    useMeta("openrouter");
+    useMeta("anthropic");
     let reachable = false;
     let requests = 0;
     server.use(
@@ -209,7 +209,7 @@ describe("the root layout", () => {
   it.each(["none", "running", "failed"] as const)(
     "retries the failed forward page with its stored cursor during background refetch: %s",
     async (backgroundRefetch) => {
-      useMeta("openrouter");
+      useMeta("anthropic");
       const first = Array.from({ length: 20 }, (_, index) =>
         sessionRow({
           id: `0199c1f0-0000-7000-8000-${String(index).padStart(12, "0")}`,
@@ -299,7 +299,7 @@ describe("the root layout", () => {
   });
 
   it("shows the server-unreachable banner for S1's start with no response, and 再試行 starts it again", async () => {
-    useMeta("openrouter");
+    useMeta("anthropic");
     serveSession(sessionView());
     let starts = 0;
     server.use(
@@ -329,7 +329,7 @@ describe("the root layout", () => {
   });
 
   it("hides the server-unreachable banner once the screen whose read failed is left for a healthy one", async () => {
-    useMeta("openrouter");
+    useMeta("anthropic");
     server.use(http.get(`/api/sessions/${SESSION_ID}`, () => HttpResponse.error()));
     const user = userEvent.setup();
     const router = renderAt(`/sessions/${SESSION_ID}`);
@@ -347,7 +347,7 @@ describe("the root layout", () => {
   });
 
   it("hides the server-unreachable banner once a later read gets an answer, even an error (S4)", async () => {
-    useMeta("openrouter");
+    useMeta("anthropic");
     let reads = 0;
     server.use(
       http.get(`/api/sessions/${SESSION_ID}`, () => {
@@ -390,7 +390,7 @@ describe("the root layout", () => {
 });
 
 it("keeps retry waiting focus on the main region while a root retry runs", async () => {
-  useMeta("openrouter");
+  useMeta("anthropic");
   const hold = deferred();
   let retrying = false;
   server.use(

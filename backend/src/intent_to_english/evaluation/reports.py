@@ -49,8 +49,8 @@ class MetadataData(TypedDict):
     partner_model: str
     commit: str
     dirty: bool
-    coach_reasoning_effort: str | None
-    partner_reasoning_effort: str | None
+    coach_reasoning_effort: str
+    partner_reasoning_effort: str
 
 
 class CaseData(TypedDict):
@@ -76,7 +76,7 @@ class TaskData(TypedDict):
     outcomes: dict[str, int]
     providers: list[str]
     models: list[str]
-    cost_credits: str | None
+    cost_usd: str | None
     latency_p50_ms: int
     latency_p95_ms: int
 
@@ -100,8 +100,8 @@ class RunMetadata:
     partner_model: str
     commit: str
     dirty: bool
-    coach_reasoning_effort: str | None = None
-    partner_reasoning_effort: str | None = None
+    coach_reasoning_effort: str = "medium"
+    partner_reasoning_effort: str = "medium"
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +127,7 @@ class Report:
     results: tuple[CaseResult, ...]
 
     def as_dict(self) -> ReportData:
-        """Return the typed JSON boundary; Decimal credits stay decimal strings."""
+        """Return the typed JSON boundary; Decimal USD costs stay decimal strings."""
         grouped: dict[str, list[CallAttempt]] = defaultdict(list)
         cases: list[CaseData] = []
         for result in self.results:
@@ -184,7 +184,7 @@ class Report:
             "",
             f"UTC date: {_cell(meta['date'])}",
             f"Coach: `{_cell(meta['coach_model'])}`; Partner: `{_cell(meta['partner_model'])}`",
-            f"Reasoning effort: Coach {_effort(meta['coach_reasoning_effort'])}; Partner {_effort(meta['partner_reasoning_effort'])}",
+            f"Reasoning effort: Coach `{_cell(meta['coach_reasoning_effort'])}`; Partner `{_cell(meta['partner_reasoning_effort'])}`",
             f"Commit: `{_cell(meta['commit'])}`; dirty: {str(meta['dirty']).lower()}",
             "",
             "Rates include applicable observed outputs only. A parse failure fails schema; content checks and expectations are N/A. Provider failures are N/A for output quality and remain counted in outcomes. Final means the last actual attempt, including a failed repair. Task cost is empty if any attempt has no reported cost.",
@@ -224,7 +224,7 @@ class Report:
         lines = [
             "| Task | Calls | "
             + " | ".join(outcomes)
-            + " | Cost (credits) | p50 (ms) | p95 (ms) |",
+            + " | Cost (USD) | p50 (ms) | p95 (ms) |",
             "| --- | --- | "
             + " | ".join("---" for _ in outcomes)
             + " | --- | --- | --- |",
@@ -232,7 +232,7 @@ class Report:
         for task, item in self.as_dict()["tasks"].items():
             values = " | ".join(str(item["outcomes"][name]) for name in outcomes)
             lines.append(
-                f"| {_cell(task)} | {item['calls']} | {values} | {item['cost_credits'] or ''} | {item['latency_p50_ms']} | {item['latency_p95_ms']} |"
+                f"| {_cell(task)} | {item['calls']} | {values} | {item['cost_usd'] or ''} | {item['latency_p50_ms']} | {item['latency_p95_ms']} |"
             )
         return "\n".join(lines)
 
@@ -277,7 +277,7 @@ def _task_data(attempts: list[CallAttempt]) -> TaskData:
         },
         providers=sorted({item.usage.provider for item in attempts}),
         models=sorted({item.usage.model for item in attempts}),
-        cost_credits=str(cost) if cost is not None else None,
+        cost_usd=str(cost) if cost is not None else None,
         latency_p50_ms=latencies[ceil(len(latencies) * 0.50) - 1],
         latency_p95_ms=latencies[ceil(len(latencies) * 0.95) - 1],
     )
@@ -289,11 +289,6 @@ def _rate_cell(rate: Rate) -> str:
         if rate["rate"] is not None
         else "N/A"
     )
-
-
-def _effort(effort: str | None) -> str:
-    """An unset effort sends none, so the provider's default thinking applied."""
-    return "provider default" if effort is None else f"`{_cell(effort)}`"
 
 
 def _error(case: CaseData) -> str:

@@ -14,8 +14,13 @@ requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.22",
     "alembic>=1.20",
+    # The model adapter builds anthropic.AsyncAnthropic itself, so the SDK is a direct
+    # dependency. Below 2: pydantic-ai-slim 2.55.0 calls BetaMessageParam(...), which
+    # anthropic 2.0.0 turned into a Union alias, so every request raises TypeError
+    # (pydantic_ai/models/anthropic.py _map_message; checked 2026-10-28).
+    "anthropic>=1.12.1,<2",
     "fastapi>=0.143.2",
-    "pydantic-ai-slim[openrouter]>=2.55.0",
+    "pydantic-ai-slim[anthropic]>=2.55.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.1.4",
     "uvicorn>=0.53.0",
@@ -75,6 +80,7 @@ src = ["src", "tests"]
 "alembic".msg = "the core is I/O-free; use alembic only in intent_to_english.adapters and backend/migrations"
 "aiosqlite".msg = "the core is I/O-free; use aiosqlite only in intent_to_english.adapters and backend/migrations"
 "pydantic_ai".msg = "model SDKs belong only in intent_to_english.adapters.models"
+"anthropic".msg = "model SDKs belong only in intent_to_english.adapters.models"
 "openai".msg = "model SDKs belong only in intent_to_english.adapters.models"
 
 # Replaces, never merges with, the root's per-file-ignores: the root's entries

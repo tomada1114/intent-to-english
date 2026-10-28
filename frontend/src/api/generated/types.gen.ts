@@ -795,7 +795,7 @@ export type MetaResponse = {
     /**
      * Model Mode
      */
-    model_mode: 'fixed' | 'openrouter';
+    model_mode: 'fixed' | 'anthropic';
 };
 
 /**

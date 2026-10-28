@@ -22,7 +22,7 @@ from intent_to_english.composition import build_container
 from intent_to_english.evaluation.cases import load_cases
 from intent_to_english.evaluation.harness import run_cases
 from intent_to_english.evaluation.reports import RunMetadata
-from intent_to_english.settings import Settings
+from intent_to_english.settings import DEFAULT_REASONING_EFFORT, Settings
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -71,7 +71,7 @@ async def _execute(options: Options, settings: Settings) -> int:
     async with build_container(memory_settings) as container:
         if container.model_mode == "fixed":
             sys.stderr.write(
-                "Evaluation requires live models: set OPENROUTER_API_KEY and INTENT_TO_ENGLISH_MODEL_MODE=auto. The selected mode is fixed.\n"
+                "Evaluation requires live models: set ANTHROPIC_API_KEY and INTENT_TO_ENGLISH_MODEL_MODE=auto. The selected mode is fixed.\n"
             )
             return 1
         metadata = RunMetadata(
@@ -142,15 +142,16 @@ def today_utc() -> str:
 
 
 def report_stem(metadata: RunMetadata) -> str:
-    """Keep model ids intact except for slashes, then name each effort that was set.
+    """Keep model ids intact except for slashes, then name each non-default effort.
 
-    An unset effort adds nothing, so a default run keeps the date-and-ids name and a
-    run at another effort on the same date gets its own pair of reports.
+    The default effort (medium) adds nothing, so a default run keeps the
+    date-and-ids name and a run at another effort on the same date gets its own
+    pair of reports.
     """
     stem = f"{metadata.date}_{metadata.coach_model.replace('/', '-')}_{metadata.partner_model.replace('/', '-')}"
-    if metadata.coach_reasoning_effort is not None:
+    if metadata.coach_reasoning_effort != DEFAULT_REASONING_EFFORT:
         stem += f"_coach-effort-{metadata.coach_reasoning_effort}"
-    if metadata.partner_reasoning_effort is not None:
+    if metadata.partner_reasoning_effort != DEFAULT_REASONING_EFFORT:
         stem += f"_partner-effort-{metadata.partner_reasoning_effort}"
     return stem
 

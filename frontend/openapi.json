@@ -1173,7 +1173,7 @@
           "model_mode": {
             "enum": [
               "fixed",
-              "openrouter"
+              "anthropic"
             ],
             "title": "Model Mode",
             "type": "string"

@@ -1,30 +1,24 @@
-"""PydanticAI role calls with shared client ownership and accounting."""
+"""Provider-neutral PydanticAI role calls: task agents, the run wrapper and usage.
+
+A provider module (``anthropic_provider.py``) supplies the model, its settings, its
+failure mapping, refusal detection and cost through ``ProviderCalls``; nothing here
+names a provider SDK, so another provider replaces only that module.
+"""
 
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from decimal import Decimal
-from http import HTTPStatus
 from time import monotonic as system_monotonic
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Protocol
 
-from openai import APITimeoutError, AsyncOpenAI
 from pydantic_ai import Agent, NativeOutput, capture_run_messages
-from pydantic_ai.exceptions import (
-    ModelAPIError,
-    ModelHTTPError,
-    UnexpectedModelBehavior,
-)
+from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior
 from pydantic_ai.messages import ModelResponse
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
-from pydantic_ai.providers.openrouter import OpenRouterProvider
-from pydantic_ai.settings import ModelSettings
 
 from intent_to_english.adapters.models import prompts, schemas
 from intent_to_english.adapters.models.schemas import PartnerLineOutput
 from intent_to_english.core.errors import (
-    ModelRateLimitedError,
+    ModelError,
     ModelTimeoutError,
     ModelUnavailableError,
 )
@@ -32,31 +26,52 @@ from intent_to_english.core.models import Parsed, ParseFailure, Repair, Usage
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from decimal import Decimal
 
     from pydantic_ai.messages import ModelMessage
     from pydantic_ai.models import Model
+    from pydantic_ai.settings import ModelSettings
+    from pydantic_ai.usage import RequestUsage
 
-    from intent_to_english.composition import ResourceClosers
     from intent_to_english.core import coaching, partner
 
 CALL_TIMEOUT_SECONDS = 60
-PROVIDER = "openrouter"
 PARSE_FAILURE = "Model output did not match its schema"
-type ReasoningEffort = Literal["xhigh", "high", "medium", "low", "minimal", "none"]
 
 
-class _OpenRouterCalls:
+class ProviderCalls(Protocol):
+    """The provider-specific half of one role's calls."""
+
+    @property
+    def name(self) -> str:
+        """The provider recorded in every call's usage and error."""
+
+    @property
+    def settings(self) -> ModelSettings:
+        """The settings every call of this role sends, its timeout included."""
+
+    def failure(self, error: ModelAPIError) -> tuple[type[ModelError], int | None]:
+        """The core error for a failed request, and its HTTP status if any."""
+
+    def refused(self, response: ModelResponse) -> bool:
+        """Whether the provider refused to answer this request."""
+
+    def cost(self, usage: RequestUsage) -> Decimal | None:
+        """The call's cost from its reported tokens, or None without a known price."""
+
+
+class _AgentCalls:
     """One call boundary for both roles: timeouts, parse failures and accounting."""
 
     def __init__(
         self,
         model_id: str,
+        provider: ProviderCalls,
         monotonic: Callable[[], float],
-        reasoning_effort: ReasoningEffort | None,
     ) -> None:
         self._model_id = model_id
+        self._provider = provider
         self._monotonic = monotonic
-        self._settings = _model_settings(reasoning_effort)
 
     async def _call[Output, Domain](
         self,
@@ -71,35 +86,26 @@ class _OpenRouterCalls:
                     result = await agent.run(
                         prompt.user_prompt,
                         instructions=prompt.instructions,
-                        model_settings=self._settings,
+                        model_settings=self._provider.settings,
                     )
             except TimeoutError:
                 raise ModelTimeoutError(
-                    PROVIDER, self._model_id, self._elapsed(started)
-                ) from None
-            except ModelHTTPError as error:
-                kind = (
-                    ModelRateLimitedError
-                    if error.status_code == HTTPStatus.TOO_MANY_REQUESTS
-                    else ModelUnavailableError
-                )
-                raise kind(
-                    PROVIDER,
-                    self._model_id,
-                    self._elapsed(started),
-                    status=error.status_code,
+                    self._provider.name, self._model_id, self._elapsed(started)
                 ) from None
             except ModelAPIError as error:
-                connection_kind = (
-                    ModelTimeoutError
-                    if isinstance(error.__cause__, APITimeoutError)
-                    else ModelUnavailableError
-                )
-                raise connection_kind(
-                    PROVIDER, self._model_id, self._elapsed(started)
+                kind, status = self._provider.failure(error)
+                raise kind(
+                    self._provider.name,
+                    self._model_id,
+                    self._elapsed(started),
+                    status=status,
                 ) from None
             except UnexpectedModelBehavior:
+                # A refusal ends without a usable output (a ContentFilterError, or
+                # text that fails validation); it is not repaired.
+                self._raise_if_refused(messages, started)
                 return ParseFailure(self._usage(messages, started), PARSE_FAILURE)
+        self._raise_if_refused(messages, started)
         usage = self._usage(messages, started)
         try:
             output = convert(result.output)
@@ -107,66 +113,59 @@ class _OpenRouterCalls:
             return ParseFailure(usage, PARSE_FAILURE)
         return Parsed(output, usage)
 
+    def _raise_if_refused(
+        self, messages: Sequence[ModelMessage], started: float
+    ) -> None:
+        response = _last_response(messages)
+        if response is not None and self._provider.refused(response):
+            raise ModelUnavailableError(
+                self._provider.name, self._model_id, self._elapsed(started)
+            )
+
     def _elapsed(self, started: float) -> int:
         return max(0, round((self._monotonic() - started) * 1000))
 
     def _usage(self, messages: Sequence[ModelMessage], started: float) -> Usage:
-        response = next(
-            (m for m in reversed(messages) if isinstance(m, ModelResponse)), None
-        )
-        cost: object = (
-            (response.provider_details or {}).get("cost") if response else None
-        )
-        reported_cost = (
-            Decimal(str(cost)) if isinstance(cost, (int, float, str, Decimal)) else None
-        )
+        response = _last_response(messages)
         return Usage(
-            PROVIDER,
+            self._provider.name,
             self._model_id,
             response.usage.input_tokens if response else None,
             response.usage.output_tokens if response else None,
-            reported_cost,
+            self._provider.cost(response.usage) if response else None,
             self._elapsed(started),
         )
 
 
-def _model_settings(effort: ReasoningEffort | None) -> ModelSettings:
-    """Send a reasoning effort only when one is set; unset keeps the provider's default."""
-    if effort is None:
-        return ModelSettings(timeout=CALL_TIMEOUT_SECONDS)
-    return OpenRouterModelSettings(
-        timeout=CALL_TIMEOUT_SECONDS, openrouter_reasoning={"effort": effort}
-    )
+def _last_response(messages: Sequence[ModelMessage]) -> ModelResponse | None:
+    return next((m for m in reversed(messages) if isinstance(m, ModelResponse)), None)
 
 
-class OpenRouterPartnerModel(_OpenRouterCalls):
+def _agent[Output](
+    model: Model, output: type[Output], name: str
+) -> Agent[None, Output]:
+    """One retry-free task agent with native structured output and no tools."""
+    agent = Agent(model, output_type=NativeOutput(output), retries=0, name=name)
+    # Explicitly override even a host's Agent.instrument_all() default.
+    agent.instrument = False
+    return agent
+
+
+class AgentPartnerModel(_AgentCalls):
     """The three Partner tasks over one model and task-specific agents."""
 
     def __init__(
         self,
         model_id: str,
         model: Model,
+        provider: ProviderCalls,
         monotonic: Callable[[], float] = system_monotonic,
-        *,
-        reasoning_effort: ReasoningEffort | None = None,
     ) -> None:
         """Build an independent, retry-free agent for each task once."""
-        super().__init__(model_id, monotonic, reasoning_effort)
-        self._open = self._agent(model, "partner_open")
-        self._reply = self._agent(model, "partner_reply")
-        self._restate = self._agent(model, "partner_restate")
-
-    @staticmethod
-    def _agent(model: Model, name: str) -> Agent[None, PartnerLineOutput]:
-        agent = Agent(
-            model,
-            output_type=NativeOutput(PartnerLineOutput),
-            retries=0,
-            name=name,
-        )
-        # Explicitly override even a host's Agent.instrument_all() default.
-        agent.instrument = False
-        return agent
+        super().__init__(model_id, provider, monotonic)
+        self._open = _agent(model, PartnerLineOutput, "partner_open")
+        self._reply = _agent(model, PartnerLineOutput, "partner_reply")
+        self._restate = _agent(model, PartnerLineOutput, "partner_restate")
 
     async def open(
         self, request: partner.OpenRequest, repair: Repair | None = None
@@ -199,68 +198,29 @@ class OpenRouterPartnerModel(_OpenRouterCalls):
         )
 
 
-class OpenRouterCoachModel(_OpenRouterCalls):
+class AgentCoachModel(_AgentCalls):
     """Seven Coach tasks over one model, without SDK retries or tools."""
 
     def __init__(
         self,
         model_id: str,
         model: Model,
+        provider: ProviderCalls,
         monotonic: Callable[[], float] = system_monotonic,
-        *,
-        reasoning_effort: ReasoningEffort | None = None,
     ) -> None:
         """Build task agents once, with native structured outputs."""
-        super().__init__(model_id, monotonic, reasoning_effort)
-        self._acknowledge = Agent(
-            model,
-            output_type=NativeOutput(schemas.AcknowledgmentOutput),
-            retries=0,
-            name="coach_acknowledge",
+        super().__init__(model_id, provider, monotonic)
+        self._acknowledge = _agent(
+            model, schemas.AcknowledgmentOutput, "coach_acknowledge"
         )
-        self._acknowledge.instrument = False
-        self._gap_hint = Agent(
-            model,
-            output_type=NativeOutput(schemas.GapHintOutput),
-            retries=0,
-            name="coach_gap_hint",
+        self._gap_hint = _agent(model, schemas.GapHintOutput, "coach_gap_hint")
+        self._feedback = _agent(model, schemas.FeedbackOutput, "coach_feedback")
+        self._check_retry = _agent(model, schemas.RetryOutput, "coach_check_retry")
+        self._show_answer = _agent(model, schemas.AnswerOutput, "coach_show_answer")
+        self._answer_question = _agent(
+            model, schemas.CoachAnswerOutput, "coach_answer_question"
         )
-        self._gap_hint.instrument = False
-        self._feedback = Agent(
-            model,
-            output_type=NativeOutput(schemas.FeedbackOutput),
-            retries=0,
-            name="coach_feedback",
-        )
-        self._feedback.instrument = False
-        self._check_retry = Agent(
-            model,
-            output_type=NativeOutput(schemas.RetryOutput),
-            retries=0,
-            name="coach_check_retry",
-        )
-        self._check_retry.instrument = False
-        self._show_answer = Agent(
-            model,
-            output_type=NativeOutput(schemas.AnswerOutput),
-            retries=0,
-            name="coach_show_answer",
-        )
-        self._show_answer.instrument = False
-        self._answer_question = Agent(
-            model,
-            output_type=NativeOutput(schemas.CoachAnswerOutput),
-            retries=0,
-            name="coach_answer_question",
-        )
-        self._answer_question.instrument = False
-        self._wrap_up = Agent(
-            model,
-            output_type=NativeOutput(schemas.WrapUpOutput),
-            retries=0,
-            name="coach_wrap_up",
-        )
-        self._wrap_up.instrument = False
+        self._wrap_up = _agent(model, schemas.WrapUpOutput, "coach_wrap_up")
 
     async def acknowledge(
         self, request: coaching.AcknowledgeRequest, repair: Repair | None = None
@@ -331,52 +291,3 @@ class OpenRouterCoachModel(_OpenRouterCalls):
             prompts.render_wrap_up(request, repair),
             schemas.WrapUpOutput.to_domain,
         )
-
-
-def _build_provider(
-    api_key: str, resources: ResourceClosers, app_title: str
-) -> OpenRouterProvider:
-    """Give both roles one lazy client and register its disposer exactly once."""
-    client = AsyncOpenAI(
-        api_key=api_key,
-        base_url="https://openrouter.ai/api/v1",
-        max_retries=0,
-        default_headers={"X-OpenRouter-Title": app_title},
-    )
-    resources.push_async_callback(client.close)
-    return OpenRouterProvider(openai_client=client)
-
-
-@dataclass(frozen=True, slots=True)
-class OpenRouterRole:
-    """One role's model id and its reasoning effort; no effort keeps the default."""
-
-    model_id: str
-    reasoning_effort: ReasoningEffort | None = None
-
-
-def build_openrouter_models(
-    api_key: str,
-    roles: tuple[OpenRouterRole, OpenRouterRole],
-    resources: ResourceClosers,
-    *,
-    app_title: str,
-    monotonic: Callable[[], float] = system_monotonic,
-) -> tuple[OpenRouterPartnerModel, OpenRouterCoachModel]:
-    """Select the Partner's and the Coach's roles over one provider, without a request."""
-    provider = _build_provider(api_key, resources, app_title)
-    partner_role, coach_role = roles
-    return (
-        OpenRouterPartnerModel(
-            partner_role.model_id,
-            OpenRouterModel(partner_role.model_id, provider=provider),
-            monotonic,
-            reasoning_effort=partner_role.reasoning_effort,
-        ),
-        OpenRouterCoachModel(
-            coach_role.model_id,
-            OpenRouterModel(coach_role.model_id, provider=provider),
-            monotonic,
-            reasoning_effort=coach_role.reasoning_effort,
-        ),
-    )
