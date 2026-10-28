@@ -3,10 +3,10 @@ name: calling-models
 description: >
   Covers calling the Partner and Coach models: the PartnerModel and CoachModel ports,
   their request, output, and usage values, the output checks and the one repair in the
-  core, model_calls outcomes, prompts.py and schemas.py, the PydanticAI adapter on
-  OpenRouter, the fixed-response mode, OPENROUTER_API_KEY and the model settings, and
+  core, model_calls outcomes, prompts.py and schemas.py, the PydanticAI adapter on the
+  Anthropic API, the fixed-response mode, ANTHROPIC_API_KEY and the model settings, and
   the evaluation harness under backend/evals/. Use when adding or changing a model task,
-  a prompt, an output check, the OpenRouter adapter, the fixed-response mode, a model
+  a prompt, an output check, the Anthropic adapter, the fixed-response mode, a model
   setting, a test that touches a model, the evaluation harness, or a new provider.
 ---
 
@@ -38,15 +38,16 @@ Under `backend/src/intent_to_english/` (the overview's § Shape):
 | The call sequence below | `core/services.py` (`ConversationService`) |
 | `model_timeout`, `model_rate_limited`, `model_unavailable`, `model_output_invalid` | `core/errors.py` |
 | The fixed-response mode | `adapters/models/fixed.py` |
-| PydanticAI agents on OpenRouter | `adapters/models/openrouter.py` |
+| The provider-neutral task agents, run wrapper, and usage | `adapters/models/agents.py` |
+| Everything Anthropic: client, model, settings, failure mapping, refusals, prices | `adapters/models/anthropic_provider.py` |
 | The instructions and messages each task sends | `adapters/models/prompts.py` |
 | One Pydantic model per output, and its conversion to the core value | `adapters/models/schemas.py` |
 | The harness | `evaluation/` |
 | The key, the mode, the model ids; the adapter choice | `settings.py`; `composition.py` |
 
 Cases and reports live outside the package, in `backend/evals/cases/` and
-`backend/evals/reports/`. In `src/`, `pydantic_ai` and `openai` are imported only under
-`adapters/models/`. Ruff's banned-api rule names both, but `api/**` and `adapters/**`
+`backend/evals/reports/`. In `src/`, `pydantic_ai` and `anthropic` are imported only under
+`adapters/models/`. Ruff's banned-api rule names them (and `openai`), but `api/**` and `adapters/**`
 are exempt from it, so review keeps them out of those layers; tests may import them.
 
 ## The port contract
@@ -59,12 +60,13 @@ are exempt from it, so review keeps them out of those layers; tests may import t
   need and nothing more, plus an optional repair carrying the previous output's
   violations.
 - **It returns the output value with its call's usage:** provider, model, input and
-  output tokens, the provider-reported cost or none, and latency. Output values are
+  output tokens, the cost in USD or none, and latency. Output values are
   core dataclasses with no schema concerns; `feedback` returns either feedback or a
   reading question.
-- **It raises a model error** for a timeout, rate limiting, or an unavailable or
-  unreachable provider, carrying the provider, model, and latency the call's row needs,
-  plus the HTTP status when the provider answered with one — an integer, never its body.
+- **It raises a model error** for a timeout, rate limiting, an unavailable or
+  unreachable provider, or a refusal (`model_unavailable`, outcome `provider_error`, never
+  repaired), carrying the provider, model, and latency the call's row needs, plus the HTTP
+  status when the provider answered with one — an integer, never its body.
 - **An output that does not parse is reported, not raised as a model error:** the
   service gets the parse failure with the call's usage and treats it like a failed
   check.
@@ -114,8 +116,8 @@ live practice behave alike (§ Decisions › "Checks and the one repair live in 
 6. **The fixed response** in `fixed.py`: a deterministic function of the request that
    passes every check, reports provider `fixed` with no tokens or cost, and still
    reaches every stage the task can lead to.
-7. **The OpenRouter agent** for the task. **REQUIRED:**
-   [references/openrouter-adapter.md](references/openrouter-adapter.md).
+7. **The agent** for the task in `agents.py`. **REQUIRED:**
+   [references/anthropic-adapter.md](references/anthropic-adapter.md).
 8. **The service call,** through the sequence above.
 9. **Tests,** as below, and an evaluation case.
 10. A rule or an output shape that changes what a model writes changes
@@ -126,13 +128,13 @@ live practice behave alike (§ Decisions › "Checks and the one repair live in 
 
 | Setting | Read as |
 |---|---|
-| `OPENROUTER_API_KEY` | unprefixed, through a validation alias, as a secret; unset or blank means no key |
-| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` with a key selects OpenRouter for both roles; `fixed` always selects fixed adapters |
-| `INTENT_TO_ENGLISH_COACH_MODEL`, `INTENT_TO_ENGLISH_PARTNER_MODEL` | OpenRouter model ids, checked only to be non-empty |
-| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT`, `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | one of OpenRouter's effort levels (`xhigh`, `high`, `medium`, `low`, `minimal`, `none`), case-insensitive; unset or blank sends no effort |
+| `ANTHROPIC_API_KEY` | unprefixed, through a validation alias, as a secret; unset or blank means no key |
+| `INTENT_TO_ENGLISH_MODEL_MODE` | `auto` with a key selects the Anthropic adapters for both roles; `fixed` always selects fixed adapters |
+| `INTENT_TO_ENGLISH_COACH_MODEL`, `INTENT_TO_ENGLISH_PARTNER_MODEL` | Anthropic model ids, checked only to be non-empty; defaults `claude-sonnet-5-5` and `claude-haiku-5-5` |
+| `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT`, `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | one of Anthropic's effort levels (`low`, `medium`, `high`, `xhigh`, `max`), case-insensitive; unset or blank keeps `medium`; anything else fails at startup naming its variable |
 
 Defaults and reasons are § Decisions › "Keys, models, and the mode". `composition.py`
-selects both OpenRouter roles in auto with a key, otherwise both fixed roles;
+selects both Anthropic roles in auto with a key, otherwise both fixed roles;
 `GET /api/meta` reports that selection. The README's configuration table
 lists all six (**REQUIRED:** `updating-docs`). How a setting is validated and isolated
 in tests: **REQUIRED:** `designing-core-logic`'s "Settings are read once, at the boundary".
@@ -168,8 +170,8 @@ enter a model request. The 16 seeds are tested on fixed ports without a quality 
 `just backend eval` is billed and human-run: it uses `Container.models`, the shared
 task runner and one repair, with memory storage and owned cleanup. It refuses fixed
 mode and existing report paths or invalid README markers before any call. JSON/Markdown reports retain first/final quality rates,
-outcomes, credits, latency, ids, reasoning efforts, UTC date and revision; a set
-effort also names the report pair; missing cost stays empty and
+outcomes, cost in USD (`cost_usd`), latency, ids, efforts, UTC date and revision; an
+effort other than the default `medium` also names the report pair; missing cost stays empty and
 unobserved content is N/A. Reports are committed and generate the README summary.
 A new expectation joins the tested closed vocabulary in `evaluation/`. The file
 contract and rationale are § Decisions › "Evaluation lives in the repository".
@@ -179,10 +181,13 @@ contract and rationale are § Decisions › "Evaluation lives in the repository"
 Amazon Bedrock is the next one (§ Decisions › "Models are called through PydanticAI,
 inside the model adapters").
 
-1. The `bedrock` extra through **REQUIRED:** `managing-dependencies`, imported lazily
-   under `adapters/models/` only.
-2. A module beside `openrouter.py` building PydanticAI's Bedrock model behind the same
-   agents, prompts, and schemas, with its own failure mapping to the same core errors.
+1. Its package or extra through **REQUIRED:** `managing-dependencies`, imported under
+   `adapters/models/` only: the Anthropic SDK's Bedrock client (`AsyncAnthropicBedrock`)
+   behind PydanticAI's same Anthropic provider and model, or PydanticAI's Bedrock model
+   with the `bedrock` extra.
+2. A provider module beside `anthropic_provider.py` that builds the model and its own
+   `ProviderCalls` — settings, failure mapping to the same core errors, refusal check, and
+   prices — behind the same agents, prompts, and schemas in `agents.py`.
 3. Its own output-mode check: the mode it uses must be one its model accepts, settled
    as the overview's § Open records.
 4. A setting choosing it, read in `composition.py`, and its tests as above.

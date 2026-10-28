@@ -13,7 +13,7 @@ from intent_to_english.api.app import create_app
 from intent_to_english.settings import Settings
 
 
-@pytest.mark.parametrize("mode", ["fixed", "openrouter"])
+@pytest.mark.parametrize("mode", ["fixed", "anthropic"])
 def test_meta_reads_the_supplied_container_mode(make_container, mode):
     container = replace(make_container(), model_mode=mode)
     with TestClient(create_app(container=container)) as client:
@@ -22,10 +22,10 @@ def test_meta_reads_the_supplied_container_mode(make_container, mode):
     assert response.json() == {"model_mode": mode}
 
 
-def test_meta_with_auto_and_key_selects_openrouter_without_model_requests():
+def test_meta_with_auto_and_key_selects_anthropic_without_model_requests():
     with TestClient(
-        create_app(Settings(OPENROUTER_API_KEY=SecretStr("dummy-key")))
+        create_app(Settings(ANTHROPIC_API_KEY=SecretStr("dummy-key")))
     ) as client:
         response = client.get("/api/meta")
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {"model_mode": "openrouter"}
+    assert response.json() == {"model_mode": "anthropic"}

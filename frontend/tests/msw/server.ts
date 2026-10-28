@@ -18,7 +18,7 @@ export const server = setupServer(
   // The header asks on every screen; a model key is configured unless a test
   // says otherwise, so no badge shows by default.
   http.get("/api/meta", () =>
-    HttpResponse.json<MetaResponse>({ model_mode: "openrouter" }),
+    HttpResponse.json<MetaResponse>({ model_mode: "anthropic" }),
   ),
 );
 

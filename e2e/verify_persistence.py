@@ -39,6 +39,7 @@ from intent_to_english.core.models import (
 from intent_to_english.settings import (
     DEFAULT_COACH_MODEL,
     DEFAULT_PARTNER_MODEL,
+    DEFAULT_REASONING_EFFORT,
     SQLITE_URL_PREFIX,
     Settings,
 )
@@ -67,12 +68,12 @@ def isolated_settings(database_url: str) -> Settings:
         cors_origins=[],
         log_level="INFO",
         log_format="text",
-        OPENROUTER_API_KEY=None,
+        ANTHROPIC_API_KEY=None,
         model_mode="fixed",
         coach_model=DEFAULT_COACH_MODEL,
         partner_model=DEFAULT_PARTNER_MODEL,
-        coach_reasoning_effort=None,
-        partner_reasoning_effort=None,
+        coach_reasoning_effort=DEFAULT_REASONING_EFFORT,
+        partner_reasoning_effort=DEFAULT_REASONING_EFFORT,
     )
 
 

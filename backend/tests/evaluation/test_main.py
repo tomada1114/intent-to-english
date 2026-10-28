@@ -12,7 +12,7 @@ from intent_to_english.evaluation import __main__ as cli
 from intent_to_english.evaluation.reports import RunMetadata
 
 ARGS = ["--commit", "test-head", "--dirty", "false"]
-STEM = "2026-10-19_anthropic-claude-sonnet-5.5_anthropic-claude-haiku-5.5"
+STEM = "2026-10-19_claude-sonnet-5-5_claude-haiku-5-5"
 README = "before\n<!-- eval-summary:start -->\nNo evaluation run yet.\n<!-- eval-summary:end -->\nafter\n"
 
 
@@ -44,13 +44,13 @@ def files(tmp_path):
 
 def test_fixed_mode_refuses_before_any_call_or_write(files, capsys, monkeypatch):
     readme, reports, args = files
-    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
     monkeypatch.setenv("INTENT_TO_ENGLISH_MODEL_MODE", "fixed")
 
     assert cli.main(args) == 1
 
     error = capsys.readouterr().err
-    assert "OPENROUTER_API_KEY" in error
+    assert "ANTHROPIC_API_KEY" in error
     assert "INTENT_TO_ENGLISH_MODEL_MODE" in error
     assert readme.read_text() == README
     assert not reports.exists()
@@ -62,7 +62,7 @@ def fake_live(monkeypatch, make_container):
     ports = make_container()
     forbidden = ForbiddenPorts()
     fake = replace(
-        ports, model_mode="openrouter", models=ModelPorts(forbidden, forbidden)
+        ports, model_mode="anthropic", models=ModelPorts(forbidden, forbidden)
     )
     monkeypatch.setattr(cli, "build_container", lambda _settings: fake, raising=False)
     monkeypatch.setattr(cli, "today_utc", lambda: "2026-10-19", raising=False)
@@ -120,8 +120,8 @@ def test_offline_fake_writes_both_reports_and_only_readme_summary(
     assert len(data["cases"]) == 16
     assert data["metadata"]["commit"] == "test-head"
     assert data["metadata"]["dirty"] is False
-    assert data["metadata"]["coach_reasoning_effort"] is None
-    assert data["metadata"]["partner_reasoning_effort"] is None
+    assert data["metadata"]["coach_reasoning_effort"] == "medium"
+    assert data["metadata"]["partner_reasoning_effort"] == "medium"
     assert (reports / f"{STEM}.md").read_text().startswith("# Model evaluation")
     assert readme.read_text().startswith("before\n<!-- eval-summary:start -->")
     assert readme.read_text().endswith("<!-- eval-summary:end -->\nafter\n")
@@ -172,7 +172,7 @@ def test_evaluation_disables_database_before_building_container(
         "INTENT_TO_ENGLISH_DATABASE_URL", f"sqlite+aiosqlite:///{database}"
     )
     monkeypatch.setenv("INTENT_TO_ENGLISH_MODEL_MODE", "fixed")
-    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
 
     assert cli.main(files[2]) == 1
 
@@ -203,13 +203,13 @@ def test_reasoning_efforts_name_the_report_and_reach_its_metadata(
     stem = f"{STEM}_coach-effort-low"
     data = json.loads((reports / f"{stem}.json").read_text())
     assert data["metadata"]["coach_reasoning_effort"] == "low"
-    assert data["metadata"]["partner_reasoning_effort"] is None
+    assert data["metadata"]["partner_reasoning_effort"] == "medium"
     markdown = (reports / f"{stem}.md").read_text()
-    assert "Reasoning effort: Coach `low`; Partner provider default" in markdown
+    assert "Reasoning effort: Coach `low`; Partner `medium`" in markdown
     assert not (reports / f"{STEM}.json").exists()
 
 
-def test_filename_names_each_set_reasoning_effort_after_the_model_ids():
+def test_filename_names_each_non_default_reasoning_effort_after_the_model_ids():
     metadata = RunMetadata(
         "2026-10-19",
         "provider/coach",
@@ -217,12 +217,27 @@ def test_filename_names_each_set_reasoning_effort_after_the_model_ids():
         "head",
         False,
         coach_reasoning_effort="low",
-        partner_reasoning_effort="none",
+        partner_reasoning_effort="max",
     )
 
     assert cli.report_stem(metadata) == (
-        "2026-10-19_provider-coach_provider-partner"
-        "_coach-effort-low_partner-effort-none"
+        "2026-10-19_provider-coach_provider-partner_coach-effort-low_partner-effort-max"
+    )
+
+
+def test_filename_leaves_out_the_default_medium_effort():
+    metadata = RunMetadata(
+        "2026-10-19",
+        "provider/coach",
+        "provider/partner",
+        "head",
+        False,
+        coach_reasoning_effort="medium",
+        partner_reasoning_effort="high",
+    )
+
+    assert cli.report_stem(metadata) == (
+        "2026-10-19_provider-coach_provider-partner_partner-effort-high"
     )
 
 

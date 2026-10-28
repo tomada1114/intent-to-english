@@ -152,7 +152,7 @@ port of the same kind rather than a direct call.
 
 `settings.py`'s `Settings` is the only place configuration enters, from
 `INTENT_TO_ENGLISH_`-prefixed environment variables (`ENV_PREFIX`) and declared aliases.
-`OPENROUTER_API_KEY` is the unprefixed secret alias, never part of settings repr.
+`ANTHROPIC_API_KEY` is the unprefixed secret alias, never part of settings repr.
 A new setting is a field on `Settings`:
 
 - validated in a `field_validator`, so a bad value fails at startup with a message that
@@ -179,7 +179,7 @@ built in `build_container`; a new adapter choice is a branch in the function tha
 it, driven by a setting.
 
 The SQL repository owns one lazy engine and one disposal callback; without a database
-URL the memory adapter is used. The conversation service receives both OpenRouter model roles in auto mode with a key,
+URL the memory adapter is used. The conversation service receives both Anthropic model roles in auto mode with a key,
 otherwise both fixed roles. The live roles share one owned client. One default `uuid.uuid7()` boot id per build is independent of
 entity ids, or injectable for interruption tests. The current wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
 `ModelPorts` holds the exact Partner and Coach instances used by the conversation

@@ -20,7 +20,7 @@ Everything `SKILL.md`'s "The developer's server is not yours" asks, the recipe d
 - **A throwaway database.** It migrates a fresh SQLite file in a `mktemp -d` directory
   (`just backend db-upgrade` with that URL), and removes the directory afterwards.
 - **Every setting explicit.** It drops inherited prefixed settings and the
-  `OPENROUTER_API_KEY` alias, including case variants. It sets every field for the run
+  `ANTHROPIC_API_KEY` alias, including case variants. It sets every field for the run
   with fixed mode, an empty key and the default model ids, so shell/dotenv values cannot reach the API,
   the migration, or the persistence check (`e2e/environment.ts`,
   `e2e/verify_persistence.py`).

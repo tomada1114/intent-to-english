@@ -56,7 +56,7 @@ function RootLayout() {
 }
 
 const TOOLTIP =
-  "OpenRouter のキーが未設定のため、決まった応答で動いています。品質の確認には使えません。";
+  "Anthropic の API キーが未設定のため、決まった応答で動いています。品質の確認には使えません。";
 
 /**
  * 「固定応答モード」 while the API answers with fixed responses. A failed meta

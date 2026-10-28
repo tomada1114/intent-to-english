@@ -96,7 +96,7 @@ def test_connection_failure_is_actionable_without_exposing_driver_details(
 def test_main_summarizes_without_changing_database_or_leaking_inputs(
     migrated_sqlite_url, seed_call_log, capsys, monkeypatch
 ):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "private-key-never-print")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "private-key-never-print")
     asyncio.run(seed_call_log(migrated_sqlite_url))
     path = Path(make_url(migrated_sqlite_url).database or "")
     before = path.read_bytes()
@@ -104,7 +104,7 @@ def test_main_summarizes_without_changing_database_or_leaking_inputs(
     assert main([]) == 0
 
     captured = capsys.readouterr()
-    assert "cost (credits)" in captured.out
+    assert "cost (USD)" in captured.out
     assert (
         "partner | test/model | reply | 4 | 4 | 0 | 0 | 0 | 0 | 0 | — | — | — | 0 | 0"
         in captured.out

@@ -110,12 +110,12 @@ E2E_SETTINGS = {
     "INTENT_TO_ENGLISH_CORS_ORIGINS": "",
     "INTENT_TO_ENGLISH_LOG_LEVEL": "INFO",
     "INTENT_TO_ENGLISH_LOG_FORMAT": "text",
-    "OPENROUTER_API_KEY": "",
+    "ANTHROPIC_API_KEY": "",
     "INTENT_TO_ENGLISH_MODEL_MODE": "fixed",
-    "INTENT_TO_ENGLISH_COACH_MODEL": "anthropic/claude-sonnet-5.5",
-    "INTENT_TO_ENGLISH_PARTNER_MODEL": "anthropic/claude-haiku-5.5",
-    "INTENT_TO_ENGLISH_COACH_REASONING_EFFORT": "",
-    "INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT": "",
+    "INTENT_TO_ENGLISH_COACH_MODEL": "claude-sonnet-5-5",
+    "INTENT_TO_ENGLISH_PARTNER_MODEL": "claude-haiku-5-5",
+    "INTENT_TO_ENGLISH_COACH_REASONING_EFFORT": "medium",
+    "INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT": "medium",
 }
 HOSTILE = {
     "INTENT_TO_ENGLISH_DATABASE_URL": "sqlite+aiosqlite:////hostile/dev.db",
@@ -124,8 +124,8 @@ HOSTILE = {
     "INTENT_TO_ENGLISH_LOG_FORMAT": "json",
     "INTENT_TO_ENGLISH_API_PORT": "8000",
     "INTENT_TO_ENGLISH_FUTURE_SETTING": "hostile",
-    "OPENROUTER_API_KEY": "dummy-hostile-key",
-    "openrouter_api_key": "dummy-lowercase-key",
+    "ANTHROPIC_API_KEY": "dummy-hostile-key",
+    "anthropic_api_key": "dummy-lowercase-key",
     "intent_to_english_future_lowercase": "hostile",
     "INTENT_TO_ENGLISH_MODEL_MODE": "auto",
     "INTENT_TO_ENGLISH_COACH_MODEL": "hostile/coach",
@@ -337,7 +337,7 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
         k: v
         for k, v in env.items()
         if k.upper().startswith("INTENT_TO_ENGLISH_")
-        or k.upper() == "OPENROUTER_API_KEY"
+        or k.upper() == "ANTHROPIC_API_KEY"
     } == {
         "INTENT_TO_ENGLISH_DATABASE_URL": database_url,
         **E2E_SETTINGS,
@@ -356,19 +356,19 @@ def test_e2e_replaces_hostile_settings_and_outranks_a_dotenv_file(
     assert set(settings["environment_names"].values()) == {
         name
         for name in env
-        if name.startswith("INTENT_TO_ENGLISH_") or name == "OPENROUTER_API_KEY"
+        if name.startswith("INTENT_TO_ENGLISH_") or name == "ANTHROPIC_API_KEY"
     }
     assert settings["values"] == {
         "database_url": database_url,
         "cors_origins": [],
         "log_level": "INFO",
         "log_format": "text",
-        "openrouter_api_key": None,
+        "anthropic_api_key": None,
         "model_mode": "fixed",
-        "coach_model": "anthropic/claude-sonnet-5.5",
-        "partner_model": "anthropic/claude-haiku-5.5",
-        "coach_reasoning_effort": None,
-        "partner_reasoning_effort": None,
+        "coach_model": "claude-sonnet-5-5",
+        "partner_model": "claude-haiku-5-5",
+        "coach_reasoning_effort": "medium",
+        "partner_reasoning_effort": "medium",
     }
 
 

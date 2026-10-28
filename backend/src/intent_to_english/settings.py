@@ -12,8 +12,8 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ENV_PREFIX = "INTENT_TO_ENGLISH_"
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
-DEFAULT_COACH_MODEL = "anthropic/claude-sonnet-5.5"
-DEFAULT_PARTNER_MODEL = "anthropic/claude-haiku-5.5"
+DEFAULT_COACH_MODEL = "claude-sonnet-5-5"
+DEFAULT_PARTNER_MODEL = "claude-haiku-5-5"
 SQLITE_URL_PREFIX = "sqlite+aiosqlite:///"
 POSTGRESQL_URL_PREFIX = "postgresql+asyncpg://"
 # The blocking driver's form, refused with a pointer to the async one.
@@ -32,9 +32,10 @@ SQLITE_DRIVER_OPTIONS = frozenset(
         "cached_statements",
     }
 )
-# OpenRouter's reasoning effort levels, matched by the adapter's ReasoningEffort.
-REASONING_EFFORTS = ("xhigh", "high", "medium", "low", "minimal", "none")
-type ReasoningEffort = Literal["xhigh", "high", "medium", "low", "minimal", "none"]
+# Anthropic's output_config.effort levels, matched by the adapter's ReasoningEffort.
+REASONING_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+type ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
+DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium"
 SQLITE_TRUE_VALUES = frozenset({"true", "yes", "on", "y", "t", "1"})
 CORS_ORIGIN_PATTERN = re.compile(r"^https?://[^/\s?#]+$")
 
@@ -58,15 +59,14 @@ class Settings(BaseSettings):
             comma-separated ``INTENT_TO_ENGLISH_CORS_ORIGINS``; empty disables CORS.
         log_level: DEBUG, INFO, WARNING or ERROR, case-insensitive; blank uses INFO.
         log_format: text or JSON lines; blank uses text.
-        openrouter_api_key: Optional secret read from unprefixed OPENROUTER_API_KEY.
-        model_mode: auto or fixed; blank uses auto. Auto uses OpenRouter when the key
-            is set and fixed responses otherwise.
+        anthropic_api_key: Optional secret read from unprefixed ANTHROPIC_API_KEY.
+        model_mode: auto or fixed; blank uses auto. Auto uses the Anthropic API when
+            the key is set and fixed responses otherwise.
         coach_model: The Coach model id, defaulting when empty.
         partner_model: The Partner model id, defaulting when empty.
-        coach_reasoning_effort: The Coach's OpenRouter reasoning effort, one of
-            xhigh, high, medium, low, minimal or none, case-insensitive; unset or
-            blank sends none and leaves the provider's default.
-        partner_reasoning_effort: The Partner's reasoning effort, read the same way.
+        coach_reasoning_effort: The Coach's Anthropic effort, one of low, medium,
+            high, xhigh or max, case-insensitive; unset or blank keeps medium.
+        partner_reasoning_effort: The Partner's effort, read the same way.
     """
 
     model_config = SettingsConfigDict(
@@ -81,19 +81,19 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["text", "json"] = "text"
     # alias keeps the typed constructor aligned with validation_alias; no field-name fallback.
-    openrouter_api_key: SecretStr | None = Field(
+    anthropic_api_key: SecretStr | None = Field(
         default=None,
-        alias="OPENROUTER_API_KEY",
-        validation_alias="OPENROUTER_API_KEY",
+        alias="ANTHROPIC_API_KEY",
+        validation_alias="ANTHROPIC_API_KEY",
         repr=False,
     )
     model_mode: Literal["auto", "fixed"] = "auto"
     coach_model: str = DEFAULT_COACH_MODEL
     partner_model: str = DEFAULT_PARTNER_MODEL
-    coach_reasoning_effort: ReasoningEffort | None = None
-    partner_reasoning_effort: ReasoningEffort | None = None
+    coach_reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
+    partner_reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
 
-    @field_validator("openrouter_api_key", mode="before")
+    @field_validator("anthropic_api_key", mode="before")
     @classmethod
     def _parse_provider_key(cls, value: object) -> object:
         """Keep a blank shell/dotenv key from selecting a provider."""
@@ -121,13 +121,13 @@ class Settings(BaseSettings):
     @field_validator("coach_reasoning_effort", mode="before")
     @classmethod
     def _parse_coach_reasoning_effort(cls, value: object) -> object:
-        """Keep a blank effort unset and name the variable for an unknown level."""
+        """Default a blank effort and name the variable for an unknown level."""
         return _reasoning_effort(value, f"{ENV_PREFIX}COACH_REASONING_EFFORT")
 
     @field_validator("partner_reasoning_effort", mode="before")
     @classmethod
     def _parse_partner_reasoning_effort(cls, value: object) -> object:
-        """Keep a blank effort unset and name the variable for an unknown level."""
+        """Default a blank effort and name the variable for an unknown level."""
         return _reasoning_effort(value, f"{ENV_PREFIX}PARTNER_REASONING_EFFORT")
 
     @field_validator("log_level", mode="before")
@@ -214,16 +214,16 @@ def _model_id(value: object, default: str, variable: str) -> object:
 
 
 def _reasoning_effort(value: object, variable: str) -> object:
-    """Normalize an effort level, with blank meaning the provider's default.
+    """Normalize an effort level, with blank meaning the default, medium.
 
     Raises:
-        ValueError: If the value is not one of OpenRouter's effort levels.
+        ValueError: If the value is not one of Anthropic's effort levels.
     """
     if not isinstance(value, str):
         return value
     level = value.strip().lower()
     if not level:
-        return None
+        return DEFAULT_REASONING_EFFORT
     if level not in REASONING_EFFORTS:
         msg = f"{variable} must be one of {', '.join(REASONING_EFFORTS)}"
         raise ValueError(msg)

@@ -27,7 +27,7 @@ MAX_PAGE_LIMIT = 100
 
 
 def sum_reported_costs(values: Iterable[Decimal | None]) -> Decimal | None:
-    """Sum reported credits exactly, keeping an entirely unknown cost absent."""
+    """Sum recorded USD costs exactly, keeping an entirely unknown cost absent."""
     reported = [value for value in values if value is not None]
     if not reported:
         return None

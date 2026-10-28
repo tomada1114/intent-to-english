@@ -17,11 +17,11 @@ from anyio import CancelScope
 from anyio.lowlevel import checkpoint_if_cancelled
 
 from intent_to_english.adapters.memory import InMemorySessionRepository
-from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
-from intent_to_english.adapters.models.openrouter import (
-    OpenRouterRole,
-    build_openrouter_models,
+from intent_to_english.adapters.models.anthropic_provider import (
+    AnthropicRole,
+    build_anthropic_models,
 )
+from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
 from intent_to_english.core.services import ConversationService
@@ -104,7 +104,7 @@ class Container:
 
     conversations: ConversationService = field(kw_only=True)
     models: ModelPorts = field(kw_only=True)
-    model_mode: Literal["fixed", "openrouter"] = field(default="fixed", kw_only=True)
+    model_mode: Literal["fixed", "anthropic"] = field(default="fixed", kw_only=True)
     _resources: ResourceClosers = field(
         default_factory=ResourceClosers, repr=False, compare=False
     )
@@ -247,17 +247,20 @@ def _build_repository(
 
 def _build_models(
     settings: Settings, resources: ResourceClosers
-) -> tuple[ModelPorts, Literal["fixed", "openrouter"]]:
-    """Unwrap the key only at the composition boundary, after selecting live mode."""
-    if settings.model_mode == "fixed" or settings.openrouter_api_key is None:
+) -> tuple[ModelPorts, Literal["fixed", "anthropic"]]:
+    """Unwrap the key only at the composition boundary, after selecting live mode.
+
+    The provider is chosen here alone: a Bedrock adapter would be one more branch
+    building its own roles behind the same ports.
+    """
+    if settings.model_mode == "fixed" or settings.anthropic_api_key is None:
         return ModelPorts(FixedPartnerModel(), FixedCoachModel()), "fixed"
-    partner, coach = build_openrouter_models(
-        settings.openrouter_api_key.get_secret_value(),
+    partner, coach = build_anthropic_models(
+        settings.anthropic_api_key.get_secret_value(),
         (
-            OpenRouterRole(settings.partner_model, settings.partner_reasoning_effort),
-            OpenRouterRole(settings.coach_model, settings.coach_reasoning_effort),
+            AnthropicRole(settings.partner_model, settings.partner_reasoning_effort),
+            AnthropicRole(settings.coach_model, settings.coach_reasoning_effort),
         ),
         resources,
-        app_title="Intent to English",
     )
-    return ModelPorts(partner, coach), "openrouter"
+    return ModelPorts(partner, coach), "anthropic"

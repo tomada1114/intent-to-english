@@ -32,7 +32,7 @@ def _since(value: str) -> datetime:
 
 
 def _table(rows: Sequence[SummaryRow]) -> str:
-    headers = "role | model | task | calls | ok | repaired | invalid_output | timeout | rate_limited | provider_error | input tokens | output tokens | cost (credits) | p50 (ms) | p95 (ms)"
+    headers = "role | model | task | calls | ok | repaired | invalid_output | timeout | rate_limited | provider_error | input tokens | output tokens | cost (USD) | p50 (ms) | p95 (ms)"
     lines = [headers]
     for row in rows:
         values = (

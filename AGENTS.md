@@ -146,7 +146,7 @@ just backend eval    # Run the seeded evaluation cases and write new JSON/Markdo
 ```
 
 Only the owner runs a billed evaluation. An agent may verify refusal with both
-`INTENT_TO_ENGLISH_MODEL_MODE=fixed OPENROUTER_API_KEY= just backend eval` overrides;
+`INTENT_TO_ENGLISH_MODEL_MODE=fixed ANTHROPIC_API_KEY= just backend eval` overrides;
 the empty key outranks the optional dotenv file.
 
 ### Writes to GitHub
@@ -244,7 +244,7 @@ Skills are authored under `.agents/skills/` (Codex CLI) and mirrored into
 | `authoring-skills` | adding, editing, or reviewing a skill under `.agents/skills/`, or a skill never fires |
 | `building-api-routes` | adding or changing an HTTP route, request or response model, or API dependency, and the TestClient tests for it |
 | `building-screens` | adding or changing a screen, route, or feature under `frontend/src/`: server data through the generated client, API errors, styling, accessibility, and its component tests |
-| `calling-models` | adding or changing a model task, a prompt, an output check, the OpenRouter adapter, the fixed-response mode, a model setting, a test that touches a model, the evaluation harness, or a new provider |
+| `calling-models` | adding or changing a model task, a prompt, an output check, the Anthropic adapter, the fixed-response mode, a model setting, a test that touches a model, the evaluation harness, or a new provider |
 | `changing-gates` | editing a hook, a CI workflow, the ruleset, or a ruff, mypy, pytest, coverage, Vitest, Biome, `tsconfig.json`, or `pnpm-workspace.yaml` setting, or asking whether a change weakens a gate |
 | `cloud-claude-shipping-issues` | Claude Code cloud sessions only (`CLAUDE_CODE_REMOTE=true`): shipping the next issue or the backlog over REST `gh api` calls, serially — rank, implement, PR, the PR's review, CI, merge, follow-ups |
 | `codex-shipping-issues` | shipping one GitHub issue through a regular PR, up to three review rounds with a local fallback for failed or stalled GitHub Codex review, findings addressed, current-head CI and the requested stop point |

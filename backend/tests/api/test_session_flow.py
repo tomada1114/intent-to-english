@@ -180,7 +180,7 @@ def test_sql_session_reopens_partial_practice_and_preserves_wrap_up_states(
     migrated_sqlite_url,
 ):
     settings = Settings(
-        database_url=migrated_sqlite_url, model_mode="fixed", OPENROUTER_API_KEY=None
+        database_url=migrated_sqlite_url, model_mode="fixed", ANTHROPIC_API_KEY=None
     )
 
     def act(client, view, action, **fields):

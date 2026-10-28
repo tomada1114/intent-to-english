@@ -24,7 +24,7 @@ dialogs in the MVP; everything happens in the page.
 
 - **Header** (48px, full width): the app name 「Intent to English」 linking to S1, the page's own
   items, and on the right the **fixed-response badge** 「固定応答モード」 when no model key is
-  set (§3.10). The badge has a tooltip: 「OpenRouter のキーが未設定のため、決まった応答で動いています。
+  set (§3.10). The badge has a tooltip: 「Anthropic の API キーが未設定のため、決まった応答で動いています。
   品質の確認には使えません。」 It shows on every screen while the mode is on.
 - **Widths**: S1 and S4 center a single column, max 880px. S2 and S3 use the full width.
   Breakpoint: **≥1024px** two panes side by side; **<1024px** the two panes become tabs

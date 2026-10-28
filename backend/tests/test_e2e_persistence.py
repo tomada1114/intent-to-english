@@ -43,12 +43,12 @@ E2E_VALUES: dict[str, object] = {
     "cors_origins": [],
     "log_level": "INFO",
     "log_format": "text",
-    "openrouter_api_key": None,
+    "anthropic_api_key": None,
     "model_mode": "fixed",
-    "coach_model": "anthropic/claude-sonnet-5.5",
-    "partner_model": "anthropic/claude-haiku-5.5",
-    "coach_reasoning_effort": None,
-    "partner_reasoning_effort": None,
+    "coach_model": "claude-sonnet-5-5",
+    "partner_model": "claude-haiku-5-5",
+    "coach_reasoning_effort": "medium",
+    "partner_reasoning_effort": "medium",
 }
 
 pytestmark = pytest.mark.anyio
@@ -247,7 +247,7 @@ def test_verifier_settings_outrank_environment_and_dotenv(
         "INTENT_TO_ENGLISH_CORS_ORIGINS": "https://hostile.example",
         "INTENT_TO_ENGLISH_LOG_LEVEL": "DEBUG",
         "INTENT_TO_ENGLISH_LOG_FORMAT": "json",
-        "OPENROUTER_API_KEY": "dummy-hostile-key",
+        "ANTHROPIC_API_KEY": "dummy-hostile-key",
         "INTENT_TO_ENGLISH_MODEL_MODE": "auto",
         "INTENT_TO_ENGLISH_COACH_MODEL": "hostile/coach",
         "INTENT_TO_ENGLISH_PARTNER_MODEL": "hostile/partner",

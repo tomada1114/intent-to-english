@@ -12,13 +12,14 @@ from pathlib import Path
 import anyio
 import pytest
 from alembic import command
-from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 from pydantic import SecretStr
 from sqlalchemy import event
 
 from intent_to_english import composition
 from intent_to_english.adapters.memory import InMemorySessionRepository
-from intent_to_english.adapters.models import openrouter
+from intent_to_english.adapters.models import anthropic_provider
+from intent_to_english.adapters.models.agents import AgentCoachModel, AgentPartnerModel
 from intent_to_english.adapters.models.fixed import FixedCoachModel, FixedPartnerModel
 from intent_to_english.adapters.sql.engine import make_engine
 from intent_to_english.adapters.sql.session_repository import SqlSessionRepository
@@ -118,7 +119,7 @@ async def test_build_container_default_settings_uses_an_independent_memory_store
 async def test_build_container_wires_independent_fixed_conversations(
     make_container, mode, key
 ):
-    settings = Settings(model_mode=mode, OPENROUTER_API_KEY=key)
+    settings = Settings(model_mode=mode, ANTHROPIC_API_KEY=key)
     first = make_container(settings)
     second = make_container(settings)
     view = await first.conversations.start()
@@ -748,18 +749,64 @@ async def test_container_registration_after_ownership_transfer_rejected(make_con
     await container.aclose()
 
 
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [("auto", "anthropic"), ("", "anthropic"), ("fixed", "fixed")],
+    ids=["auto", "blank-mode", "fixed"],
+)
+async def test_environment_key_selects_anthropic_only_in_auto_mode(
+    monkeypatch, mode, expected
+):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy-env-key")
+    monkeypatch.setenv("INTENT_TO_ENGLISH_MODEL_MODE", mode)
+
+    async with build_container(Settings()) as container:
+        assert container.model_mode == expected
+        live = expected == "anthropic"
+        assert isinstance(
+            container.models.partner, AgentPartnerModel if live else FixedPartnerModel
+        )
+        assert isinstance(
+            container.models.coach, AgentCoachModel if live else FixedCoachModel
+        )
+
+
+async def test_auto_mode_defaults_both_roles_to_medium_effort(monkeypatch):
+    received = []
+    build = anthropic_provider.build_anthropic_models
+
+    def record(api_key, roles, *args, **kwargs):
+        received.append((api_key, roles))
+        return build(api_key, roles, *args, **kwargs)
+
+    monkeypatch.setattr(composition, "build_anthropic_models", record)
+
+    async with build_container(Settings(ANTHROPIC_API_KEY=SecretStr("dummy-key"))):
+        pass
+
+    assert received == [
+        (
+            "dummy-key",
+            (
+                anthropic_provider.AnthropicRole("claude-haiku-5-5", "medium"),
+                anthropic_provider.AnthropicRole("claude-sonnet-5-5", "medium"),
+            ),
+        )
+    ]
+
+
 async def test_auto_mode_hands_each_role_its_reasoning_effort(monkeypatch):
     received = []
-    build = openrouter.build_openrouter_models
+    build = anthropic_provider.build_anthropic_models
 
     def record(api_key, roles, *args, **kwargs):
         received.append(roles)
         return build(api_key, roles, *args, **kwargs)
 
-    monkeypatch.setattr(composition, "build_openrouter_models", record)
+    monkeypatch.setattr(composition, "build_anthropic_models", record)
     settings = Settings(
-        OPENROUTER_API_KEY=SecretStr("dummy-key"),
-        partner_reasoning_effort="none",
+        ANTHROPIC_API_KEY=SecretStr("dummy-key"),
+        partner_reasoning_effort="max",
         coach_reasoning_effort="low",
     )
 
@@ -768,8 +815,8 @@ async def test_auto_mode_hands_each_role_its_reasoning_effort(monkeypatch):
 
     assert received == [
         (
-            openrouter.OpenRouterRole("anthropic/claude-haiku-5.5", "none"),
-            openrouter.OpenRouterRole("anthropic/claude-sonnet-5.5", "low"),
+            anthropic_provider.AnthropicRole("claude-haiku-5-5", "max"),
+            anthropic_provider.AnthropicRole("claude-sonnet-5-5", "low"),
         )
     ]
 
@@ -781,7 +828,7 @@ async def test_auto_mode_with_key_builds_both_live_ports_and_closes_one_client(
     closed = []
 
     def make_client(**kwargs):
-        client = AsyncOpenAI(**kwargs)
+        client = AsyncAnthropic(**kwargs)
         clients.append(client)
         close = client.close
 
@@ -792,17 +839,17 @@ async def test_auto_mode_with_key_builds_both_live_ports_and_closes_one_client(
         monkeypatch.setattr(client, "close", record_close)
         return client
 
-    monkeypatch.setattr(openrouter, "AsyncOpenAI", make_client)
+    monkeypatch.setattr(anthropic_provider, "AsyncAnthropic", make_client)
     settings = Settings(
-        OPENROUTER_API_KEY=SecretStr("dummy-key"),
-        partner_model="anthropic/partner-id",
-        coach_model="anthropic/coach-id",
+        ANTHROPIC_API_KEY=SecretStr("dummy-key"),
+        partner_model="partner-id",
+        coach_model="coach-id",
     )
     container = build_container(settings)
     try:
-        assert container.model_mode == "openrouter"
-        assert isinstance(container.models.partner, openrouter.OpenRouterPartnerModel)
-        assert isinstance(container.models.coach, openrouter.OpenRouterCoachModel)
+        assert container.model_mode == "anthropic"
+        assert isinstance(container.models.partner, AgentPartnerModel)
+        assert isinstance(container.models.coach, AgentCoachModel)
         assert len(clients) == 1
         assert not clients[0].is_closed()
         await container.aclose()

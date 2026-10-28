@@ -209,6 +209,9 @@ def test_core_module_calls_no_io_builtin(path):
         pytest.param("from pydantic import BaseModel", "pydantic", id="pydantic"),
         pytest.param("from pydantic_ai import Agent", "pydantic_ai", id="pydantic-ai"),
         pytest.param("from openai import AsyncOpenAI", "openai", id="openai"),
+        pytest.param(
+            "from anthropic import AsyncAnthropic", "anthropic", id="anthropic"
+        ),
         pytest.param("from .. import api", "intent_to_english", id="relative-escape"),
         pytest.param(
             "from ..adapters import memory", "intent_to_english.adapters", id="adapters"

@@ -5,7 +5,7 @@
   `tomada1114/fastapi-react-template`: an async FastAPI backend over a framework-free core
   with ports and adapters, SQLAlchemy Core + Alembic on SQLite, a React + Vite + TypeScript
   screen (TanStack Router and Query, Tailwind CSS 4) calling the API through a generated
-  client, and a Playwright browser test. Models are called through OpenRouter now and
+  client, and a Playwright browser test. Models are called through Anthropic's API now and
   Amazon Bedrock later, behind ports.
 
 ## 1. Overview
@@ -68,7 +68,7 @@ vault.
 - **F8 Pacing, ending, and wrap-up** — the 3-reply check-in and the close (§3.8)
 - **F9 Session history** — resume after reload, read an ended session (§3.9)
 - **F10 Model roles, provider, and the fixed-response mode** — the two model roles behind
-  ports, OpenRouter, and a keyless mode for development and tests (§3.10)
+  ports, Anthropic's API, and a keyless mode for development and tests (§3.10)
 - **F11 Output checks and the evaluation set** — every model output checked by code, and a
   fixed set of cases run against real models (§3.11)
 - **F12 Model call log** — tokens, cost, latency, and outcome of every call (§3.12)
@@ -268,18 +268,19 @@ conversation.
 
 - **Two roles**, each with its own configured model: the **Partner** (the opener and every
   Partner line, restatements included) and the **Coach** (build hints, gap hints, feedback,
-  retry checks, shown answers, answers to questions, the wrap-up). Defaults on OpenRouter:
-  Coach `anthropic/claude-sonnet-5.5`, Partner `anthropic/claude-haiku-5.5` — the prototype
-  was tuned on Sonnet, and feedback quality is what the Coach is for. OpenRouter's catalogue,
-  checked 2026-10-17: Sonnet 5.5 $2 / $10 and Haiku 5.5 $0.10 / $0.50 per million input /
-  output tokens. At about 12k input and 1.1k output tokens per turn, a turn costs about
+  retry checks, shown answers, answers to questions, the wrap-up). Defaults on Anthropic's
+  API: Coach `claude-sonnet-5-5`, Partner `claude-haiku-5-5`, both at effort `medium` — the
+  prototype was tuned on Sonnet, and feedback quality is what the Coach is for. Anthropic's
+  pricing, observed 2026-10-28: Sonnet 5.5 $2 / $10 and Haiku 5.5 $0.10 / $0.50 per million
+  input / output tokens (Haiku 5.5 $0.50 / $2.50 for a prompt over 100,000 tokens). At about 12k input and 1.1k output tokens per turn, a turn costs about
   $0.03 (about $5 a month at six turns a day). Whether the Coach can move to Haiku is
   decided by the evaluation set (§3.11).
 - **Waiting**: no streaming. A reply is shown only after its checks pass (§3.11), so P2 holds
   by construction; while a call runs, the screen shows a waiting state. Latency is measured
   (§3.12) and reported by the evaluation run.
-- **Provider**: OpenRouter, with the owner's API key from the environment. Bedrock later: a new
-  adapter and a setting, with no change to the core, the API, or the screen.
+- **Provider**: Anthropic's API, with the owner's Anthropic API key from the environment.
+  Bedrock later: a new provider module and a setting, with no change to the core, the API, or
+  the screen.
 - **Fixed-response mode**: with no key, the app runs on scripted Partner lines and Coach
   outputs, so the screen, the API, every stage, and the browser test work without a key or
   cost. The screen shows that it is on. Its outputs are never used to judge quality.
@@ -313,7 +314,8 @@ conversation.
 ### 3.12 Model call log (F12)
 
 - **Every call** is recorded: the session and turn it served, role, provider, model id, input
-  and output tokens, cost when the provider reports it, latency, and outcome (ok, repaired,
+  and output tokens, cost in USD from those tokens and the model's price when the price is
+  known, latency, and outcome (ok, repaired,
   invalid output, timeout, rate limited, provider error). Never the API key.
 - **Shown**: not on the practice screens; the evaluation report and a command summarize it.
 
@@ -324,13 +326,13 @@ conversation.
 - **Stale or repeated submissions**: each submission names the stage it answers; one that no
   longer matches (a second tab, a double click) is rejected and the screen reloads the
   session's state. A submission is processed at most once.
-- **Privacy**: everything stays in the local SQLite file, except the text sent to OpenRouter
-  (and the model provider behind it) for each call. The README says so, and says that the
-  owner's OpenRouter privacy settings decide whether a provider may log or train on it.
+- **Privacy**: everything stays in the local SQLite file, except the text sent to Anthropic for
+  each call. The README says so, and says that the owner's Anthropic account settings and
+  Anthropic's data policies decide how that text is retained.
 - **Interrupted calls**: a model call cut off by a server stop or a closed tab leaves the
   stage as it was before the call; the learner's input is kept and can be sent again.
-- **Cost**: the owner caps spend in their OpenRouter account; the app sets no budget of its
-  own in the MVP.
+- **Cost**: the owner caps spend in their Anthropic Console account; the app sets no budget
+  of its own in the MVP.
 - **Time**: stored in UTC, shown in local time.
 
 ## 5. Data

@@ -54,13 +54,13 @@ Stop at the first tier that shows what the change does.
 ## Set every application setting explicitly
 
 The shell and module-relative `backend/.env` may hold real data or a provider key.
-Clear inherited application variables and the unprefixed `OPENROUTER_API_KEY` alias,
+Clear inherited application variables and the unprefixed `ANTHROPIC_API_KEY` alias,
 including case variants. Set every field explicitly: database URL, CORS origins,
 log level/format, key, mode and both model ids. An empty value wins over the file;
 empty ids select the defaults. Force `fixed` mode and an empty key for observations.
 
 ```bash
-env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port"
+env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "ANTHROPIC_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= ANTHROPIC_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port"
 ```
 
 Set `INTENT_TO_ENGLISH_DATABASE_URL=` for the in-memory store, or point it at a file in a
@@ -71,7 +71,7 @@ database. The app never creates its schema, so migrate the scratch file first, i
 same shell command (**BACKGROUND:** `persisting-data`):
 
 ```bash
-env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked alembic -c backend/alembic.ini upgrade head
+env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "ANTHROPIC_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= ANTHROPIC_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked alembic -c backend/alembic.ini upgrade head
 ```
 
 Set the variable in the same shell command that starts the server: an agent's shell
@@ -113,7 +113,7 @@ port=$(uv --no-cache run --locked python -c 'import socket; s = socket.socket();
 log=$(mktemp)
 uv --no-cache run --locked python -c "$probe" "$port"; rc=$?
 if [ "$rc" = 1 ]; then
-  env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL= INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port" >"$log" 2>&1 &
+  env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "ANTHROPIC_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL= INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= ANTHROPIC_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= uv --no-cache run --locked uvicorn intent_to_english.api.app:create_app --factory --no-access-log --port "$port" >"$log" 2>&1 &
   pid=$!
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
   if uv --no-cache run --locked python -c "$ready" "$log" "$port" && kill -0 "$pid" 2>/dev/null; then

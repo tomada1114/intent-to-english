@@ -34,7 +34,7 @@ The outcomes being worked on, one to three of them. Each has its issues filed.
   F-2, F-3, F-5) with `INTENT_TO_ENGLISH_MODEL_MODE=fixed`.
 - **Practice runs on real models, every output checked before it is shown** — the turn
   only teaches when the Coach's feedback is real. Issues: #10 and its sub-issues. Done when: with
-  `OPENROUTER_API_KEY` set, the owner finishes one session in the browser, and every
+  `ANTHROPIC_API_KEY` set, the owner finishes one session in the browser, and every
   call of it has a `model_calls` row with its tokens, cost, latency, and outcome.
 - **The evaluation set runs against the configured models and its report is
   committed** — the quality evidence the portfolio needs, and what decides whether the
@@ -51,10 +51,11 @@ parked as `on hold`; none is required.
   other relevant risks as evaluation cases, with a threat model and the results in the
   README; the first item after the MVP. Before it moves up: Now's evaluation outcome
   lands, since the attacks run on the same harness.
-- **An Amazon Bedrock adapter** — the provider the app moves to before it is hosted.
-  Before it moves up: the account's Bedrock quota allows calls (re-application around
-  2026-11-02), and the adapter's output mode is checked against Claude Sonnet 5.5
-  (`docs/architecture/overview.md` § Open).
+- **Moving from the Anthropic API to Amazon Bedrock** — the provider the app moves to
+  before it is hosted, as one new provider module beside `anthropic_provider.py` and the
+  selection in `composition.py`. Before it moves up: the account's Bedrock quota allows
+  calls (re-application around 2026-11-02), and the module's output mode is checked against
+  Claude Sonnet 5.5 (`docs/architecture/overview.md` § Open).
 
 ## Later
 

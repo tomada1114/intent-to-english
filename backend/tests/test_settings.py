@@ -17,34 +17,44 @@ from tests.settings_env import settings_from_env_file
 def test_settings_model_defaults_and_provider_key_isolation():
     settings = Settings()
     assert settings.model_mode == "auto"
-    assert settings.coach_model == "anthropic/claude-sonnet-5.5"
-    assert settings.partner_model == "anthropic/claude-haiku-5.5"
-    assert settings.openrouter_api_key is None
+    assert settings.coach_model == "claude-sonnet-5-5"
+    assert settings.partner_model == "claude-haiku-5-5"
+    assert settings.anthropic_api_key is None
 
 
 @pytest.mark.parametrize("value", ["", " ", "\t"])
 def test_settings_blank_provider_key_is_none(monkeypatch, value):
-    monkeypatch.setenv("OPENROUTER_API_KEY", value)
-    assert Settings().openrouter_api_key is None
+    monkeypatch.setenv("ANTHROPIC_API_KEY", value)
+    assert Settings().anthropic_api_key is None
 
 
 def test_settings_provider_key_uses_its_alias_and_stays_out_of_repr(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy-provider-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy-provider-key")
     settings = Settings()
-    assert isinstance(settings.openrouter_api_key, SecretStr)
-    assert settings.openrouter_api_key.get_secret_value() == "dummy-provider-key"
+    assert isinstance(settings.anthropic_api_key, SecretStr)
+    assert settings.anthropic_api_key.get_secret_value() == "dummy-provider-key"
     assert "dummy-provider-key" not in repr(settings)
     assert "dummy-provider-key" not in settings.model_dump_json()
-    assert Settings(OPENROUTER_API_KEY=None).openrouter_api_key is None
-    assert Settings(OPENROUTER_API_KEY=SecretStr(" ")).openrouter_api_key is None
+    assert Settings(ANTHROPIC_API_KEY=None).anthropic_api_key is None
+    assert Settings(ANTHROPIC_API_KEY=SecretStr(" ")).anthropic_api_key is None
 
 
 def test_settings_provider_key_is_read_from_a_controlled_dotenv(tmp_path):
     file = tmp_path / "settings.env"
-    file.write_text("OPENROUTER_API_KEY=dummy-dotenv-key\n", encoding="utf-8")
-    key = settings_from_env_file(file).openrouter_api_key
+    file.write_text("ANTHROPIC_API_KEY=dummy-dotenv-key\n", encoding="utf-8")
+    key = settings_from_env_file(file).anthropic_api_key
     assert isinstance(key, SecretStr)
     assert key.get_secret_value() == "dummy-dotenv-key"
+
+
+def test_settings_ignore_a_leftover_openrouter_key_in_the_dotenv(tmp_path):
+    file = tmp_path / "settings.env"
+    file.write_text("OPENROUTER_API_KEY=dummy-old-key\n", encoding="utf-8")
+
+    settings = settings_from_env_file(file)
+
+    assert settings.anthropic_api_key is None
+    assert "dummy-old-key" not in settings.model_dump_json()
 
 
 @pytest.mark.parametrize("mode", ["", "auto", "fixed"])
@@ -62,8 +72,8 @@ def test_settings_unknown_model_mode_is_rejected(value):
 @pytest.mark.parametrize(
     ("field", "default"),
     [
-        ("coach_model", "anthropic/claude-sonnet-5.5"),
-        ("partner_model", "anthropic/claude-haiku-5.5"),
+        ("coach_model", "claude-sonnet-5-5"),
+        ("partner_model", "claude-haiku-5-5"),
     ],
 )
 def test_settings_model_ids_default_accept_a_value_and_reject_whitespace(
@@ -82,28 +92,31 @@ def test_settings_model_ids_default_accept_a_value_and_reject_whitespace(
 @pytest.mark.parametrize(
     "field", ["coach_reasoning_effort", "partner_reasoning_effort"]
 )
-def test_settings_reasoning_effort_defaults_to_unset_and_accepts_provider_levels(
+def test_settings_reasoning_effort_defaults_to_medium_and_accepts_anthropic_levels(
     monkeypatch, field
 ):
     variable = f"INTENT_TO_ENGLISH_{field.upper()}"
-    assert getattr(Settings(), field) is None
+    assert getattr(Settings(), field) == "medium"
     monkeypatch.setenv(variable, "")
-    assert getattr(Settings(), field) is None
-    for level in ("xhigh", "high", "medium", "low", "minimal", "none"):
+    assert getattr(Settings(), field) == "medium"
+    monkeypatch.setenv(variable, " \t")
+    assert getattr(Settings(), field) == "medium"
+    for level in ("low", "medium", "high", "xhigh", "max"):
         monkeypatch.setenv(variable, level)
         assert getattr(Settings(), field) == level
     monkeypatch.setenv(variable, " Low ")
     assert getattr(Settings(), field) == "low"
 
 
+@pytest.mark.parametrize("value", ["minimal", "none", "extreme"])
 @pytest.mark.parametrize(
     "field", ["coach_reasoning_effort", "partner_reasoning_effort"]
 )
 def test_settings_unknown_reasoning_effort_is_rejected_naming_its_variable(
-    monkeypatch, field
+    monkeypatch, field, value
 ):
     variable = f"INTENT_TO_ENGLISH_{field.upper()}"
-    monkeypatch.setenv(variable, "max")
+    monkeypatch.setenv(variable, value)
     with pytest.raises(ValidationError, match=variable):
         Settings()
 

@@ -63,7 +63,7 @@ log=$(mktemp)
 uv --no-cache run --locked python -c "$probe" "$api"; a=$?
 uv --no-cache run --locked python -c "$probe" "$vite"; v=$?
 if [ "$a" = 1 ] && [ "$v" = 1 ] && [ "$api" != "$vite" ]; then
-  env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "OPENROUTER_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= OPENROUTER_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= INTENT_TO_ENGLISH_API_PORT="$api" VITE_PORT="$vite" just dev >"$log" 2>&1 &
+  env $(env | awk -F= 'toupper($1) ~ /^INTENT_TO_ENGLISH_/ || toupper($1) == "ANTHROPIC_API_KEY" {print "-u " $1}') INTENT_TO_ENGLISH_DATABASE_URL="$db" INTENT_TO_ENGLISH_CORS_ORIGINS= INTENT_TO_ENGLISH_LOG_LEVEL= INTENT_TO_ENGLISH_LOG_FORMAT= ANTHROPIC_API_KEY= INTENT_TO_ENGLISH_MODEL_MODE=fixed INTENT_TO_ENGLISH_COACH_MODEL= INTENT_TO_ENGLISH_PARTNER_MODEL= INTENT_TO_ENGLISH_API_PORT="$api" VITE_PORT="$vite" just dev >"$log" 2>&1 &
   pid=$!
   trap 'kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null' EXIT
   if uv --no-cache run --locked python -c "$ready" "$log" "$api" "$vite" "$pid"; then
