@@ -259,7 +259,7 @@ Commit both reports after an owner-run evaluation; the summary below links the l
 <!-- eval-summary:start -->
 Latest run: [2026-10-22](backend/evals/reports/2026-10-22_anthropic-claude-sonnet-5.5_anthropic-claude-haiku-5.5.md)
 
-| Task | Calls | ok | invalid_output | repaired | timeout | rate_limited | provider_error | Cost (USD) | p50 (ms) | p95 (ms) |
+| Task | Calls | ok | invalid_output | repaired | timeout | rate_limited | provider_error | Cost (credits) | p50 (ms) | p95 (ms) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | coach.acknowledge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0.00186 | 1968 | 1968 |
 | coach.check_retry | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0.031014 | 7089 | 7233 |
