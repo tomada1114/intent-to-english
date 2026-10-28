@@ -21,7 +21,7 @@ Install these tools:
   `justfile` loads `backend/justfile` and `frontend/justfile` as modules
   (`just backend <recipe>`, `just frontend <recipe>`), and its `lint` and
   `test` recipes depend on module recipes (`lint: backend::lint
-  frontend::lint`). Just accepts such a dependency from 1.42.0, and from 1.42.3
+  frontend::lint e2e-lint`). Just accepts such a dependency from 1.42.0, and from 1.42.3
   runs it in the module's directory (`backend/`, `frontend/`) as it must; an
   older Just fails to parse the `justfile` or runs an area's commands from the
   repository root.

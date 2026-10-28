@@ -108,7 +108,7 @@ can't say" field (1–200 characters), and the Coach question box (1–500 chara
   spell-checks the right language.
 - Formatting: dates and times through `Intl.DateTimeFormat("ja-JP")` — list rows `M/D HH:mm`;
   counts through `Intl.NumberFormat("ja-JP")` (「1,000字」).
-- Register: です・ます, short sentences, the learner addressed without a pronoun; the Coach's
+- Register: です・ます, short sentences, the learner addressed without a pronoun in sentences (labels such as 「あなたの文」 keep theirs); the Coach's
   copy follows the prototype's wording (requirements §3). No exclamation marks in system copy;
   the Coach's 「いいですね！」 is the Coach speaking, not the UI.
 - Buttons: the action itself — 「送信」「ヒント」「答えを見せて」「スキップ」「会話を終える」「もう一度」 —
@@ -141,7 +141,7 @@ can't say" field (1–200 characters), and the Coach question box (1–500 chara
 | Color use | never the only carrier: the ミス / 改善 tags are text labels, the fixed-response badge is text, an error banner has an icon and text |
 | Text scaling | 200% without loss; reflow at 320 px |
 | Reduced motion / forced colors | see Motion; focus rings and boundaries use `outline` / `border`, never `box-shadow` alone |
-| Contrast | measured: 49 light and dark pairs pass AA (2026-10-17) — the "Measured contrast" table in `docs/design/design-direction.md`, pairs in `docs/design/contrast-pairs.json` |
+| Contrast | measured: 53 light and dark pairs pass AA (2026-10-28) — the "Measured contrast" table in `docs/design/design-direction.md`, pairs in `docs/design/contrast-pairs.json` |
 
 Verification for the implementing session: keyboard-only pass through flows F-1 to F-9;
 VoiceOver (Safari) pass on F-2, checking that English lines are read with an English voice;

@@ -48,7 +48,7 @@ dialogs in the MVP; everything happens in the page.
 │                                                                          │
 │   ┌ 続きから ──────────────────────────────────────────────────────────┐ │ ← only when a session
 │   │ 🗣 Hey! How was your weekend?                                       │ │   is in progress: the
-│   │ 10/17 18:40 から · 4往復                              [ 続ける ]   │ │   most recent one
+│   │ 10/17 18:40 から · 4往復                              [ 続ける ]   │ │   newest on page 1
 │   └────────────────────────────────────────────────────────────────────┘ │
 │                                                                          │
 │   これまでの会話                                                          │
@@ -70,7 +70,9 @@ dialogs in the MVP; everything happens in the page.
 - **Loading**: the list area shows 3 skeleton rows (timing per ux-guidelines § States); the
   primary button is usable at once.
 - **Error** (the list failed): an inline banner 「会話の一覧を読み込めませんでした。」
-  [再読み込み] in place of the list; the primary button still works.
+  [再読み込み] in place of the list; the primary button still works. A failed start shows
+  「会話を始められませんでした。」 [もう一度] under the primary button.
+- Every error banner shows 「リクエストID: …」 under its message when the server sent one.
 - **More**: 「さらに表示」 appears only while another page exists.
 
 ### S2 Conversation — in progress (≥1024px)
@@ -131,33 +133,40 @@ dialogs in the MVP; everything happens in the page.
 1. Title 「コーチ · ターン N」.
 2. **The finished previous turn** (only between turns, until the learner's next reply): one
    collapsed line 「前のターン: 言い直しできました」 / 「前のターン: スキップしました」 with
-   [もう一度練習] — reopens that turn's template here (§3.7 Practice again).
+   [もう一度練習] — reopens that turn's template here (§3.7 Practice again). A turn with
+   fixes that ended another way (the shown answer typed, or the piece given) offers
+   [もう一度練習] without the line. A practice submission and its result appear under
+   「前のターンの練習」.
 3. The learner's **Japanese intent**, with 「日本語を書き直す」 until the turn is done. A
    rewritten intent replaces the shown one; the blocks tied to the old one collapse under
-   「書き直す前のやりとり」.
+   「書き直す前のやりとり」. The rewrite editor, like the practice one, closes with [やめる].
 4. Coach blocks and learner entries of this turn, in order: the acknowledgment and the
-   optional 「組み立てのヒント: …」; gap requests and their hints; English attempts; the
-   **feedback card**; retry submissions and their results; a shown answer; questions to the
+   optional 「組み立てのヒント: …」; gap requests (labelled 「分からないところ」 and
+   「途中までの英語」) and their hints; English attempts; the
+   **feedback card**; retry submissions and their results; a shown answer (「完成例」); questions to the
    Coach and their answers (labelled 「質問」/「💡 コーチ」, visually lighter). A skip shows
    the fixed line 「スキップして会話に戻ります」 (no model call).
 5. **Feedback card**: 「意図は伝わっています」 (or the missing points) → 「直し方」 (①… in
-   sentence order; 元 → 直す; なぜ with the tag 「ミス」 or 「改善」, the tag as a small label) →
+   the order of their blanks in the template; 元 → 直す; なぜ with the tag 「ミス」 or
+   「改善」, the tag as a small label) →
    「あなたの文」 (verbatim) → 「穴埋め」 directly under it (blanks rendered as numbered gaps
    `(①) ____`). The card stays in view above the composer while the learner types.
-6. **Next action** line 「👉 次: …」 — always present above the composer; wording from the
-   stage table below.
+6. **Next action** line 「👉 次: …」 — above the composer at every stage, wording from the
+   stage table below; while a call runs it gives way to the waiting status
+   (ux-guidelines § States), shown without 「👉 次:」.
 7. **Composer**: one textarea (grows to 6 lines, then scrolls), placeholder by stage, a
    character counter from 900/1,000, [送信 ⌘↵].
 8. **Control row**, by stage (table below).
-9. 「▸ コーチに質問（会話は進みません）」 — expands a one-line input (1–500 characters) and
-   [質問する]. The answer appears in the turn's blocks; the next-action line repeats.
+9. 「▸ コーチに質問（会話は進みません）」 — at the end of the turn's blocks in the scrolling
+   pane, above items 6–8; expands a one-line input (1–500 characters) and [質問する]. The
+   answer appears in the turn's blocks; the next-action line repeats.
 
 **Stage table** — what the composer and controls are at each stage (§3.2–§3.8).
 
 | Stage | Composer placeholder | Controls | 👉 次 |
 |---|---|---|---|
 | Waiting for the opener or a Partner reply | (disabled) | — | 「Partner の返事を待っています」 |
-| Intent | 「返したいことを日本語で」 | [英語で直接返す] (switches the composer to English for this turn) | 「返したいことを日本語で送ってください（英語で返してもOK）」 — after a Partner share: 「反応や、相手への質問を日本語で送ってください（英語で返してもOK）」 |
+| Intent | 「返したいことを日本語で」 (「返したいことを英語で」 after [英語で直接返す]) | [英語で直接返す] (switches the composer to English for this turn) | 「返したいことを日本語で送ってください（英語で返してもOK）」 — after a Partner share: 「反応や、相手への質問を日本語で送ってください（英語で返してもOK）」 |
 | English | 「英語にしてみましょう（途中まででOK）」 | [ヒント] [答えを見せて] | 「それを英語にしてみてください（途中まででOK。詰まったら「ヒント」）」 |
 | Hint request (inline under the composer) | 「分からないところ（例: 「久しぶり」が分からない）」 (1–200 characters) + the composer keeps any partial English | [ヒントをもらう] [やめる] | 「分からないところを書いて、ヒントをもらってください」 |
 | After a hint | 「英語の文全体を」 | [ヒント] [答えを見せて] | 「ヒントを使って、英語の文全体を送ってください」 |
@@ -165,18 +174,19 @@ dialogs in the MVP; everything happens in the page.
 | Retry | 「穴を埋めた英文全体を」 | [スキップ] [答えを見せて] | 「直し方を見返しながら穴を埋めて、英語の文全体を送ってください（「スキップ」も可）」 |
 | One blank still off | 「穴を埋めた英文全体を」 | [スキップ] [答えを見せて] | 「③の穴だけ埋め直して、英語の文全体をもう一度送ってください」 (names the blank) |
 | Answer shown | 「見ながら1回打ってみましょう」 | [スキップ] | 「完成例を見ながら、英語の文全体を1回送ってください（「スキップ」で会話に戻ります）」 |
-| Reading check (slip with two readings) | (hidden) | [A のつもり] [B のつもり] — the two readings as buttons | 「どちらのつもりか選んでください」 |
+| Reading check (slip with two readings) | (hidden) | [A のつもり] [B のつもり] — the two readings as buttons, under the Coach's 「「X」は A と B のどちらのつもりですか」 | 「どちらのつもりか選んでください」 |
 | Check-in (after reply 3, 6, 9…) | (hidden) | [続ける] [終わる] | 「「続ける」か「終わる」を選んでください」 |
 
 - 「会話を終える」 in the header works at every stage, mid-retry included, and ends at once
-  (§3.8; confirmation policy per ux-guidelines § Feedback).
+  (§3.8; confirmation policy per ux-guidelines § Feedback). A failed end shows
+  「会話を終えられませんでした。」.
 - **New session**: the right pane opens with the how-to block 「進め方」 (the prototype's four
   lines, adapted to the controls: 「1. 返したいことを、まず日本語で送ってください」「2. それを自分で英語にしてみてください
   （途中まででOK。詰まったら「ヒント」）」「3. 最初から英語で返すときは「英語で直接返す」」「4. 「答えを見せて」「スキップ」
   「会話を終える」はいつでも使えます」), collapsible, shown at the top of turn 1 only.
 - **Loading the session**: both panes show skeleton blocks; the composer appears with the state.
 - **Model error**: an inline banner in the pane that expected the result — 「コーチの返事を受け取れ
-  ませんでした（時間切れ）」 / 「…（混み合っています）」 / 「…（接続できません）」 /
+  ませんでした（時間切れ）。」 / 「…（混み合っています）」 / 「…（接続できません）」 /
   「…（返事の形式が正しくありませんでした）」, with [もう一度]. The learner's text stays in the
   composer; the stage does not move (§3.10).
 - **Stale state** (another tab moved the session): a banner 「別の画面でこの会話が進みました。
@@ -188,7 +198,7 @@ dialogs in the MVP; everything happens in the page.
 ┌────────────────────────────────────┐
 │ ← 一覧   4往復        [会話を終える] │
 ├────────────────────────────────────┤
-│ [ 会話 ]  [ コーチ ●]               │ ← the tab with new content gets a dot
+│ [ 会話 ●]  [ コーチ ]               │ ← a new Partner line dots the 会話 tab
 ├────────────────────────────────────┤
 │ 🗣 返事をする発言                    │ ← Coach tab only: the Partner line being
 │ What kind of programming are you   │   answered, pinned at the top
@@ -300,8 +310,9 @@ Any Coach or Partner call: [error banner + もう一度] — the stage stays, th
 
 1. After the 3rd, 6th, 9th… finished reply: 💡 「ここで3往復です。続けますか？」 → [続ける]
    (the Partner continues) or [終わる].
-2. 「会話を終える」 (header) or [終わる] at any stage → the session ends immediately, and the
-   same URL shows S3 without a reload. Any running action is superseded and its late output
+2. 「会話を終える」 (header, after its in-place confirmation) or [終わる] at any stage → the
+   session ends without waiting for a running call, and the same URL shows S3 without a
+   reload. Any running action is superseded and its late output
    is discarded. When a feedback block exists (including one with no fix), S3 asks for the
    wrap-up itself, once, and shows 「コーチが振り返りを作っています…」 until it arrives. A
    failure shows 「振り返りを作れませんでした（<reason>）。」 with [もう一度], which retries only
@@ -361,7 +372,7 @@ Per screen, the rules are ux-guidelines.md's:
   S2 panes, S3 panes.
 - **Feedback** (inline banners, the end action's confirmation policy, the stale-state banner):
   § Feedback.
-- **Validation** (limits 1–1,000 / 1–500 characters, when the counter shows, empty send
+- **Validation** (limits 1–1,000 / 1–200 / 1–500 characters, when the counter shows, empty send
   disabled): § Form validation.
 - **Language and copy** (Japanese UI, English Partner, the tag labels ミス / 改善): § Language.
 - **Accessibility** (focus after each stage change, live regions for new Partner and Coach
