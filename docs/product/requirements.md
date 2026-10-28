@@ -26,7 +26,7 @@ output, evaluation, and a swappable model provider.
 
 **Core interaction — one turn.** Partner line → the learner's Japanese intent → the
 learner's own English (hints only for the gap they name) → structured feedback (intent
-check → fixes in sentence order → their sentence → a numbered fill-in template) → the
+check → fixes in the order of their blanks → their sentence → a numbered fill-in template) → the
 fill-in retry (skippable) → the Partner replies to the learner's latest English. If this
 turn is not good, nothing else matters.
 
@@ -78,8 +78,8 @@ vault.
 - **OWASP Top 10 for LLM Applications (2025) attack tests** — Prompt Injection and the
   other relevant risks as evaluation cases, with a threat model and the results in the
   README. The first item after the MVP (owner's decision 2026-10-16; the Q4 2026 goal).
-- **Amazon Bedrock adapter** — when the account's Bedrock quota allows (daily token quota is
-  0; re-application around 2026-11-02).
+- **Amazon Bedrock adapter** — moving from Anthropic's API to Bedrock when the account's
+  Bedrock quota allows (its daily token quota is 0).
 - **Hosting with sign-in** so the app works from a phone — waits for Bedrock; pulls in
   authentication, protecting a billed endpoint, and abuse limits.
 - **Reading the Partner's line aloud** — undecided since the prototype.
@@ -168,8 +168,8 @@ vault.
   *right?*) gets a 改善 fix offering another that fits the moment.
 - **Layout, in this order**: (1) one line on the intent — 「意図は伝わっています」 when every
   point came through, else only the missing point(s); (2) the fixes, numbered ①… in the order
-  they appear in the sentence, never grouped by category, each with 元 (what they wrote, or
-  （なし）), 直す (the suggested words), なぜ (one short reason with the tag); (3) their
+  their blanks appear in the template (left to right, after any word-order change), never
+  grouped by category, each with 元 (what they wrote, or （なし）), 直す (the suggested words), なぜ (one short reason with the tag); (3) their
   sentence, verbatim; (4) directly under it, the fill-in template: correct parts stay, each
   fixed part becomes a numbered blank `(①) ____`, a changed word order is already applied;
   (5) one line asking for the whole sentence with the blanks filled.
@@ -234,7 +234,7 @@ to the Coach goes in its own box.
 | Restate the Partner's line (shorter / simpler) | while the latest Partner line awaits a reply | the Partner says the same line shorter or simpler; the learner's stage is unchanged |
 | Rewrite my Japanese | after the intent is sent, until the turn is done | the new intent replaces the old as the yardstick; hints, fixes, and blanks tied to the old one are dropped; the learner is asked for English for the new one |
 | Ask the Coach (free text, 1–500 characters) | at any stage of a session in progress | answered by the Coach in Japanese; does not advance the turn; the stage's next action is repeated; the Partner never sees it |
-| End | at any stage of a session in progress | ends at once (§3.8) |
+| End | at any stage of a session in progress | ends without waiting for a running call, after one in-place confirmation (§3.8) |
 
 The app tells a Japanese intent from an English reply by the control the learner used,
 never by guessing the language of the text.
@@ -246,9 +246,11 @@ conversation.
 
 - **Check-in**: finished replies are counted (feedback and retry done, or skipped; questions
   to the Coach do not count). After the 3rd, 6th, 9th…, before the Partner's next line, the
-  Coach asks 「ここで3往復です。続けますか？」 with two answers, 続ける and 終わり. 続ける → the
+  Coach asks 「ここで3往復です。続けますか？」 with two answers, 続ける and 終わる. 続ける → the
   Partner continues from the learner's latest English.
-- **End any time**, even mid-retry: at once, with no pending retry or last question.
+- **End any time**, even mid-retry: after one in-place confirmation (none for 終わる at the
+  check-in, already an explicit choice), without waiting for a running call, and with no
+  pending retry or last question.
 - **Wrap-up**: two or three expressions or noticings from this session, presented as things
   that came up, never as mastered. No scores, no reflection prompts, no next action.
 - **After the end**: the session is read-only.
@@ -291,7 +293,7 @@ conversation.
 ### 3.11 Output checks and the evaluation set (F11)
 
 - **On every model output**, checked by code before anything is stored or shown: it matches
-  its schema; fixes and blanks correspond one to one, numbered in sentence order; filling the
+  its schema; fixes and blanks correspond one to one, numbered in the order their blanks appear in the template; filling the
   blanks with the fixes leaves no blank; the completed sentence does not appear in the output;
   a build hint contains no English words; a Partner line is English, at most two sentences,
   and asks at most one question — and none when the taking-turns rule says share. A failure
@@ -383,3 +385,7 @@ None. The model library behind the ports and where evaluation reports live are d
 - 2026-10-17 The evaluation set's pass/fail is decided by code from per-case expectations
   (rejected: adding a model as judge, because its own agreement must be measured first; the
   owner reading a report each run, because it costs their time every run).
+- 2026-10-28 Models through Anthropic's API with an Anthropic API key, replacing OpenRouter;
+  Amazon Bedrock stays the next provider behind the same ports, once the account's quota
+  allows (#123). The Coach and Partner defaults keep their models, now under Anthropic's ids,
+  both at effort `medium`. This replaces the two 2026-10-17 entries' OpenRouter parts.

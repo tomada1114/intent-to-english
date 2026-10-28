@@ -21,26 +21,24 @@ issues record what has shipped; `git log` shows the local history.
 The owner decides what the page says; an agent proposes a change to it in a pull
 request, and the change lands only once the owner has approved it.
 
-- **Last reviewed:** 2026-10-17, when the first issues were filed
+- **Last reviewed:** 2026-10-28, after the move to the Anthropic API (#123), when the
+  fixed-response and evaluation outcomes were done
 
 ## Now
 
 The outcomes being worked on, one to three of them. Each has its issues filed.
 
-- **The whole conversation runs in the browser on fixed responses** — the core
-  interaction is the product, so it must work end to end before any model bills.
-  Issues: #9 and its sub-issues. Done when: `just e2e` drives a session through start, a turn with a
-  fix and its retry, the check-in, the end, and a resume after reload (ux-flows F-1,
-  F-2, F-3, F-5) with `INTENT_TO_ENGLISH_MODEL_MODE=fixed`.
 - **Practice runs on real models, every output checked before it is shown** — the turn
-  only teaches when the Coach's feedback is real. Issues: #10 and its sub-issues. Done when: with
-  `ANTHROPIC_API_KEY` set, the owner finishes one session in the browser, and every
-  call of it has a `model_calls` row with its tokens, cost, latency, and outcome.
-- **The evaluation set runs against the configured models and its report is
-  committed** — the quality evidence the portfolio needs, and what decides whether the
-  Coach can move to Haiku. Issues: #11 and its sub-issues. Done when: the human-run evaluation recipe
-  writes a report for 10–20 cases under `backend/evals/reports/`, and the README's
-  evaluation section shows its summary.
+  only teaches when the Coach's feedback is real. Issues: #10 and its sub-issues shipped it on
+  OpenRouter; #123 moved it to the Anthropic API, and what is left is the owner's session on it.
+  Done when: with `ANTHROPIC_API_KEY` set, the owner finishes one session in the browser, and
+  every call of it has a `model_calls` row with its tokens, cost, latency, and outcome.
+- **The Coach's feedback passes the evaluation's core expectations, on models whose cost and
+  latency are known** — the fix order, the ミス/改善 tag, and a missing point named are the
+  core interaction's own rules, and the same runs decide whether the Coach can move to Haiku
+  or a lower effort. Issues: #83, #85, #91, #125. Done when: a committed default-model report
+  on the Anthropic API passes every expectation of cases 03–06, and the Haiku and lower-effort
+  reports are compared with it.
 
 ## Next
 
@@ -49,13 +47,13 @@ parked as `on hold`; none is required.
 
 - **The OWASP Top 10 for LLM Applications attack tests** — Prompt Injection and the
   other relevant risks as evaluation cases, with a threat model and the results in the
-  README; the first item after the MVP. Before it moves up: Now's evaluation outcome
-  lands, since the attacks run on the same harness.
+  README; the first item after the MVP. Before it moves up: Now's Coach-quality outcome
+  lands, since the attacks run on the same harness and models.
 - **Moving from the Anthropic API to Amazon Bedrock** — the provider the app moves to
   before it is hosted, as one new provider module beside `anthropic_provider.py` and the
   selection in `composition.py`. Before it moves up: the account's Bedrock quota allows
-  calls (re-application around 2026-11-02), and the module's output mode is checked against
-  Claude Sonnet 5.5 (`docs/architecture/overview.md` § Open).
+  calls, and the module's output mode is checked against Claude Sonnet 5.5
+  (`docs/architecture/overview.md` § Open).
 
 ## Later
 

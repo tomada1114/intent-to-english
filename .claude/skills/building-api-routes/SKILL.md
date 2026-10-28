@@ -25,8 +25,8 @@ point of its own:
 
 - delete `backend/src/intent_to_english/api/` and `backend/tests/api/`;
 - remove the `fastapi` and `uvicorn` runtime dependencies from `backend/pyproject.toml`
-  and the `httpx2` and `httpx` dev dependencies `TestClient` uses from the root
-  `pyproject.toml`, then run `uv lock`;
+  and the `httpx` dev dependency `TestClient` uses from the root `pyproject.toml`
+  (`httpx2` stays while the Anthropic adapter tests use it), then run `uv lock`;
 - remove the `dev` recipes, `backend/justfile`'s and the root's `dev: backend::dev`, and
   the lines that name them (README's Quickstart and Development block, AGENTS.md's
   Quick Reference and the paragraph under it, `backend/AGENTS.md`;

@@ -74,7 +74,8 @@ follows the same order.
    provides; a secret the app adds later (a deploy key, an API key) is set by a person
    in the repository's settings and never committed — `check-staged` refuses one.
 8. **Replace the sample**, in the order of the sections below: the app's shape, the
-   first design changes, then the to-do domain.
+   first design changes, then the to-do domain. In an app whose sample is gone the
+   to-do removal is already done, so skip it (see that section).
 9. **Ruleset, last** (**human**, an admin): `just ruleset` applies
    `.github/rulesets/main.json` ([references/github-settings.md](references/github-settings.md)
    › "Main branch ruleset"). From then on every change needs a pull request with
@@ -123,6 +124,11 @@ Each new runtime dependency or external service the first features need is a des
 change too, described the same way, and a new dependency waits for the owner's sign-off.
 
 ## Remove the sample to-do domain
+
+In an app cut from the template (`.template-origin` exists) whose sample is gone, this
+was already done; following the list here would delete live files (`cursor.py`,
+`routes/index.tsx`, `e2e/verify_persistence.py`, `tests/test_e2e_persistence.py`, the
+MSW helpers).
 
 The to-do list is a deletable illustration, not the app. Replace it in the same pull
 request that removes it, so the tests and the 80% coverage floor still measure real

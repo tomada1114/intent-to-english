@@ -41,7 +41,7 @@ timer. The rules, the MSW server's unhandled-request behavior, and why the clien
 
 - Name a test `test_<what>_<scenario>_<expected_result>`:
   `test_parse_config_empty_string_raises_value_error`. The suite's own
-  `test_unmapped_app_error_returns_400_not_500` reads the same way.
+  `test_unmapped_app_error_returns_400_problem` reads the same way.
 - Arrange, Act, Assert, in that order. One logical behavior per test; several `assert`
   statements are fine when they all check that one behavior.
 - Branching inside a test body belongs in a separate test or a parametrized case, never
@@ -78,7 +78,8 @@ added for it.
   `"asyncio"`, so every marked test runs once, on asyncio, even if `trio` is ever
   installed. Do not redefine it in a module.
 - Run concurrent work in a task group, `async with anyio.create_task_group() as tg:`
-  with `tg.start_soon(...)` per task, as the contract suite's concurrent-adds test does;
+  with `tg.start_soon(...)` per task, as the contract suite's
+  `test_concurrent_begin_processes_exactly_one_submission` does;
   never worker threads and never `asyncio.sleep` to wait for something.
 - A cleanup callback a test registers on an `AsyncExitStack` is an `async def` passed
   with its arguments, `resources.push_async_callback(record, closed, "name")`; never a

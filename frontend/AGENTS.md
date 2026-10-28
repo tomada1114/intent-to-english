@@ -56,10 +56,13 @@ frontend/
 ├── package.json      # The app's scripts and dependencies (ranges; pnpm-lock.yaml at the root pins them)
 ├── justfile          # A just module of the root justfile: `just frontend <recipe>`
 ├── biome.json        # Biome: formatter (2 spaces, 88 columns) and the recommended lint rules
-├── tsconfig.json     # One project for src/, tests/, and both configs, under the strict flag set
+├── tsconfig.json     # One project for src/, tests/, the Vite and Vitest configs, and the client generator's two files, under the strict flag set
 ├── vite.config.ts    # Vite and its plugins (the only place plugins are declared)
 ├── vitest.config.ts  # Merges vite.config.ts; jsdom, the setup file, and the coverage floor
 ├── index.html        # The page Vite serves and builds: <div id="root">
+├── openapi.json      # The backend's exported OpenAPI contract (`just contract`)
+├── openapi-ts.config.ts # The API client generator's settings
+├── generate-api.ts   # Runs the generator and corrects its output (below)
 ├── src/
 │   ├── main.tsx          # The entry point: QueryClientProvider around RouterProvider
 │   ├── router.ts         # createAppRouter(queryClient, options?) and the Register declaration
@@ -67,7 +70,7 @@ frontend/
 │   ├── routes/           # File-based routes: __root.tsx (the layout and header), index.tsx (/), sessions.$sessionId.tsx (S2, S3 once ended), -NotFound.tsx (S4)
 │   ├── features/         # Screens and components grouped by feature (sessions/ for S1, conversation/ for S2, transcript/ for S3)
 │   ├── lib/              # Cross-feature query policy, Problem Details helpers, shared class lists and formats, the header's HeaderItems slot, the delayed loading indicator, model failure reasons, the failure Banner, and the server-unreachable status
-│   └── styles.css        # `@import "tailwindcss";`, imported by main.tsx only
+│   └── styles.css        # `@import "tailwindcss";`, the `:root` light/dark values, and the `@theme` tokens; imported by main.tsx only
 └── tests/            # Vitest tests (*.test.ts, *.test.tsx), mirroring src/, and setup.ts
 ```
 

@@ -5,7 +5,8 @@ description: >
   their request, output, and usage values, the output checks and the one repair in the
   core, model_calls outcomes, prompts.py and schemas.py, the PydanticAI adapter on the
   Anthropic API, the fixed-response mode, ANTHROPIC_API_KEY and the model settings, and
-  the evaluation harness under backend/evals/. Use when adding or changing a model task,
+  the evaluation package and its
+  backend/evals/ cases. Use when adding or changing a model task,
   a prompt, an output check, the Anthropic adapter, the fixed-response mode, a model
   setting, a test that touches a model, the evaluation harness, or a new provider.
 ---
@@ -189,7 +190,7 @@ inside the model adapters").
    `ProviderCalls` — settings, failure mapping to the same core errors, refusal check, and
    prices — behind the same agents, prompts, and schemas in `agents.py`.
 3. Its own output-mode check: the mode it uses must be one its model accepts, settled
-   as the overview's § Open records.
+   as the overview's § Open.
 4. A setting choosing it, read in `composition.py`, and its tests as above.
 
 Nothing in `core/` changes.

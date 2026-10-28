@@ -128,8 +128,8 @@ its type, so the type is not decoration.
 - Choose a type from the explicit `types:` input in
   `.github/workflows/check-pr-title.yml`, the canonical accepted-type list, and
   verify that `.github/workflows/pr-label.yml` maps it to a label.
-- The scope is the area the change lives in, matching recent history: `skills`,
-  `hooks`, `github`, `deps`, `bootstrap`, or a layer (`core`, `api`, `cli`).
+- The scope is the area the change lives in, matching recent history: `frontend`,
+  `models`, `skills`, `deps`, `evals`, `e2e`, or a layer (`core`, `api`).
 - The summary is imperative and lower-case, with no trailing period, and says what the
   change does, not which files it touches.
 - For a branch whose commits mix types, take the most significant one: `feat` over `fix`

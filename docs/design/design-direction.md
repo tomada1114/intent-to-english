@@ -4,7 +4,7 @@ The visual direction: references, the reference lock, role rules, and token valu
 and dark. Screens and states are `docs/product/ux-flows.md`'s; app-wide behavior (timing,
 motion amounts, accessibility targets) is `docs/design/ux-guidelines.md`'s. The tokens are
 the Tailwind CSS 4 `@theme` block in `frontend/src/styles.css` (the template's only styling
-layer); screens apply their semantic utilities as each screen is implemented.
+layer); every screen uses their semantic utilities.
 
 ## Brief
 
@@ -202,9 +202,9 @@ choose. Names are semantic (utilities `bg-canvas`, `text-ink-muted`, `border-par
 
 ## Measured contrast
 
-Pairs: `docs/design/contrast-pairs.json` (49 pairs, light and dark). Re-run after any token
+Pairs: `docs/design/contrast-pairs.json` (53 pairs, light and dark). Re-run after any token
 change: `python3 <ui-ux-designing>/scripts/check_contrast.py docs/design/contrast-pairs.json`.
-Measured 2026-10-17, WCAG 2.2 AA, exit 0. Bubble, card, and tint edges are decorative
+Measured 2026-10-28, WCAG 2.2 AA, exit 0. Bubble, card, and tint edges are decorative
 boundaries (their content is the text) and are not in the table; input boundaries are
 (`field-edge`).
 
@@ -224,11 +224,13 @@ light/on-ink on ink (primary button)      #ffffff  #1c1f24  text  16.52  4.50   
 light/on-ink on ink (slot number chip)    #ffffff  #1c1f24  text  16.52  4.50      PASS
 light/partner-ink on canvas (label)       #3d6e12  #ffffff  text  6.11   4.50      PASS
 light/partner-ink on partner              #3d6e12  #f2f9e4  text  5.66   4.50      PASS
+light/partner-ink on surface              #3d6e12  #f6f7f9  text  5.70   4.50      PASS
 light/miss on miss-tint                   #b93815  #ffede5  text  5.08   4.50      PASS
 light/improve on improve-tint             #1f5fbf  #e8f0fd  text  5.31   4.50      PASS
 light/success on surface                  #1e7f3b  #f6f7f9  text  4.72   4.50      PASS
 light/success on coach                    #1e7f3b  #fff9e6  text  4.80   4.50      PASS
 light/danger on danger-tint               #b42318  #fdecea  text  5.75   4.50      PASS
+light/danger on surface                   #b42318  #f6f7f9  text  6.13   4.50      PASS
 light/badge-ink on badge                  #6b4f00  #fff4cc  text  6.95   4.50      PASS
 light/focus on canvas                     #2563eb  #ffffff  ui    5.17   3.00      PASS
 light/focus on surface                    #2563eb  #f6f7f9  ui    4.82   3.00      PASS
@@ -248,11 +250,13 @@ dark/ink-subtle (placeholder) on canvas   #8c93a0  #15171b  text  5.81   4.50   
 dark/on-ink on ink (primary button)       #15171b  #eceef1  text  15.44  4.50      PASS
 dark/partner-ink on canvas (label)        #b5dc7a  #15171b  text  11.52  4.50      PASS
 dark/partner-ink on partner               #b5dc7a  #1d2915  text  9.77   4.50      PASS
+dark/partner-ink on surface               #b5dc7a  #1b1e23  text  10.73  4.50      PASS
 dark/miss on miss-tint                    #ff9b85  #3a1d16  text  7.52   4.50      PASS
 dark/improve on improve-tint              #8db4ff  #18243a  text  7.47   4.50      PASS
 dark/success on surface                   #6fd08c  #1b1e23  text  8.82   4.50      PASS
 dark/success on coach                     #6fd08c  #2a2415  text  8.14   4.50      PASS
 dark/danger on danger-tint                #ff9b85  #2e1a16  text  8.06   4.50      PASS
+dark/danger on surface                    #ff9b85  #1b1e23  text  8.18   4.50      PASS
 dark/badge-ink on badge                   #f0cd6e  #2e2610  text  9.75   4.50      PASS
 dark/focus on canvas                      #6e9bff  #15171b  ui    6.66   3.00      PASS
 dark/focus on surface                     #6e9bff  #1b1e23  ui    6.20   3.00      PASS

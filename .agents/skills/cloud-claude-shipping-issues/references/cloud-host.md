@@ -62,13 +62,13 @@ checked 2026-10-13), and the docs give no pnpm version. The route to Node 24 is 
   ([default allowed domains](https://code.claude.com/docs/en/cloud-environments),
   checked 2026-10-13), and links it as `node_modules/.bin/node`: "Scripts use the local
   runtime" ([`devEngines.runtime`](https://pnpm.io/package_json), checked 2026-10-08 in
-  #3 › D8; `pnpm.io` itself is refused from a session);
+  `tomada1114/fastapi-react-template#3` › D8; `pnpm.io` itself is refused from a session);
 - `pnpm exec` puts that directory ahead of `/opt/node22/bin`, so every frontend recipe
   runs on Node 24 while the `node` on `PATH` stays 22. The check is therefore
   `pnpm --dir frontend exec node --version`, never `node --version`.
 
 Verified in a real cloud session on 2026-10-13 (the default image, no setup script,
-#40): the SessionStart hook's `just install` exited 0 and installed `node 24.21.0`;
+`tomada1114/fastapi-react-template#40`): the SessionStart hook's `just install` exited 0 and installed `node 24.21.0`;
 `pnpm --version` printed 11.18.0, `pnpm --dir frontend exec node --version` v24.21.0,
 and `just verify` passed. If that ever stops holding, the run stops
 ([stop conditions](../SKILL.md#stop-conditions)); an environment setup script that

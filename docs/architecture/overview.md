@@ -58,7 +58,8 @@ like this:
 
 The screen lives under `frontend/src/`: `routes/index.tsx` (S1), `routes/sessions.$sessionId.tsx`
 (S2 and S3), a not-found route (S4), `features/sessions/` (S1: start, resume, and the list), `features/conversation/`
-(both panes, the composer, the controls, the feedback card), and the tokens in `styles.css`.
+(both panes, the composer, the controls, the feedback card), `features/transcript/` (S3), and
+the tokens in `styles.css`.
 
 What crosses each boundary: the API hands the core an action, an opaque attempt UUID, and the version the screen
 showed, and gets a `SessionView` back; the core hands a model port a request value and gets
@@ -86,8 +87,9 @@ rejects a mismatched pair before it can enter the append-only timeline.
   intent, and feedback). The practice target survives the next Partner line until the learner's
   next intent or direct English. Everything else is read from the timeline.
 - `outcome` is `ok`, `invalid_output` (failed its checks or did not parse), `repaired` (a
-  repair that passed), `timeout`, `rate_limited`, or `provider_error` (§3.12). `cost` is what
-  the provider reported, null when it reported none. A failed submission uses `interrupted`
+  repair that passed), `timeout`, `rate_limited`, or `provider_error` (§3.12). `cost` is USD
+  computed from the reported tokens and the model's price (§ Keys, models, and the mode), null
+  when the model has no price, and on a model error's row, which records no tokens. A failed submission uses `interrupted`
   when its earlier process or call budget has expired.
 - At `ended`, `sessions.wrap_up` is null while a wrap-up is due; `{"items": []}` means
   there is nothing to make. A no-fix `feedback` entry still makes the wrap-up due. The empty
@@ -674,14 +676,14 @@ source of every value named here.
   and, inside its color-mix support query,
   `background-color:color-mix(in oklab, var(--color-ink) 50%, transparent)`.
   Both forms follow the OS scheme; the probe is absent from the source.
-- **Contrast:** the 49 light and dark pairs in `docs/design/contrast-pairs.json` pass WCAG 2.2
-  AA (measured 2026-10-17); a token change re-measures them in the same pull request.
+- **Contrast:** the 53 light and dark pairs in `docs/design/contrast-pairs.json` pass WCAG 2.2
+  AA (measured 2026-10-28); a token change re-measures them in the same pull request.
 
 ## Open
 
 - Whether either role should default to another effort than `medium`: effort trades output
   tokens and latency for quality. The per-role setting exists; the owner's evaluation runs
-  settle whether a default changes (#85, #91).
+  settle whether a default changes (#91).
 - The tag of a missing nuance that is not a core point — ミス or 改善 (conversation-rules
   §5.3). The owner decides; until then evaluation cases assert no tag for it.
 - A one-word reply: its fill-in template is a single blank, so the blank's 直す is the whole
@@ -692,20 +694,3 @@ source of every value named here.
 - The Bedrock provider module's output mode: Claude Sonnet 5.5 rejects a forced tool call there
   too, so the module must use the JSON schema mode its route supports — checked when the
   account's Bedrock quota allows (§2 Later).
-
-## Follow-ups
-
-Code work these decisions imply; each becomes an issue (`planning-tickets`).
-
-- The design tokens in `styles.css`, and the Tailwind opacity check.
-- The core: models, the stage machine, the output checks, the ports, the errors, and the
-  service with its repair and submission rules, over the in-memory repository.
-- The SQL tables, the migration, and the repository with its contract tests.
-- The fixed-response adapter and the composition and settings for the mode.
-- The API routes, the contract, and the generated client.
-- The screens: S1, S2 below and above 1024 px, S3, S4, the header badge, the waiting states.
-- The browser test over F-1, F-2, F-3, and F-5 in the fixed-response mode.
-- The PydanticAI dependency, the Anthropic adapter, its prompts, and its tests.
-- The model call log's summary command.
-- The evaluation harness, 10–20 cases from conversation-rules' examples and requirements
-  §3.11's edge cases, the human-run recipe, and the README's evaluation section.

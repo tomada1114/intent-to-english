@@ -152,7 +152,7 @@ if TYPE_CHECKING:
   constant built once (`adapters/sql/session_repository.py`'s `_SESSION` and
   siblings, `persisting-data`); never a string assembled from input.
 - A subprocess takes a fixed argv list, never `shell=True`; its `# noqa: S603` names why
-  the argv is safe (`backend/tests/test_composition.py`).
+  the argv is safe (`scripts/apply_ruleset.py`).
 
 ## Performance
 
