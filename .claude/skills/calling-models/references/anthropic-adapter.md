@@ -41,6 +41,13 @@ external facts below that the overview does not state carry their own.
   resets the client's private `_custom_headers` to `{}` right after construction, with a
   `noqa: SLF001` that gives the reason. Setting a default header of our own would mean
   putting it back after that reset.
+- The SDK reads `ANTHROPIC_LOG` when imported and, at `debug`, logs every request's options,
+  the prompt included (`_utils/_logs.py`, `_base_client.py`). The provider module sets the
+  `anthropic` and `httpx2` loggers to WARNING right after importing the SDK, whatever the
+  environment asks.
+- The proxy and TLS variables (`HTTPS_PROXY`, `SSL_CERT_FILE`, and the like) still reach the
+  SDK's HTTP client, which trusts the environment: they choose the network path, not the
+  request, and a machine behind a proxy or with its own CA needs them.
 - Each task gets one agent, built once, with `output_type=NativeOutput(<the task's schema
   model>)`, `retries=0`, no tools, and `agent.instrument = False`, which overrides a global
   `Agent.instrument_all()` default (`agent/__init__.py` at pydantic-ai v2.55.0).
@@ -140,7 +147,8 @@ propagates. A model error's row records no tokens or cost, a refusal's included.
   `max_retries=0`, and telemetry off, shared by both roles and closed once; that the body
   carries `max_tokens`, `output_config.format` and `effort`, and no `thinking`, tools, or
   cache control; that every task's wire schema stays inside Anthropic's structured-output
-  keywords; and that setting every `ANTHROPIC_*` variable the SDK reads leaves the request
-  (URL and headers) identical to a clean environment's.
+  keywords; that setting every credential, endpoint, header, and telemetry variable
+  `AsyncAnthropic` reads leaves the request (URL, headers, and body) identical to a clean
+  environment's; and that `ANTHROPIC_LOG=debug` leaves the SDK's loggers off.
 - **Cost:** the price table at known token counts, both sides of Haiku's 100,000-token tier,
   and an unknown model's null.

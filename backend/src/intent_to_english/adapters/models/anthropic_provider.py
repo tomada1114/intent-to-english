@@ -8,6 +8,7 @@ selection in ``composition.py``.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from http import HTTPStatus
@@ -40,12 +41,20 @@ if TYPE_CHECKING:
 
     from intent_to_english.composition import ResourceClosers
 
+# The SDK reads ANTHROPIC_LOG when imported and, at "debug", logs every request's
+# options, the prompt and the learner's text included (anthropic 1.17.0
+# _utils/_logs.py and _base_client.py). Nothing private reaches a log, so the SDK's
+# loggers stay at WARNING whatever the environment asks.
+for _sdk_logger in ("anthropic", "httpx2"):
+    logging.getLogger(_sdk_logger).setLevel(logging.WARNING)
+
 PROVIDER = "anthropic"
 BASE_URL = "https://api.anthropic.com"
 # Room for adaptive thinking at medium effort plus the JSON answer, and below
 # PydanticAI's 21,333-token non-streaming cap: without an explicit value it sends
 # the model's maximum output (128K) and streams the request behind the scenes
 # (pydantic_ai/models/anthropic.py _default_max_tokens and _messages_create, 2.55.0).
+# Efforts above high may think past it; the run then ends as a parse failure.
 MAX_TOKENS = 16_000
 type ReasoningEffort = Literal["low", "medium", "high", "xhigh", "max"]
 
@@ -64,9 +73,10 @@ class PriceTier:
 # Base input and output prices, USD per million tokens, from
 # https://platform.claude.com/docs/en/about-claude/pricing (observed 2026-10-28).
 # Haiku 5.5 charges more for a prompt "over 100,000 tokens", counted over all input
-# tokens including cache reads and writes; the adapter sends no cache control, so
-# the reported input tokens are the whole prompt. Thinking is billed as output and
-# is already inside the reported output tokens.
+# tokens including cache reads and writes, which PydanticAI's input_tokens already
+# sums. Every input token is priced at the base rate: the adapter sends no cache
+# control, so a change that adds caching must price cache tokens apart here.
+# Thinking is billed as output and is already inside the reported output tokens.
 PRICES: dict[str, tuple[PriceTier, ...]] = {
     "claude-sonnet-5-5": (PriceTier(None, Decimal("2.00"), Decimal("10.00")),),
     "claude-haiku-5-5": (

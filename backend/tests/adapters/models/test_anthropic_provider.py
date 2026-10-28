@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import anthropic
+import anyio
 import httpx2
 import pytest
 from pydantic_ai.models import override_allow_model_requests
@@ -39,8 +41,10 @@ pytestmark = pytest.mark.anyio
 PARTNER_ID = "claude-haiku-5-5"
 COACH_ID = "claude-sonnet-5-5"
 PRIVATE = "PRIVATE-PROVIDER-TEXT"
-# Every variable the SDK reads for credentials, endpoint, or headers (anthropic
-# 1.17.0 _client.py and lib/credentials): none may change a request.
+# Every variable AsyncAnthropic reads for credentials, endpoint, headers, or
+# telemetry (anthropic 1.17.0 _client.py, _tracing.py and lib/credentials): none may
+# change a request. ANTHROPIC_LOG is read at import, so its own test covers it; the
+# Bedrock, Vertex, Foundry and AWS variables belong to clients this adapter never builds.
 HOSTILE_ENV = {
     "ANTHROPIC_API_KEY": "HOSTILE-ENV-KEY",
     "ANTHROPIC_AUTH_TOKEN": "HOSTILE-AUTH-TOKEN",
@@ -52,7 +56,17 @@ HOSTILE_ENV = {
     "ANTHROPIC_SERVICE_ACCOUNT_ID": "svac_hostile",
     "ANTHROPIC_IDENTITY_TOKEN": "HOSTILE-IDENTITY-TOKEN",
     "ANTHROPIC_WORKSPACE_ID": "wrkspc_hostile",
+    "ANTHROPIC_SCOPE": "hostile",
+    "ANTHROPIC_ENVIRONMENT_ID": "env_hostile",
+    "ANTHROPIC_ENVIRONMENT_KEY": "HOSTILE-ENVIRONMENT-KEY",
+    "ANTHROPIC_SESSION_ID": "session_hostile",
+    "ANTHROPIC_WORK_ID": "work_hostile",
+    "ANTHROPIC_WORK_SECRET": "HOSTILE-WORK-SECRET",
+    "ANTHROPIC_WEBHOOK_SIGNING_KEY": "HOSTILE-WEBHOOK-KEY",
+    "ANTHROPIC_OPEN_TELEMETRY": "true",
+    "ANTHROPIC_OPEN_TELEMETRY_PROPAGATION": "true",
     "ANTHROPIC_OPEN_TELEMETRY_TRACES_CONTENT_MODE": "content",
+    "ANTHROPIC_OPEN_TELEMETRY_TRACES_MAX_CONTENT_BYTES": "1000000",
 }
 
 
@@ -228,6 +242,21 @@ async def test_anthropic_environment_changes_no_request(monkeypatch, tmp_path):
 
     assert hostile == clean
     assert "HOSTILE" not in json.dumps(hostile)
+
+
+async def test_sdk_debug_logging_stays_off_when_the_environment_asks_for_it():
+    probe = (
+        "import logging\n"
+        "import intent_to_english.adapters.models.anthropic_provider\n"
+        "print([logging.getLogger(n).isEnabledFor(logging.INFO)"
+        " for n in ('anthropic', 'httpx2')])\n"
+    )
+
+    result = await anyio.run_process(
+        [sys.executable, "-c", probe], env=os.environ | {"ANTHROPIC_LOG": "debug"}
+    )
+
+    assert result.stdout.decode().strip() == "[False, False]"
 
 
 @pytest.mark.parametrize(

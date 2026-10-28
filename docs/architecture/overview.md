@@ -267,8 +267,8 @@ means there is nothing to make. The screen derives both panes and the next-actio
 
 The app calls Claude through Anthropic's API with an Anthropic API key, through PydanticAI's
 Anthropic model: it locks `pydantic-ai-slim[anthropic]` 2.55.0 and declares `anthropic`
-(`>=1.12.1,<2`, locked at 1.17.0) itself, because the adapter builds the SDK client, under the
-seven-day dependency window. Both are imported only under `adapters/models/`: the core's import
+(`>=1.17.0,<2`, from the release its client options were checked against) itself, because the
+adapter builds the SDK client, under the seven-day dependency window. Both are imported only under `adapters/models/`: the core's import
 test and ruff's banned-api rule keep `pydantic_ai`, `anthropic`, and `openai` out of `core/`,
 and review keeps them out of `api/` and the storage adapters. The SDK stays below 2 because
 pydantic-ai-slim 2.55.0 builds message parameters with `BetaMessageParam(...)`, which
@@ -321,7 +321,12 @@ builder resets the client's private `_custom_headers` to empty right after const
 no headers of its own. It passes `open_telemetry={"traces": False, "propagation": False}`, so
 the SDK's own spans and trace propagation stay off, as PydanticAI's are: the per-agent
 `instrument = False` overrides global instrumentation. A test sets each of those variables and
-finds the request unchanged. A 60-second scope also bounds the complete run, not only SDK
+finds the request unchanged. The SDK reads `ANTHROPIC_LOG` at import and, at `debug`, would log
+every request's options, the learner's text included, so the provider module holds the
+`anthropic` and `httpx2` loggers at WARNING. The standard proxy and TLS variables
+(`HTTPS_PROXY`, `SSL_CERT_FILE`, and the like) still apply to the SDK's HTTP client on purpose:
+they choose the network path, not the request, and ignoring them would break a machine that
+needs a proxy or its own CA. A 60-second scope also bounds the complete run, not only SDK
 socket waits. Parse failures retain response usage, while provider failures carry only safe
 core errors, latency, and the provider's HTTP status when it answered with one: an integer that
 tells a rejected request (400) from an outage (529) without carrying the provider's text.
