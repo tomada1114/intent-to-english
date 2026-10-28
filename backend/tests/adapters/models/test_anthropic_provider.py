@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -206,8 +207,8 @@ async def _sent_request(monkeypatch):
 
 
 async def test_anthropic_environment_changes_no_request(monkeypatch, tmp_path):
-    for name in HOSTILE_ENV:
-        monkeypatch.delenv(name, raising=False)
+    for name in [n for n in os.environ if n.upper().startswith("ANTHROPIC_")]:
+        monkeypatch.delenv(name)
     clean = await _sent_request(monkeypatch)
 
     config_dir = tmp_path / "anthropic"
