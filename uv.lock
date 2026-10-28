@@ -538,7 +538,7 @@ postgres = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22" },
     { name = "alembic", specifier = ">=1.20" },
-    { name = "anthropic", specifier = ">=1.12.1,<2" },
+    { name = "anthropic", specifier = ">=1.17.0,<2" },
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.31" },
     { name = "fastapi", specifier = ">=0.143.2" },
     { name = "pydantic-ai-slim", extras = ["anthropic"], specifier = ">=2.55.0" },
