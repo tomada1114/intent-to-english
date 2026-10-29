@@ -1,14 +1,14 @@
 ---
 name: designing-core-logic
 description: >
-  Covers what goes where beneath the entry points: models, rules, and services in the
-  backend package's core/, ports as typing.Protocol any store can implement (app-made
-  UUIDv7 ids, cursor pages), the injected Clock and IdFactory, adapters in its
-  adapters/ and the shared repository contract suite, Settings in settings.py, and the
-  composition root's build_container and Container. Use when adding a use case, a
-  domain rule or model, a port, a repository or other adapter, or an
-  application setting, or when ruff TID251 or backend/tests/core/test_imports.py
-  rejects core code.
+  Covers what goes where beneath the entry points: core/ models, rules, and services;
+  ports as typing.Protocol any store can implement (UUIDv7 ids, cursor pages); the
+  injected Clock and IdFactory; adapters and the shared repository contract suite;
+  Settings; the composition root's build_container and Container; and the app's stage
+  machine, actions, cancellation, and session view. Use when adding a use case, a
+  domain rule or model, an action or stage, a port, an adapter, or an application
+  setting, or when ruff TID251 or backend/tests/core/test_imports.py rejects core
+  code.
 ---
 
 # Designing Core Logic

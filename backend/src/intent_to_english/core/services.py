@@ -195,7 +195,7 @@ class TaskDefinition[Request, Output]:
         *,
         record: RecordAttempt | None = None,
     ) -> TaskRun[Output]:
-        """A deserialized request is checked before a provider can be called."""
+        """A request of the wrong type is refused before a provider can be called."""
         if not isinstance(request, self.request_type):
             msg = f"Wrong request type for task {self.task}"
             raise TypeError(msg)

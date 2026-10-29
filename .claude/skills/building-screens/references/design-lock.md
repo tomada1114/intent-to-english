@@ -39,9 +39,10 @@ page in the same pull request.
   and, inside its color-mix support query,
   `background-color:color-mix(in oklab, var(--color-ink) 50%, transparent)`.
   Both forms follow the OS scheme; the probe is absent from the source.
-- **Contrast:** the light and dark pairs in `docs/design/contrast-pairs.json` pass WCAG 2.2
-  AA, pinned by `frontend/tests/styles.test.ts`; a token change re-measures them in the same
-  pull request.
+- **Contrast:** the 53 light and dark pairs in `docs/design/contrast-pairs.json` passed WCAG
+  2.2 AA when measured on 2026-10-28 with design-direction's "Measured contrast" command; a
+  token change re-runs it in the same pull request. No test measures contrast:
+  `frontend/tests/styles.test.ts` pins the token names and values only.
 
 ## What the suite proves
 

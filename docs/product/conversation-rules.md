@@ -5,8 +5,8 @@ The runtime rules for the app's two model roles, the Partner and the Coach (requ
 checks every model output passes (requirements §3.11).
 The rules come from the prototype tried on 2026-10-07. Where this document and
 `requirements.md` differ, `requirements.md` wins. Screen copy belongs to `ux-flows.md`; this
-document says only what the models write. Data shapes and the checks' code belong to the
-architecture documents.
+document says only what the models write. Data shapes belong to the `persisting-data` skill
+and the checks' code to the `calling-models` skill.
 
 English produced by or for the conversation is in *italics* or `code`; Japanese the models
 produce or the learner sees is in 「」.
@@ -384,5 +384,5 @@ and checks. Fixes read 元 → 直す · tag · なぜ; "the filled sentence" is
 - Adjustable support and lengths (fewer or more hints, a longer or shorter Partner from now on)
   and narrowing the intent by picking which points to keep: requirements §2 Later.
 - The next-action lines, labels, the how-to, and the check-in copy (ux-flows § Stage table).
-- Data shapes and the output checks' code (architecture documents).
+- Data shapes and the output checks' code (the `persisting-data` and `calling-models` skills).
 - Scores and levels (requirements §2 Non-goals).

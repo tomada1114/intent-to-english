@@ -108,9 +108,9 @@ entry point beside the API, over the same core.
 
 ## Describe the first design changes
 
-Write each as present state — what the app does and why — in `AGENTS.md` and
-`backend/AGENTS.md`'s "Architecture" section, per `AGENTS.md`'s "Before changing the
-architecture"; the owner reviews it with the pull request:
+Write each as present state — what the app does and why — in the skill that owns the
+subject, with `backend/AGENTS.md`'s "Architecture" only for layer rules, per `AGENTS.md`'s
+"Before changing the architecture"; the owner reviews it with the pull request:
 
 - **App shape**: full-stack, API-only, or core only, and why.
 - **Persistence**: where and in what format the app keeps state, with how a schema

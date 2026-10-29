@@ -149,7 +149,10 @@ own action.
    for the Partner, only the English lines — and runs it through `MODEL_TASKS`, which binds
    each of the ten tasks to its role, port method, and output check (`calling-models`'
    sequence). The service checks that the submission is still pending before a call and
-   after each attempt is recorded, so cancelled work cannot start a repair.
+   after each attempt is recorded, so cancelled work cannot start a repair. An empty
+   model-produced wrap-up is a schema violation (`_schema_violations`, not
+   `coaching.check_wrap_up`) and gets the one repair; an empty stored wrap-up means there
+   was nothing to make.
 4. A second transaction re-reads the submission. If it is still `pending`, the service
    appends the timeline entries, updates the stage, `turn_state`, and `version`, and marks
    it `completed`, then returns the new `SessionView`. If the learner cancelled meanwhile,

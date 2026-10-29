@@ -241,11 +241,11 @@ Skills are authored under `.agents/skills/` (Codex CLI) and mirrored into
 | `cloud-claude-shipping-issues` | Claude Code cloud sessions only (`CLAUDE_CODE_REMOTE=true`): shipping the next issue or the backlog over REST `gh api` calls, serially — rank, implement, PR, the PR's review, CI, merge, follow-ups |
 | `codex-shipping-issues` | shipping one GitHub issue through a regular PR, up to three review rounds with a local fallback for failed or stalled GitHub Codex review, findings addressed, current-head CI and the requested stop point |
 | `create-pr` | opening or updating a pull request by hand |
-| `designing-core-logic` | adding a use case, domain rule, port, adapter, or `INTENT_TO_ENGLISH_*` setting, or wiring the composition root |
+| `designing-core-logic` | adding a use case, domain rule, action or stage, port, adapter, or `INTENT_TO_ENGLISH_*` setting, or wiring the composition root |
 | `designing-errors` | adding a failure mode, or choosing the HTTP status a domain error becomes |
 | `managing-dependencies` | adding, bumping, or removing a Python or JavaScript package, or changing the `exclude-newer` or `minimumReleaseAge` window, a Dependabot cooldown, a one-package exception, or another `pnpm-workspace.yaml` exception; a Security Fixes run or pull request needs attention |
 | `merging-dependency-prs` | landing open Dependabot pull requests (GitHub Actions, pre-commit, `uv`, and `npm_and_yarn` bumps) |
-| `persisting-data` | changing a table in `backend/src/intent_to_english/adapters/sql/`, writing or reviewing an Alembic revision under `backend/migrations/`, running `just backend db-upgrade` or `db-revision`, a SQL repository's statements, or the `AsyncEngine`'s lifecycle |
+| `persisting-data` | changing a table in `backend/src/intent_to_english/adapters/sql/`, writing or reviewing an Alembic revision under `backend/migrations/`, running `just backend db-upgrade` or `db-revision`, a SQL repository's statements, a timeline payload, the call-log command, or the `AsyncEngine`'s lifecycle |
 | `placing-tests` | adding a test file or a fixture (pytest, Vitest, or the browser test), running one test, or a coverage run below a floor |
 | `running-the-app` | running a server of your own to observe a change, and stopping that server afterwards |
 | `shipping-issues` | Claude Code only: shipping the next issue or the whole backlog: rank, implement, PR, the PR's own review and its findings, CI, merge |
