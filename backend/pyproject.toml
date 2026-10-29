@@ -23,7 +23,7 @@ dependencies = [
     "fastapi>=0.158.2",
     "pydantic-ai-slim[anthropic]>=2.55.0",
     "pydantic-settings>=2.15.0",
-    "sqlalchemy[asyncio]>=2.1.4",
+    "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn>=0.53.0",
 ]
 # No `readme` or `license-files`: both live at the repository root, which a
