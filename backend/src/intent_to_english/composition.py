@@ -92,7 +92,7 @@ class _CleanupState:
 
 @dataclass(frozen=True, slots=True)
 class ModelPorts:
-    """The selected role ports shared by conversation and evaluation."""
+    """The selected role ports, the same instances the conversation service uses."""
 
     partner: PartnerModel
     coach: CoachModel

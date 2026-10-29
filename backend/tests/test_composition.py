@@ -34,7 +34,7 @@ PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 pytestmark = pytest.mark.anyio
 
 
-async def test_evaluation_and_conversation_share_the_selected_ports(
+async def test_container_models_are_the_ports_the_conversation_uses(
     monkeypatch, make_container
 ):
     usage = m.Usage("fixed", "fixed", None, None, None, 0)

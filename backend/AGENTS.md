@@ -2,8 +2,8 @@
 
 The FastAPI app: a uv workspace member built with
 [hatchling](https://hatch.pypa.io/), in a strict `src/` layout with strict type
-checking and linting. A framework-free core serves the HTTP API, the read-only
-call-log command, and the human-run evaluation command. This file adds the backend's
+checking and linting. A framework-free core serves the HTTP API and the read-only
+call-log command. This file adds the backend's
 own rules to the root `AGENTS.md`, which
 still applies in full — its approval rules and gates above all.
 
@@ -40,7 +40,6 @@ backend/
 │   ├── core/            # Framework-free: domain model, ports (Protocols), services, errors
 │   ├── adapters/        # Memory/SQL repositories and fixed/Anthropic model roles
 │   ├── api/             # FastAPI: create_app(settings) factory, routers (api/routers/), Pydantic schemas
-│   ├── evaluation/      # Strict cases, code expectations, task runner, reports and the billed command
 │   ├── call_log.py      # Read-only call-log CLI: SQL records to pure core summaries
 │   ├── settings.py      # Prefixed settings and the unprefixed ANTHROPIC_API_KEY secret alias
 │   └── composition.py   # Composition root: wires adapters into services for the API
@@ -61,8 +60,6 @@ backend/
   memory. In auto mode with a key both model roles use the Anthropic API over one owned client;
   otherwise both use fixed responses. Meta reads that selection from the container.
 - `Container.models` holds the same two model ports the conversation service uses.
-  Evaluation calls those ports through the shared task runner, with memory storage
-  and the same owned cleanup. It neither opens nor writes an application database.
 - `call_log.py` invokes a SQL-only reader and the pure `core/call_log.py` summary.
   The reader owns a separate read-only engine and disposes it on the same loop;
   this entry point constructs no service or model (`persisting-data`).
@@ -80,10 +77,10 @@ backend/
 - The schema belongs to the migrations: the app never creates or alters a table,
   and `just backend db-upgrade` (which `just backend dev` runs first) applies them
   (`persisting-data`).
-- The app's own design — the stage machine, the two model roles and their ports, the
-  five tables, the API, and the decisions behind them — is
-  `docs/architecture/overview.md`; its "Shape" table says which module each new piece
-  goes in.
+- The app's own design lives in the skills: the stage machine and which module each new
+  piece goes in (`designing-core-logic`'s conversation-flow reference), the two model
+  roles and their ports (`calling-models`), the five tables (`persisting-data`), and the
+  API (`building-api-routes`).
 - The model roles are ports in `core/`; `pydantic_ai` and `anthropic` are imported only by
   the model adapters, and no test makes a live model call (`calling-models`).
 
@@ -96,8 +93,8 @@ The root `AGENTS.md`'s Skills table lists every skill; these are the backend's:
 - `building-api-routes` — an HTTP route, request or response model, or API
   dependency, and its TestClient tests.
 - `designing-errors` — a failure mode, or the HTTP status a domain error becomes.
-- `calling-models` — a model task, a prompt, an output check, the model adapters,
-  their settings, or the evaluation harness.
+- `calling-models` — a model task, a prompt, an output check, the model adapters, or
+  their settings.
 - `persisting-data` — a table, a SQL statement, the engine, or an Alembic
   revision.
 - `placing-tests` — where a backend test or fixture goes, running one test, or

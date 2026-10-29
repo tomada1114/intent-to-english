@@ -4,31 +4,25 @@ description: >
   Covers calling the Partner and Coach models: the PartnerModel and CoachModel ports,
   their request, output, and usage values, the output checks and the one repair in the
   core, model_calls outcomes, prompts.py and schemas.py, the PydanticAI adapter on the
-  Anthropic API, the fixed-response mode, ANTHROPIC_API_KEY and the model settings, and
-  the evaluation package and its
-  backend/evals/ cases. Use when adding or changing a model task,
-  a prompt, an output check, the Anthropic adapter, the fixed-response mode, a model
-  setting, a test that touches a model, the evaluation harness, or a new provider.
+  Anthropic API, the fixed-response mode, and ANTHROPIC_API_KEY and the model settings.
+  Use when adding or changing a model task, a prompt, an output check, the Anthropic
+  adapter, the fixed-response mode, a model setting, a test that touches a model, or a
+  new provider.
 ---
 
 # Calling Models
 
 **Owns:** how the app calls its two model roles — the ports and their values, the output
-checks and the repair, the adapters, the model settings, the tests that touch a model,
-and the evaluation harness. **Does not own:** what each output says
-(`docs/product/conversation-rules.md`); which action runs which task (the overview's
-§ Core flows); ports, settings, and the composition root in general
+checks and the repair, the adapters, the model settings, and the tests that touch a
+model. **Does not own:** what each output says (`docs/product/conversation-rules.md`);
+which action runs which task (`designing-core-logic`'s conversation-flow reference); ports, settings, and the composition root in general
 (`designing-core-logic`); the error classes and their statuses (`designing-errors`); the
 `model_calls` table (`persisting-data`); adding a package or an extra
 (`managing-dependencies`).
 
-The design is `docs/architecture/overview.md`'s; this skill turns it into the steps of a
-change. Where they differ, the overview wins and this skill is fixed in the same pull
-request.
-
 ## Where each piece lives
 
-Under `backend/src/intent_to_english/` (the overview's § Shape):
+Under `backend/src/intent_to_english/`:
 
 | Piece | Module |
 |---|---|
@@ -43,19 +37,18 @@ Under `backend/src/intent_to_english/` (the overview's § Shape):
 | Everything Anthropic: client, model, settings, failure mapping, refusals, prices | `adapters/models/anthropic_provider.py` |
 | The instructions and messages each task sends | `adapters/models/prompts.py` |
 | One Pydantic model per output, and its conversion to the core value | `adapters/models/schemas.py` |
-| The harness | `evaluation/` |
 | The key, the mode, the model ids; the adapter choice | `settings.py`; `composition.py` |
 
-Cases and reports live outside the package, in `backend/evals/cases/` and
-`backend/evals/reports/`. In `src/`, `pydantic_ai` and `anthropic` are imported only under
+In `src/`, `pydantic_ai` and `anthropic` are imported only under
 `adapters/models/`. Ruff's banned-api rule names them (and `openai`), but `api/**` and `adapters/**`
 are exempt from it, so review keeps them out of those layers; tests may import them.
 
 ## The port contract
 
 `PartnerModel` has `open`, `reply`, and `restate`; `CoachModel` has `acknowledge`,
-`gap_hint`, `feedback`, `check_retry`, `show_answer`, `answer_question`, and `wrap_up`
-(§ Decisions › "Two role ports, shaped by their tasks").
+`gap_hint`, `feedback`, `check_retry`, `show_answer`, `answer_question`, and `wrap_up`.
+Rejected: one generic completion port with prompts built in the core, which would put
+prompt text and provider message shapes in `core/`.
 
 - **One frozen request dataclass per method,** holding what that task and its checks
   need and nothing more, plus an optional repair carrying the previous output's
@@ -80,10 +73,11 @@ are exempt from it, so review keeps them out of those layers; tests may import t
 
 ## The service's sequence for every model task
 
-Checks and the repair live in the core, so the fixed-response mode, the evaluation, and
-live practice behave alike (§ Decisions › "Checks and the one repair live in the core").
+Checks and the repair live in the core, so the fixed-response mode and live practice
+behave alike, whatever adapter answered.
 
-1. Build the task's request from the session (the overview's "One action, end to end").
+1. Build the task's request from the session (the conversation-flow reference's "One
+   action, end to end").
 2. Call the port; each call has 60 s.
 3. Run the task's checks on what parsed. A parse failure is the violation of "The output
    matches its schema".
@@ -120,10 +114,10 @@ live practice behave alike (§ Decisions › "Checks and the one repair live in 
 7. **The agent** for the task in `agents.py`. **REQUIRED:**
    [references/anthropic-adapter.md](references/anthropic-adapter.md).
 8. **The service call,** through the sequence above.
-9. **Tests,** as below, and an evaluation case.
+9. **Tests,** as below.
 10. A rule or an output shape that changes what a model writes changes
-    conversation-rules first; a change to the design rewrites the overview in the same
-    pull request (`AGENTS.md`'s "Before changing the architecture").
+    conversation-rules first; a change to the design rewrites this skill or its reference
+    in the same pull request (`AGENTS.md`'s "Before changing the architecture").
 
 ## Settings and the mode
 
@@ -134,7 +128,10 @@ live practice behave alike (§ Decisions › "Checks and the one repair live in 
 | `INTENT_TO_ENGLISH_COACH_MODEL`, `INTENT_TO_ENGLISH_PARTNER_MODEL` | Anthropic model ids, checked only to be non-empty; defaults `claude-sonnet-5-5` and `claude-haiku-5-5` |
 | `INTENT_TO_ENGLISH_COACH_REASONING_EFFORT`, `INTENT_TO_ENGLISH_PARTNER_REASONING_EFFORT` | one of Anthropic's effort levels (`low`, `medium`, `high`, `xhigh`, `max`), case-insensitive; unset or blank keeps `medium`; anything else fails at startup naming its variable |
 
-Defaults and reasons are § Decisions › "Keys, models, and the mode". `composition.py`
+The defaults follow the owner's rule: the cheap model where it holds quality, a stronger
+one only where it does not, and Sonnet as the ceiling — no Opus or Fable default. Each
+role's effort is its own setting because the Coach is nearly all of a run's cost and the
+slow side of a turn while the Partner is neither. `composition.py`
 selects both Anthropic roles in auto with a key, otherwise both fixed roles;
 `GET /api/meta` reports that selection. The README's configuration table
 lists all six (**REQUIRED:** `updating-docs`). How a setting is validated and isolated
@@ -158,29 +155,14 @@ in tests: **REQUIRED:** `designing-core-logic`'s "Settings are read once, at the
   is exported. A composition test
   pins the fixed adapter without a key and with the mode `fixed`.
 - **No test is skipped for lack of a key,** and none is live or recorded. Live calls
-  happen only in the owner's practice and the human-run evaluation.
+  happen only in the owner's practice.
 
 Where each file goes is **REQUIRED:** `placing-tests`; how each is written,
 **REQUIRED:** `writing-tests`.
 
-## The evaluation harness
-
-A case under `backend/evals/cases/` has task/source, the exact request fields and
-closed expectations; nullable fields use `{ none = true }`, and context notes never
-enter a model request. The 16 seeds are tested on fixed ports without a quality floor.
-`just backend eval` is billed and human-run: it uses `Container.models`, the shared
-task runner and one repair, with memory storage and owned cleanup. It refuses fixed
-mode and existing report paths or invalid README markers before any call. JSON/Markdown reports retain first/final quality rates,
-outcomes, cost in USD (`cost_usd`), latency, ids, efforts, UTC date and revision; an
-effort other than the default `medium` also names the report pair; missing cost stays empty and
-unobserved content is N/A. Reports are committed and generate the README summary.
-A new expectation joins the tested closed vocabulary in `evaluation/`. The file
-contract and rationale are § Decisions › "Evaluation lives in the repository".
-
 ## Adding a provider
 
-Amazon Bedrock is the next one (§ Decisions › "Models are called through PydanticAI,
-inside the model adapters").
+Amazon Bedrock is the next one, once the account's Bedrock quota allows calls.
 
 1. Its package or extra through **REQUIRED:** `managing-dependencies`, imported under
    `adapters/models/` only: the Anthropic SDK's Bedrock client (`AsyncAnthropicBedrock`)
@@ -189,8 +171,8 @@ inside the model adapters").
 2. A provider module beside `anthropic_provider.py` that builds the model and its own
    `ProviderCalls` — settings, failure mapping to the same core errors, refusal check, and
    prices — behind the same agents, prompts, and schemas in `agents.py`.
-3. Its own output-mode check: the mode it uses must be one its model accepts, settled
-   as the overview's § Open.
+3. Its own output-mode check: Claude Sonnet 5.5 rejects a forced tool call on Bedrock
+   too, so the module uses the JSON schema mode its route supports, checked on the wire.
 4. A setting choosing it, read in `composition.py`, and its tests as above.
 
 Nothing in `core/` changes.

@@ -1,12 +1,12 @@
 # Intent to English — Conversation rules
 
 The runtime rules for the app's two model roles, the Partner and the Coach (requirements
-§3.10). Three readers use them: whoever writes each role's prompts, whoever writes the code
-checks every model output passes (requirements §3.11), and whoever writes the evaluation cases.
+§3.10). Two readers use them: whoever writes each role's prompts, and whoever writes the code
+checks every model output passes (requirements §3.11).
 The rules come from the prototype tried on 2026-10-07. Where this document and
 `requirements.md` differ, `requirements.md` wins. Screen copy belongs to `ux-flows.md`; this
-document says only what the models write. Data shapes and the checks' code belong to the
-architecture documents.
+document says only what the models write. Data shapes belong to the `persisting-data` skill
+and the checks' code to the `calling-models` skill.
 
 English produced by or for the conversation is in *italics* or `code`; Japanese the models
 produce or the learner sees is in 「」.
@@ -61,7 +61,7 @@ answer, the wrap-up). Rules from ux-guidelines § Language and copy:
 
 **Sees** (requirements §3.6): its own earlier lines and the learner's finished English of each
 turn — the latest English of the turn (the retry when there was one), with every reading the
-Coach noted applied (`docs/architecture/overview.md` § The stage machine). Never the intent,
+Coach noted applied (the `designing-core-logic` skill's conversation flow). Never the intent,
 hints, feedback, or Coach questions and answers.
 
 ### 4.1 The opener (requirements §3.1)
@@ -296,13 +296,13 @@ not called.
   questions: a test on how the context is built, not an output check (needs the turn's data;
   P7).
 
-Evaluation only: the Partner not mentioning content found only in the Japanese (requirements
-§3.11's Sapporo case) needs the intent, which the Partner call never has.
+Not checkable by code: the Partner not mentioning content found only in the Japanese needs the
+intent, which the Partner call never has; the request types keep that content out instead (P7).
 
 ## 7. Worked examples
 
-From the 2026-10-07 session, adapted to the app's layout, as seed material for evaluation
-cases. Fixes read 元 → 直す · tag · なぜ; "the filled sentence" is the template filled with every 直す.
+From the 2026-10-07 session, adapted to the app's layout, as worked material for the prompts
+and checks. Fixes read 元 → 直す · tag · なぜ; "the filled sentence" is the template filled with every 直す.
 
 ### ① *refreshing* → *refreshed*
 
@@ -384,5 +384,5 @@ cases. Fixes read 元 → 直す · tag · なぜ; "the filled sentence" is the 
 - Adjustable support and lengths (fewer or more hints, a longer or shorter Partner from now on)
   and narrowing the intent by picking which points to keep: requirements §2 Later.
 - The next-action lines, labels, the how-to, and the check-in copy (ux-flows § Stage table).
-- Data shapes and the output checks' code (architecture documents).
+- Data shapes and the output checks' code (the `persisting-data` and `calling-models` skills).
 - Scores and levels (requirements §2 Non-goals).

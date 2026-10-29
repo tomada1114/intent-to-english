@@ -1,14 +1,14 @@
 ---
 name: persisting-data
 description: >
-  Covers SQL persistence in backend/: the Core Table metadata and UtcDateTime in
-  backend/src/intent_to_english/adapters/sql/tables.py, statements as module constants in a SQL
-  repository, the AsyncEngine from make_engine and its disposal, Alembic under
-  backend/migrations/ (env.py, script.py.mako, revisions, render_as_batch), just
-  backend db-upgrade and db-revision, the drift test, and why the app never migrates
-  at start-up. Use when adding or changing a table or column, writing or reviewing a
-  revision, alembic check failing, "no such table" errors, or a SQL test leaking an
-  engine.
+  Covers SQL persistence in backend/: Core Table metadata and UtcDateTime in
+  adapters/sql/tables.py, statements as module constants, the AsyncEngine from
+  make_engine and its disposal, Alembic under backend/migrations/ (env.py,
+  script.py.mako, render_as_batch), just backend db-upgrade and db-revision, the drift
+  test, why the app never migrates at start-up, and the app's five tables, timeline
+  payloads, and call-log command. Use when adding or changing a table, column, or
+  payload, writing or reviewing a revision, alembic check failing, "no such table"
+  errors, or a SQL test leaking an engine.
 ---
 
 # Persisting Data
@@ -35,7 +35,8 @@ such as a driver (`managing-dependencies`).
 
 SQLAlchemy, Alembic, and aiosqlite are imported only there and in tests. Enforced by:
 `backend/pyproject.toml`'s `banned-api` entries and its `migrations/**` per-file
-ignore.
+ignore. The app's five tables, the rules their columns do not show, and the call-log
+command's contract are **REQUIRED:** [references/app-schema.md](references/app-schema.md).
 
 ## Tables are Core metadata
 

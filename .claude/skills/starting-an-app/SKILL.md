@@ -3,7 +3,7 @@ name: starting-an-app
 description: >
   Covers setting up an app cut from this full-stack template, up to its first feature:
   the prerequisites (uv, Just, Node.js 24, pnpm), AGENTS.md's Product section, the
-  bootstrap pull request, the roadmap, just labels, GitHub security settings, just
+  bootstrap pull request, labels, the roadmap issue, GitHub security settings, just
   ruleset and a private repository, the app's shape (full-stack, or API-only without
   frontend/ and e2e/), removing the sample to-do domain and screen, and the first design
   changes. In the template it also covers the rename step, .template-origin, and the
@@ -14,9 +14,9 @@ description: >
 # Starting an App
 
 **Owns:** the order of work from "Use this template" to an app's first feature: the
-rename, the Product section and roadmap as steps, the app's shape, removing the sample,
+rename, the Product section and roadmap issue as steps, the app's shape, removing the sample,
 the first design changes, and the new repository's GitHub setup. **Does not own:** what
-the roadmap says (`steering-the-roadmap`); how a design change is described
+the roadmap issue says (`triaging-issues`); how a design change is described
 (`AGENTS.md`'s "Before changing the architecture"); labels and issue bodies (`triaging-issues`);
 what makes a CI job a required check (`changing-gates`); which files go with the API
 (`building-api-routes`).
@@ -61,13 +61,13 @@ follows the same order.
    (`AGENTS.md`'s "Enforcement layers"), CI checks the bootstrap before `main` holds it, and
    it works the same before and after step 9's ruleset. Pushing, opening, and merging
    are remote writes.
-5. **Fill `docs/architecture/roadmap.md`** in its own pull request, with the Now, Next,
-   and Later outcomes that follow from the Product section. **REQUIRED:**
-   `steering-the-roadmap`.
-6. **Labels.** `just labels` creates `.github/labels.yml`'s labels on the new
+5. **Labels.** `just labels` creates `.github/labels.yml`'s labels on the new
    repository. Run it before the first issue is filed: an issue form or a planning tool
    applying a missing label loses it silently. It writes to GitHub. **BACKGROUND:**
    `triaging-issues`, for what each label means.
+6. **Open the roadmap issue**, with the broad Now, Next, and Later outcomes that follow
+   from the Product section. It writes to GitHub. **REQUIRED:** `triaging-issues`' "The
+   roadmap issue".
 7. **Security settings and secrets** (**human**, the repository's admin): turn on what
    [references/github-settings.md](references/github-settings.md) › "Security settings"
    lists. The template's workflows need no secret beyond the `GITHUB_TOKEN` GitHub
@@ -108,9 +108,9 @@ entry point beside the API, over the same core.
 
 ## Describe the first design changes
 
-Write each as present state — what the app does and why — in `AGENTS.md` and
-`backend/AGENTS.md`'s "Architecture" section, per `AGENTS.md`'s "Before changing the
-architecture"; the owner reviews it with the pull request:
+Write each as present state — what the app does and why — in the skill that owns the
+subject, with `backend/AGENTS.md`'s "Architecture" only for layer rules, per `AGENTS.md`'s
+"Before changing the architecture"; the owner reviews it with the pull request:
 
 - **App shape**: full-stack, API-only, or core only, and why.
 - **Persistence**: where and in what format the app keeps state, with how a schema
