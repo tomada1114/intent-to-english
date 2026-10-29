@@ -2,10 +2,50 @@
 
 Read when writing or changing `adapters/models/agents.py` or
 `adapters/models/anthropic_provider.py`, their tests, or a provider module beside them.
-`SKILL.md` holds the port contract and the service's sequence these rules serve. The
-reasons and their sources are `docs/architecture/overview.md`'s § Decisions › "Models are
-called through PydanticAI, inside the model adapters" and "Keys, models, and the mode"; the
-external facts below that the overview does not state carry their own.
+`SKILL.md` holds the port contract and the service's sequence these rules serve. Each
+external fact below carries its source and the date it was checked.
+
+## Why PydanticAI, and its pins
+
+The app calls Claude through Anthropic's API with an Anthropic API key, through PydanticAI's
+Anthropic model: it locks `pydantic-ai-slim[anthropic]` 2.55.0 and declares `anthropic`
+(`>=1.17.0,<2`, from the release its client options were checked against) itself, because
+the adapter builds the SDK client. PydanticAI supplies the Anthropic model and provider,
+typed structured output, and test models; the adapter turns off what would hide calls from
+the core — retries, fallbacks, streaming. Both packages are imported only under
+`adapters/models/`.
+
+- The SDK stays below 2 because pydantic-ai-slim 2.55.0 builds message parameters with
+  `BetaMessageParam(...)`, which anthropic 2.0.0 made a `Union` alias, so every request
+  raised `TypeError` (`_map_message` in `pydantic_ai/models/anthropic.py`, run against both
+  versions on 2026-10-28); the cap lifts with a PydanticAI release that supports anthropic 2.
+- Rejected: calling Anthropic's API with httpx2 directly — no new package and full control,
+  but the request, the schema, parsing, retries, and error mapping would all be
+  hand-written, and Bedrock would be a second adapter written from scratch.
+- Rejected: Strands Agents — its structured output is a tool call that retries on a
+  validation failure and forces `tool_choice` on that retry, and its default retry strategy
+  repeats throttled calls up to six times, both of which break "one request is one
+  recorded, billed call".
+- Sources: https://github.com/pydantic/pydantic-ai/releases/tag/v2.55.0 (released
+  2026-10-09, Python ≥3.11, MIT); https://github.com/pydantic/pydantic-ai/blob/main/docs/version-policy.md
+  (no intentional breaking change in a minor release). Claude Sonnet 5.5 returns 400 on a
+  forced `tool_choice`: https://platform.claude.com/docs/en/about-claude/models/migration-guide
+  (as cached on 2026-10-06), so PydanticAI's default tool-call output cannot be used.
+
+## Schemas Anthropic accepts
+
+Each task's `output_type` is wrapped in `NativeOutput`, which PydanticAI's Anthropic model
+sends as `output_config.format = {"type": "json_schema", "schema": ...}`, forced strict
+(`_build_output_config` and `prepare_request` in `pydantic_ai/models/anthropic.py`,
+pydantic-ai-slim 2.55.0, confirmed on the wire by the adapter tests, 2026-10-28). Coach
+feedback is one top-level object with a `kind` discriminator and exactly one matching
+feedback or reading-question payload; retry results use a kind-tagged payload inside a
+top-level object too. Anything outside Anthropic's supported keywords is a 400 the adapter
+reports as unavailable (https://platform.claude.com/docs/en/build-with-claude/structured-outputs,
+"JSON Schema limitations", observed 2026-10-28): unions are `anyOf` (a pydantic
+discriminator would emit `oneOf`), objects close with `additionalProperties: false`, and
+arrays carry no length beyond `minItems` 0 or 1, so the two readings are checked when the
+output converts. A test walks each task's wire schema against that list.
 
 ## Two modules, one seam
 
@@ -82,8 +122,10 @@ external facts below that the overview does not state carry their own.
 `PRICES` in `anthropic_provider.py` maps a model id to its base input and output price per
 million tokens, in USD, with the source URL and the date it was observed beside it. A tier
 with `up_to_input_tokens` covers prompts up to that many input tokens (Haiku 5.5's 100,000);
-a prompt over it takes the next tier. Changing a price or adding a model updates the table,
-its comment, the overview's paragraph, and the cost test in the same pull request. Cost is
+a prompt over it takes the next tier. The adapter sends no cache control, so the reported
+input tokens are the prompt, and thinking is inside the reported output tokens. Changing a
+price or adding a model updates the table, its comment, and the cost test in the same pull
+request. Cost is
 exact `Decimal` arithmetic; nothing rounds it.
 
 ## Mapping failures

@@ -35,7 +35,8 @@ such as a driver (`managing-dependencies`).
 
 SQLAlchemy, Alembic, and aiosqlite are imported only there and in tests. Enforced by:
 `backend/pyproject.toml`'s `banned-api` entries and its `migrations/**` per-file
-ignore.
+ignore. The app's five tables, the rules their columns do not show, and the call-log
+command's contract are **REQUIRED:** [references/app-schema.md](references/app-schema.md).
 
 ## Tables are Core metadata
 

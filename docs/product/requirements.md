@@ -22,7 +22,7 @@ and can build simple English sentences, but who, in a live conversation, shrinks
 say to the English they already know: the same reactions and short answers, and the thing
 they meant to say given up. The MVP has one user, the owner, on their own Mac. The app is
 also the owner's portfolio product #1: a product with an LLM built in, with structured
-output, evaluation, and a swappable model provider.
+output and a swappable model provider.
 
 **Core interaction — one turn.** Partner line → the learner's Japanese intent → the
 learner's own English (hints only for the gap they name) → structured feedback (intent
@@ -69,15 +69,12 @@ vault.
 - **F9 Session history** — resume after reload, read an ended session (§3.9)
 - **F10 Model roles, provider, and the fixed-response mode** — the two model roles behind
   ports, Anthropic's API, and a keyless mode for development and tests (§3.10)
-- **F11 Output checks and the evaluation set** — every model output checked by code, and a
-  fixed set of cases run against real models (§3.11)
+- **F11 Output checks** — every model output checked by code before it is stored or shown
+  (§3.11)
 - **F12 Model call log** — tokens, cost, latency, and outcome of every call (§3.12)
 
 ### Later
 
-- **OWASP Top 10 for LLM Applications (2025) attack tests** — Prompt Injection and the
-  other relevant risks as evaluation cases, with a threat model and the results in the
-  README. The first item after the MVP (owner's decision 2026-10-16; the Q4 2026 goal).
 - **Amazon Bedrock adapter** — moving from Anthropic's API to Bedrock when the account's
   Bedrock quota allows (its daily token quota is 0).
 - **Hosting with sign-in** so the app works from a phone — waits for Bedrock; pulls in
@@ -90,9 +87,6 @@ vault.
   Partner from now on, narrowing the intent by picking which points to keep. The prototype had
   them; the MVP's controls (§3.7) cover the core turn without them.
 - **Streaming replies** — the MVP shows a reply only after its checks pass (§3.10).
-- **A model grading outputs in the evaluation (LLM-as-judge)** — with its agreement against
-  the owner's own judgments measured before it is trusted (§3.11).
-- **Turning a saved turn into an evaluation case.**
 - **Deleting a session from the screen** — the MVP keeps every session; the owner can delete
   the local database file.
 
@@ -275,11 +269,10 @@ conversation.
   prototype was tuned on Sonnet, and feedback quality is what the Coach is for. Anthropic's
   pricing, observed 2026-10-28: Sonnet 5.5 $2 / $10 and Haiku 5.5 $0.10 / $0.50 per million
   input / output tokens (Haiku 5.5 $0.50 / $2.50 for a prompt over 100,000 tokens). At about 12k input and 1.1k output tokens per turn, a turn costs about
-  $0.03 (about $5 a month at six turns a day). Whether the Coach can move to Haiku is
-  decided by the evaluation set (§3.11).
+  $0.03 (about $5 a month at six turns a day).
 - **Waiting**: no streaming. A reply is shown only after its checks pass (§3.11), so P2 holds
   by construction; while a call runs, the screen shows a waiting state. Latency is measured
-  (§3.12) and reported by the evaluation run.
+  (§3.12).
 - **Provider**: Anthropic's API, with the owner's Anthropic API key from the environment.
   Bedrock later: a new provider module and a setting, with no change to the core, the API, or
   the screen.
@@ -290,7 +283,7 @@ conversation.
   still fails its checks after one automatic repair attempt (§3.11) keeps the learner's input,
   shows what failed with a retry action, and does not advance the stage.
 
-### 3.11 Output checks and the evaluation set (F11)
+### 3.11 Output checks (F11)
 
 - **On every model output**, checked by code before anything is stored or shown: it matches
   its schema; fixes and blanks correspond one to one, numbered in the order their blanks appear in the template; filling the
@@ -298,20 +291,6 @@ conversation.
   a build hint contains no English words; a Partner line is English, at most two sentences,
   and asks at most one question — and none when the taking-turns rule says share. A failure
   gets one repair attempt with the reasons, then the failure state (§3.10).
-- **Evaluation set**: 10–20 fixed cases seeded from the 2026-10-07 prototype session and the
-  prototype's examples, plus edge cases — English already fine; a missing intent point; a
-  clear transcription slip (*starting*/*studying*); an ambiguous one (*leave*/*live*); a
-  multi-sentence reply with one correct sentence; a repeated set phrase; two Partner questions
-  answered in a row; the learner asking the Partner something; content only in the Japanese
-  (the Partner must not mention it). Each case states what must and must not happen
-  ("flags *refreshing* as ミス", "marks nothing as ミス", "the Partner line does not mention
-  Sapporo"), and code decides pass or fail. No model grades another model's output in the
-  MVP, so a run is repeatable and costs only the calls under test; phrasing quality is not
-  judged.
-- **Running it**: one command runs the set against the configured models and writes a report
-  — pass rate per check, cost, latency, model ids, date. The owner runs it (it bills); CI runs
-  the harness against the fixed-response mode only. The same set runs with any model per role,
-  so models can be compared on quality, cost, and latency.
 
 ### 3.12 Model call log (F12)
 
@@ -319,7 +298,7 @@ conversation.
   and output tokens, cost in USD from those tokens and the model's price when the price is
   known, latency, and outcome (ok, repaired,
   invalid output, timeout, rate limited, provider error). Never the API key.
-- **Shown**: not on the practice screens; the evaluation report and a command summarize it.
+- **Shown**: not on the practice screens; a command summarizes it.
 
 ## 4. Cross-cutting rules
 
@@ -347,13 +326,12 @@ conversation.
   and the final English. Coach questions and answers, check-ins, and notices belong to the
   session's timeline in order. The exact storage shape is an architecture decision.
 - **Model call** — §3.12.
-- **Evaluation cases and reports** — files in the repository, not the database.
 - **Retention** — indefinite, in the local file.
 
 ## 6. Open questions
 
-None. The model library behind the ports and where evaluation reports live are decided in
-`docs/architecture/overview.md` § Decisions.
+None here. The model library behind the ports is recorded in the `calling-models` skill;
+open product decisions are on the roadmap issue (#131).
 
 ## 7. Decision log
 
@@ -389,3 +367,7 @@ None. The model library behind the ports and where evaluation reports live are d
   Amazon Bedrock stays the next provider behind the same ports, once the account's quota
   allows (#123). The Coach and Partner defaults keep their models, now under Anthropic's ids,
   both at effort `medium`. This replaces the two 2026-10-17 entries' OpenRouter parts.
+- 2026-10-28 Model evaluation is paused: the evaluation set, its harness and reports, the
+  OWASP attack tests built on it, and a model as judge leave the MVP and the repository and
+  wait on the roadmap issue's On hold list (#131). This replaces the 2026-10-17 entries'
+  evaluation parts.

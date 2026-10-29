@@ -223,50 +223,12 @@ e2e/        # The Playwright test from the screen to the database (just e2e)
 
 `backend/AGENTS.md` holds the backend's architecture: the core imports neither
 the API nor any framework or driver, the API only translates between HTTP and
-the core, and `composition.py` is the one place adapters are wired in.
-`docs/architecture/overview.md` holds the app's own design: the stage machine, the
-Partner and Coach model roles behind ports, the five tables, the API, and the
-decisions behind them. `frontend/AGENTS.md` holds the frontend's toolchain. The schema lives in
-`backend/src/intent_to_english/adapters/sql/tables.py` and its history in Alembic revisions
-under `backend/migrations/` (the `persisting-data` skill).
-
-## Evaluation
-
-The owner runs `just backend eval` to evaluate the configured models; it bills.
-It refuses before any call or write when the selected mode is fixed,
-when either target report already exists, or when the summary markers are invalid.
-To verify refusal without billing, explicitly override both variables:
-
-```bash
-INTENT_TO_ENGLISH_MODEL_MODE=fixed ANTHROPIC_API_KEY= just backend eval
-```
-
-The 16 TOML cases in `backend/evals/cases/` contain `task`, `source`, `[request]`,
-optional `[context]` notes and `[[expect]]` values from a closed vocabulary. Required
-nullable fields use `{ none = true }`; unknown or missing request fields are errors.
-Context notes never enter a model request. Tests run the complete set on fixed ports,
-render reports and update a temporary README without requiring a quality pass rate.
-
-Reports are new `.md` and `.json` files under `backend/evals/reports/`, named
-`<UTC-date>_<coach-id>_<partner-id>` with `/` replaced by `-`, plus
-`_coach-effort-<level>` or `_partner-effort-<level>` for each effort other than the default
-`medium`. They record both efforts, the source commit and dirty state, first/final check and expectation rates, outcomes,
-cost in USD and nearest-rank p50/p95 latency per task. Missing cost stays empty.
-A JSON case with a failed final expectation also includes its final parsed model
-output in `final_output`; passing and unobserved cases omit it.
-Commit both reports after an owner-run evaluation; the summary below links the latest.
-
-<!-- eval-summary:start -->
-Latest run: [2026-10-22](backend/evals/reports/2026-10-22_anthropic-claude-sonnet-5.5_anthropic-claude-haiku-5.5.md)
-
-| Task | Calls | ok | invalid_output | repaired | timeout | rate_limited | provider_error | Cost (credits) | p50 (ms) | p95 (ms) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| coach.acknowledge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0.00186 | 1968 | 1968 |
-| coach.check_retry | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0.031014 | 7089 | 7233 |
-| coach.feedback | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0.117058 | 7138 | 15502 |
-| partner.open | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0.0000603 | 1533 | 1533 |
-| partner.reply | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0.0005608 | 2473 | 2881 |
-<!-- eval-summary:end -->
+the core, and `composition.py` is the one place adapters are wired in. The app's own
+design — the stage machine, the Partner and Coach model roles behind ports, the five
+tables, the screens — lives in the skills under `.agents/skills/` that own each subject,
+indexed by AGENTS.md's Skills table. `frontend/AGENTS.md` holds the frontend's toolchain.
+The schema lives in `backend/src/intent_to_english/adapters/sql/tables.py` and its history
+in Alembic revisions under `backend/migrations/` (the `persisting-data` skill).
 
 ## Development
 

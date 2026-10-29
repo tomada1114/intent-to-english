@@ -7,8 +7,8 @@ description: >
   close condition, a `Depends on: #N` line). Use when filing an issue, triaging or
   re-prioritizing the backlog, picking a `priority: P0`-`P3` label, choosing between
   `bug`/`enhancement`/`documentation`/`chore`/`security`, marking a tracking issue,
-  running `just labels`, recording a problem found outside the task, or routing a
-  daily-use request.
+  running `just labels`, recording an out-of-scope problem, routing a daily-use
+  request, or the roadmap issue.
 ---
 
 # Triaging Issues
@@ -156,3 +156,14 @@ A parked issue leaves the lane by a decision, never by age:
 
 Moving the product's scope to admit a request is the owner's call, not the triager's:
 parking or dropping it records that line rather than crossing it.
+
+## The roadmap issue
+
+The project's direction lives in one open issue titled `Roadmap`, labelled `tracking`
+and `chore` — never in a document. Its body lists broad outcomes and ideas under Now,
+Next, Later, and On hold, a line or two each, linking an issue where one exists. It is a
+seed list for weighing ideas, not a plan or a spec: nothing in it is implemented until an
+issue is filed, tiered, and picked, and it repeats no issue body and no design (the
+owning skill holds that). The owner decides what it says; an agent edits it only when the
+task asks, and otherwise drafts the change in its reply. Re-read it when choosing what
+comes next, when a Now outcome lands, or when parked requests show a pattern.

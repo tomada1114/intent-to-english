@@ -174,16 +174,14 @@ uses a SQL reader with its own engine and a pure core summary (`persisting-data`
 `build_container(settings, clock=utc_now, new_id=uuid.uuid7, *, boot_id=None)` picks
 the repository through `_build_repository` and returns a frozen `Container` with
 keyword-only `conversations` and `models`, and the selected `model_mode`; the API stores
-it on `app.state`. A new service is a new `Container` field
-built in `build_container`; a new adapter choice is a branch in the function that picks
-it, driven by a setting.
+it on `app.state`. A new service is a new `Container` field built in `build_container`;
+a new adapter choice is a branch in the function that picks it, driven by a setting.
 
 The SQL repository owns one lazy engine and one disposal callback; without a database
 URL the memory adapter is used. The conversation service receives both Anthropic model roles in auto mode with a key,
 otherwise both fixed roles. The live roles share one owned client. One default `uuid.uuid7()` boot id per build is independent of
 entity ids, or injectable for interruption tests. The current wiring example is in [references/adding-a-port.md](references/adding-a-port.md).
-`ModelPorts` holds the exact Partner and Coach instances used by the conversation
-service; evaluation shares them through `Container.models`, with storage disabled.
+`Container.models` (`ModelPorts`) holds the exact role instances the service got.
 
 Tests build containers through the same function: `backend/tests/conftest.py`'s
 `make_container` passes the fixed clock, `new_id`, and in-memory storage by default, and
@@ -191,6 +189,8 @@ Tests build containers through the same function: `backend/tests/conftest.py`'s
 
 ## Adding a use case
 
+The app's own flow — its principles, the stage machine, how an action is admitted,
+cancelled, and interrupted — is **REQUIRED:** [references/conversation-flow.md](references/conversation-flow.md).
 1. A rule the operation needs goes in the model or a core function, with its
    `InvalidInputError`-style domain error. **REQUIRED:** `designing-errors`.
 2. An `async def` method on the service, awaiting ports only, with `Args:`,

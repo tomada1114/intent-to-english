@@ -125,7 +125,9 @@ Tailwind CSS 4 utility classes in the markup are the only styling layer, through
 Biome parses Tailwind's directives (`css.parser.tailwindDirectives`). Every
 interactive element keeps a visible focus style. The sample's buttons use
 `focus-visible:outline-2 focus-visible:outline-offset-2`. A design system, UI kit, form
-library, or i18n is each app's own decision and a new package.
+library, or i18n is each app's own decision and a new package. The visual rules every
+screen keeps — colors by role, type, shape, motion, tokens, contrast — are
+**REQUIRED:** [references/design-lock.md](references/design-lock.md).
 
 ## Accessibility
 

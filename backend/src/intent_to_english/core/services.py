@@ -163,7 +163,7 @@ class ModelTaskDefinition(Protocol):
 
     @property
     def request_type(self) -> type[object]:
-        """The request value an evaluator constructs for this task."""
+        """The request value this task accepts."""
 
     async def run(
         self,
