@@ -1,18 +1,17 @@
 ---
 name: codex-shipping-issues
 description: >
-  Use when running in Codex to ship a GitHub issue through a regular pull request,
-  up to three review rounds with a local fallback for failed,
-  unavailable or stalled GitHub Codex review, findings addressed, current-head CI
-  and the requested PR-only or merge stopping point;
+  Use when running in Codex to ship a GitHub issue through a regular pull request
+  after a read-only fresh-context review of the branch with its findings triaged and
+  fixed, current-head CI and the requested PR-only or merge stopping point;
   preparing or cleaning a linked worktree; or checking the evidence for a PR-only run.
   Uses repository-local skills and helpers without requiring personal global skills.
 ---
 
 # Ship One Issue from Codex
 
-**Owns:** one issue's acceptance, implementation, local verification, regular PR,
-Codex review or its local fallback, CI evidence, and the requested stop point.
+**Owns:** one issue's acceptance, implementation, local verification, pre-PR branch
+review, regular PR, CI evidence, and the requested stop point.
 **Does not own:** Claude Code's shipping workflow (`shipping-issues`), authoring a PR
 on an existing branch (`create-pr`), or the repository's confirmation policy.
 
@@ -101,43 +100,29 @@ this issue. Run the narrowest relevant checks, additional prose/workflow checks 
 For a demonstrated host restriction, use `create-pr`'s documented CI verification
 route, record the missing local evidence and keep its current-head CI requirement.
 Inspect the entire diff against the acceptance map. Record base/head/diff identity,
-commands, results and limitations. Routine self-review is separate from the review
-gate below.
+commands, results and limitations. Your own read of the diff is not the review in step 4.
 
-## 4. Publish and observe review with CI
+## 4. Review the branch, then publish and observe CI
 
-Commit only intended files with normal hooks, push this branch, and open a regular
+Before any PR exists, run the read-only fresh-context review in
+[review, CI and landing](references/review-and-ci.md): a reviewer that did not write the
+change reads the branch diff against the issue, you triage every finding, and the
+accepted in-scope ones are fixed and re-verified. One pass; no second review after the
+fixes. No review of the PR is awaited, requested or polled.
+
+Then commit only intended files with normal hooks, push this branch, and open a regular
 PR against the verified default branch. Follow `create-pr`'s template and checks;
 include `Closes #N` only for the issue actually implemented. Update an existing PR
 for this branch instead of creating another. Attach the PR to this chat when the
-host supports PR attachments.
-
-Read [review, CI and landing](references/review-and-ci.md) before publication.
-Wait for the automatic Codex review triggered on opening. Read all its findings, fix
-every accepted one and inspect the correction diff locally. Observe CI while a review
-runs and diagnose failures within scope. Record each round's reviewed commit and
-findings separately from the current head.
-
-If the integration fails, is unavailable or stalls, follow the reference's local
-fallback: review the full current diff yourself and, when available, obtain an
-independent read-only sub-agent review. AGENTS.md authorizes that delegation.
-Record local findings and dispositions separately from cloud evidence; a failed
-cloud run is never a clean review. Preserve required approvals and checks.
-
-After each correction push, wait briefly for a review of the new head. A review that
-starts is the next round: fix its accepted `P0`–`P2` findings and report accepted
-`P3` ones as follow-up candidates. Wait for at most three rounds, never request a
-review, repeat affected checks and `just verify`, push normally and wait for
-current-head CI. After the wait cap, triage findings already posted and fix accepted
-in-scope `P0`–`P2` findings without beginning another review wait. The cap limits
-review waiting, not corrections to known bugs. This does not claim the final
-head received cloud review. The local fallback uses the same finding criteria and
-round cap. Repository-required approvals remain separate and cannot be bypassed.
+host supports PR attachments. Observe CI on the current head and diagnose failures
+within scope; repeat affected checks and `just verify` after any correction, push
+normally and wait for current-head CI. Repository-required approvals remain separate
+and cannot be bypassed.
 
 ## 5. Finish at the requested boundary
 
-At `stop_at=pr`, finish after acceptance, the settled review rounds with their
-required findings addressed, and current-head CI; preserve the open PR and branch.
+At `stop_at=pr`, finish after acceptance, the pre-PR review with its accepted
+findings fixed, and current-head CI; preserve the open PR and branch.
 At `stop_at=merge`, proceed to landing as soon as all current gates and required approvals pass, without asking again for
 already authorized merge. Verify remote merged state, merge commit and issue closure.
 Then find the open issues whose `Depends on: #N` names the closed issue;
@@ -146,14 +131,13 @@ and report which issues were cleared. Use MCP or the CLI for this tracker update
 Do not switch, pull or clean the user's busy primary checkout.
 
 Pending gates alone do not finish the run. Wait in bounded observations, work on
-in-scope failures between them and keep the user informed. Use the local review
-fallback for integration failure; a required inaccessible check, missing approval,
-unavailable qualifying local review or unresolved owner decision is a blocker;
+in-scope failures between them and keep the user informed. A required inaccessible
+check, missing approval or unresolved owner decision is a blocker;
 preserve source, PR and worktree. Continue in-scope corrections without an arbitrary
 attempt cap; honor explicit user deadlines and host limits.
 
-Report the issue, PR URL, head SHA, acceptance and local checks, separate Codex review
-and CI evidence, observed merge/issue state, and any missing evidence. Never report
+Report the issue, PR URL, head SHA, acceptance and local checks, the pre-PR review's
+findings and their triage, CI evidence, observed merge/issue state, and any missing evidence. Never report
 PR creation as verified landing. For cleanup within the requested outcome, verify
 the merge and targets and obtain any required confirmation. Use the host lifecycle
 for a host-managed worktree. For a manual worktree, `just worktree-clean` previews
