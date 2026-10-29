@@ -8,7 +8,7 @@
 [dependency-groups]
 dev = [
     "httpx>=0.28",
-    "httpx2>=2.13",
+    "httpx2>=2.16.0",
     "mypy>=2.4.0",
     "pre-commit>=4.7.0",
     "pytest>=8.0",

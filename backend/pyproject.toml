@@ -20,7 +20,7 @@ dependencies = [
     # 2.0.0 turned into a Union alias, so every request raises TypeError
     # (pydantic_ai/models/anthropic.py _map_message; checked 2026-10-28).
     "anthropic>=1.17.0,<2",
-    "fastapi>=0.143.2",
+    "fastapi>=0.158.2",
     "pydantic-ai-slim[anthropic]>=2.55.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.1.4",
