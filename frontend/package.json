@@ -13,16 +13,16 @@
     "test": "vitest run --coverage"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.104.3",
-    "@tanstack/react-router": "^1.170.44",
+    "@tanstack/react-query": "^5.104.5",
+    "@tanstack/react-router": "^1.170.45",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.2",
     "@hey-api/openapi-ts": "0.99.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/router-plugin": "^1.168.46",
+    "@tanstack/router-plugin": "^1.168.47",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -36,7 +36,7 @@
     "msw": "^3.0.3",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   }
 }
