@@ -11,7 +11,6 @@ full — its approval rules and gates above all.
 
 Node.js 24 and pnpm 11 are the only toolchain; no `npm`, `yarn`, or `bun`
 command runs here, and no lockfile but the root `pnpm-lock.yaml` is committed.
-
 - The root `package.json` pins pnpm (`packageManager`, with
   `pmOnFail: download` in `pnpm-workspace.yaml`) and requires Node.js
   `^24.19.0` through `devEngines.runtime` with `onFail: download`:
@@ -34,15 +33,15 @@ Every command here runs from the repository root. Run the narrowest
 check that can fail while iterating, then `just verify` before a completion
 claim.
 
-| What you changed | The narrowest check that can fail |
-|---|---|
-| A file's formatting or lint | `just frontend lint` (`just frontend fmt` applies Biome's fixes) |
-| Types, or `tsconfig.json` | `pnpm --dir frontend exec tsc --noEmit` |
-| One test file | `pnpm --dir frontend exec vitest run tests/<name>.test.tsx` |
-| Anything under `src/`, or `vitest.config.ts` | `just frontend test` (the coverage floor) |
-| `vite.config.ts`, `index.html`, or anything the bundle includes | `just frontend build` |
-| A route file under `src/routes/` (added, renamed, removed) | `just frontend build`, then `git add` the regenerated `src/routeTree.gen.ts` |
-| The whole frontend | `just frontend lint && just frontend test` |
+| What you changed                                                | The narrowest check that can fail                                            |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| A file's formatting or lint                                     | `just frontend lint` (`just frontend fmt` applies Biome's fixes)             |
+| Types, or `tsconfig.json`                                       | `pnpm --dir frontend exec tsc --noEmit`                                      |
+| One test file                                                   | `pnpm --dir frontend exec vitest run tests/<name>.test.tsx`                  |
+| Anything under `src/`, or `vitest.config.ts`                    | `just frontend test` (the coverage floor)                                    |
+| `vite.config.ts`, `index.html`, or anything the bundle includes | `just frontend build`                                                        |
+| A route file under `src/routes/` (added, renamed, removed)      | `just frontend build`, then `git add` the regenerated `src/routeTree.gen.ts` |
+| The whole frontend                                              | `just frontend lint && just frontend test`                                   |
 
 `just frontend dev` is the developer's Vite server, human-run: an agent never
 starts, stops, or restarts it, and never binds 5173. To see the screen served,
@@ -98,7 +97,6 @@ How a screen is built — its route and feature, server data through the generat
 client, API errors, styling, accessibility, and its component tests — is the
 `building-screens` skill's: load it for any change under `src/routes/`,
 `src/features/`, or `src/lib/`. Every frontend task keeps these rules:
-
 - **`src/routeTree.gen.ts` is generated and committed.** `@tanstack/router-plugin`
   (in `vite.config.ts`, before `react()`) rewrites it whenever Vite, Vitest, or
   the build runs; never edit it by hand. Its header is replaced so it carries
