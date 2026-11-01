@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from intent_to_english.core.models import Action, ModelTask, Stage
+    from intent_to_english.core.models import Action, ModelTask, Stage, Usage
 
 
 class AppError(Exception):
@@ -149,6 +149,7 @@ class ModelError(AppError):
         latency_ms: int,
         *,
         status: int | None = None,
+        usage: Usage | None = None,
     ) -> None:
         """Preserve the failed call's accounting and HTTP status, never its payload."""
         super().__init__(provider, model, latency_ms)
@@ -156,6 +157,7 @@ class ModelError(AppError):
         self.model = model
         self.latency_ms = latency_ms
         self.status = status
+        self.usage = usage
 
     def __str__(self) -> str:
         """The stable code is sufficient; provider exceptions stay private."""

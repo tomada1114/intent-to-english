@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 from uuid import UUID
 
 import anyio
@@ -163,6 +164,28 @@ async def test_run_model_task_does_not_repair_or_hide_an_unknown_exception():
         await services.run_model_task(
             ModelTask.OPEN, call, partner.check_open, partner.OpenRequest(None)
         )
+
+
+async def test_conversation_refusal_persists_billed_usage_without_repair(
+    make_conversation,
+):
+    h = make_conversation()
+    usage = Usage("test", "model", 12, 8, Decimal("0.000108"), 250)
+    h.partner.open_call.outputs.append(
+        ModelUnavailableError("test", "model", 250, usage=usage)
+    )
+    view = await h.service.start()
+
+    with pytest.raises(ModelUnavailableError, match="Model unavailable"):
+        await h.service.act(
+            view.id, m.ActionRequest(m.Action.OPEN, view.version, m.NoInput())
+        )
+
+    (recorded,) = await h.repository.model_calls(view.id)
+    assert recorded.call == CallAttempt(
+        ModelRole.PARTNER, ModelTask.OPEN, 1, usage, CallOutcome.PROVIDER_ERROR
+    )
+    assert h.partner.open_call.requests == [(partner.OpenRequest(None), None)]
 
 
 @pytest.mark.parametrize(

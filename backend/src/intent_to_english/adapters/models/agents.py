@@ -118,8 +118,9 @@ class _AgentCalls:
     ) -> None:
         response = _last_response(messages)
         if response is not None and self._provider.refused(response):
+            usage = self._usage(messages, started)
             raise ModelUnavailableError(
-                self._provider.name, self._model_id, self._elapsed(started)
+                self._provider.name, self._model_id, usage.latency_ms, usage=usage
             )
 
     def _elapsed(self, started: float) -> int:

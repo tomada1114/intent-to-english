@@ -12,7 +12,7 @@ from intent_to_english.core.errors import (
     InvalidCursorError,
     InvalidPageLimitError,
 )
-from intent_to_english.core.models import Action, ModelTask, Stage
+from intent_to_english.core.models import Action, ModelTask, Stage, Usage
 
 SOME_ID = UUID("01900000-0000-7000-8000-00000000002a")
 
@@ -84,3 +84,15 @@ def test_session_error_preserves_safe_attributes_and_pickle_args():
     error = errors.SessionNotFoundError(SOME_ID)
     assert error.session_id == SOME_ID
     assert str(error) == f"Session {SOME_ID} not found"
+
+
+def test_model_error_preserves_billed_usage_and_pickle_attributes():
+    usage = Usage("test", "model", 12, 8, None, 250)
+    error = errors.ModelUnavailableError("test", "model", 250, usage=usage)
+
+    restored = pickle.loads(pickle.dumps(error))  # noqa: S301 - our own serialized domain error
+
+    assert restored.usage == usage
+    assert restored.args == error.args
+    assert str(restored) == "Model unavailable"
+    assert errors.ModelUnavailableError("test", "model", 250).usage is None

@@ -157,7 +157,9 @@ the refusal before the parse failure, or a refusal gets a repair:
 
 Each row is pinned by its own adapter test over a mocked transport, so an upgrade that wraps
 errors differently fails a test instead of shipping. Any other exception is a bug and
-propagates. A model error's row records no tokens or cost, a refusal's included.
+propagates. A refusal carries its response's core `Usage` on the model error, so the
+service records its input and output tokens and exact USD cost without a repair.
+Other model errors have no response usage and record no tokens or cost.
 **BACKGROUND:** `designing-errors`' "Two kinds of failure".
 
 ## What never leaves the adapter

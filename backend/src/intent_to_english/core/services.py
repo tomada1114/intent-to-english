@@ -92,7 +92,7 @@ async def run_model_task[Request, Output](
                 outcome = CallOutcome.TIMEOUT
             elif isinstance(error, ModelRateLimitedError):
                 outcome = CallOutcome.RATE_LIMITED
-            usage = Usage(
+            usage = error.usage or Usage(
                 error.provider, error.model, None, None, None, error.latency_ms
             )
             attempt = CallAttempt(
