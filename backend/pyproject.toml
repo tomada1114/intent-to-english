@@ -21,7 +21,7 @@ dependencies = [
     # (pydantic_ai/models/anthropic.py _map_message; checked 2026-10-28).
     "anthropic>=1.17.0,<2",
     "fastapi>=0.158.2",
-    "pydantic-ai-slim[anthropic]>=2.55.0",
+    "pydantic-ai-slim[anthropic]>=2.61.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn>=0.53.0",
