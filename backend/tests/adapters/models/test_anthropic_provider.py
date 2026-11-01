@@ -21,7 +21,7 @@ from intent_to_english.adapters.models.anthropic_provider import (
     build_anthropic_models,
 )
 from intent_to_english.composition import ResourceClosers
-from intent_to_english.core import coaching, partner
+from intent_to_english.core import coaching, partner, services
 from intent_to_english.core import models as m
 from intent_to_english.core.errors import (
     ModelRateLimitedError,
@@ -319,6 +319,74 @@ async def test_provider_failure_maps_once_without_private_text(
     assert caught.value.status == status
     assert PRIVATE not in str(caught.value)
     assert PRIVATE not in caplog.text
+    assert len(wire.requests) == 1
+
+
+@pytest.mark.parametrize("case", ["refusal-empty", "refusal-text", "refusal-parsed"])
+@pytest.mark.parametrize(
+    ("task", "task_request", "expected_usage"),
+    [
+        pytest.param(
+            m.ModelTask.OPEN,
+            partner.OpenRequest(None),
+            m.Usage("anthropic", PARTNER_ID, 12, 8, Decimal("0.0000052"), 250),
+            id="partner",
+        ),
+        pytest.param(
+            m.ModelTask.ACKNOWLEDGE,
+            coaching.AcknowledgeRequest("散歩した", ()),
+            m.Usage("anthropic", COACH_ID, 12, 8, Decimal("0.000104"), 250),
+            id="coach",
+        ),
+    ],
+)
+async def test_refusal_records_billed_usage_without_repair(
+    wire, case, task, task_request, expected_usage
+):
+    wire.case = case
+    recorded = []
+
+    async def record(attempt):
+        recorded.append(attempt)
+
+    with override_allow_model_requests(True):
+        result = await services.MODEL_TASKS[task].run(
+            wire.partner, wire.coach, task_request, record=record
+        )
+
+    assert isinstance(result.error, ModelUnavailableError)
+    assert result.output is None
+    assert result.attempts == tuple(recorded)
+    assert recorded == [
+        m.CallAttempt(
+            services.MODEL_TASKS[task].role,
+            task,
+            1,
+            expected_usage,
+            m.CallOutcome.PROVIDER_ERROR,
+        )
+    ]
+    assert len(wire.requests) == 1
+
+
+@pytest.mark.parametrize(
+    "failure", FAILURES[:6], ids=[case[0] for case in FAILURES[:6]]
+)
+async def test_unbilled_provider_failure_records_unknown_usage(wire, failure):
+    case, error_type, status = failure
+    wire.case = case
+
+    with override_allow_model_requests(True):
+        result = await services.MODEL_TASKS[m.ModelTask.OPEN].run(
+            wire.partner, wire.coach, partner.OpenRequest(None)
+        )
+
+    assert isinstance(result.error, error_type)
+    assert result.attempts[0].usage == m.Usage(
+        "anthropic", PARTNER_ID, None, None, None, 250
+    )
+    assert result.attempts[0].status == status
+    assert len(result.attempts) == 1
     assert len(wire.requests) == 1
 
 

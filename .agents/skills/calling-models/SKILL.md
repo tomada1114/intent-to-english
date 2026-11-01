@@ -60,7 +60,9 @@ prompt text and provider message shapes in `core/`.
 - **It raises a model error** for a timeout, rate limiting, an unavailable or
   unreachable provider, or a refusal (`model_unavailable`, outcome `provider_error`, never
   repaired), carrying the provider, model, and latency the call's row needs, plus the HTTP
-  status when the provider answered with one — an integer, never its body.
+  status when the provider answered with one — an integer, never its body. A billed
+  refusal also carries its response's core `Usage`, so its tokens and cost reach the
+  call record; failures without a response leave that usage absent.
 - **An output that does not parse is reported, not raised as a model error:** the
   service gets the parse failure with the call's usage and treats it like a failed
   check.
