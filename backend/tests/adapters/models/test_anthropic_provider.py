@@ -198,9 +198,10 @@ async def test_request_sends_native_output_effort_and_bounded_tokens(wire):
     )
     assert len(wire.requests) == 1
     sent = wire.requests[0]
-    assert str(sent.url) == "https://api.anthropic.com/v1/messages?beta=true"
-    assert sent.headers["x-api-key"] == "explicit-key"
-    assert "authorization" not in sent.headers
+    assert str(sent.url) == "https://api.anthropic.com/v1/messages"
+    assert sent.headers["anthropic-version"] == "2026-10-21"
+    assert sent.headers["authorization"] == "Bearer explicit-key"
+    assert "x-api-key" not in sent.headers
     assert sent.headers["x-stainless-retry-count"] == "0"
     body = json.loads(sent.content)
     assert body["max_tokens"] == 16_000

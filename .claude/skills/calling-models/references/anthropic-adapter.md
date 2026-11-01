@@ -8,17 +8,25 @@ external fact below carries its source and the date it was checked.
 ## Why PydanticAI, and its pins
 
 The app calls Claude through Anthropic's API with an Anthropic API key, through PydanticAI's
-Anthropic model: it locks `pydantic-ai-slim[anthropic]` 2.55.0 and declares `anthropic`
-(`>=1.17.0,<2`, from the release its client options were checked against) itself, because
+Anthropic model: it locks `pydantic-ai-slim[anthropic]` 2.61.0 and declares `anthropic`
+(`>=2.3.0`, from the release its client options were checked against) itself, because
 the adapter builds the SDK client. PydanticAI supplies the Anthropic model and provider,
 typed structured output, and test models; the adapter turns off what would hide calls from
 the core — retries, fallbacks, streaming. Both packages are imported only under
 `adapters/models/`.
 
-- The SDK stays below 2 because pydantic-ai-slim 2.55.0 builds message parameters with
-  `BetaMessageParam(...)`, which anthropic 2.0.0 made a `Union` alias, so every request
-  raised `TypeError` (`_map_message` in `pydantic_ai/models/anthropic.py`, run against both
-  versions on 2026-10-28); the cap lifts with a PydanticAI release that supports anthropic 2.
+- PydanticAI 2.61.0 builds message parameters as dictionaries rather than calling
+  `BetaMessageParam(...)`, which is a `Union` alias in anthropic 2. The compatible
+  pair keeps the SDK current without a local workaround (`_map_message` and
+  `_map_model_request` in the locked `pydantic_ai/models/anthropic.py`, inspected
+  2026-11-01).
+- SDK 2.3.0 sends API version `2026-10-21` and `/v1/messages` without the old
+  `?beta=true` query. Its explicit API key becomes `Authorization: Bearer <key>`;
+  the adapter's wire test pins the URL, version and exact synthetic credential. Sources:
+  https://github.com/anthropics/anthropic-sdk-python/releases/tag/v2.0.0 and
+  https://github.com/anthropics/anthropic-sdk-python/releases/tag/v2.3.0, and
+  https://github.com/anthropics/anthropic-sdk-python/blob/v2.3.0/src/anthropic/_client.py
+  (checked 2026-11-01).
 - Rejected: calling Anthropic's API with httpx2 directly — no new package and full control,
   but the request, the schema, parsing, retries, and error mapping would all be
   hand-written, and Bedrock would be a second adapter written from scratch.
@@ -26,8 +34,8 @@ the core — retries, fallbacks, streaming. Both packages are imported only unde
   validation failure and forces `tool_choice` on that retry, and its default retry strategy
   repeats throttled calls up to six times, both of which break "one request is one
   recorded, billed call".
-- Sources: https://github.com/pydantic/pydantic-ai/releases/tag/v2.55.0 (released
-  2026-10-09, Python ≥3.11, MIT); https://github.com/pydantic/pydantic-ai/blob/main/docs/version-policy.md
+- Sources: https://github.com/pydantic/pydantic-ai/releases/tag/v2.61.0 (released
+  2026-10-24, checked 2026-11-01); https://github.com/pydantic/pydantic-ai/blob/main/docs/version-policy.md
   (no intentional breaking change in a minor release). Claude Sonnet 5.5 returns 400 on a
   forced `tool_choice`: https://platform.claude.com/docs/en/about-claude/models/migration-guide
   (as cached on 2026-10-06), so PydanticAI's default tool-call output cannot be used.
@@ -37,7 +45,7 @@ the core — retries, fallbacks, streaming. Both packages are imported only unde
 Each task's `output_type` is wrapped in `NativeOutput`, which PydanticAI's Anthropic model
 sends as `output_config.format = {"type": "json_schema", "schema": ...}`, forced strict
 (`_build_output_config` and `prepare_request` in `pydantic_ai/models/anthropic.py`,
-pydantic-ai-slim 2.55.0, confirmed on the wire by the adapter tests, 2026-10-28). Coach
+pydantic-ai-slim 2.61.0, confirmed on the wire by the adapter tests, 2026-11-01). Coach
 feedback is one top-level object with a `kind` discriminator and exactly one matching
 feedback or reading-question payload; retry results use a kind-tagged payload inside a
 top-level object too. Anything outside Anthropic's supported keywords is a 400 the adapter
@@ -74,8 +82,8 @@ output converts. A test walks each task's wire schema against that list.
 - The explicit key makes the SDK skip its credential chain (`ANTHROPIC_API_KEY`,
   `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_PROFILE` and `ANTHROPIC_CONFIG_DIR` profiles, Workload
   Identity Federation), and the explicit base URL beats `ANTHROPIC_BASE_URL`. A complete
-  telemetry option skips the `ANTHROPIC_OPEN_TELEMETRY_*` variables (anthropic 1.17.0
-  `_client.py` and `_tracing.py`, read in the locked install, 2026-10-28).
+  telemetry option skips the `ANTHROPIC_OPEN_TELEMETRY_*` variables (anthropic 2.3.0
+  `_client.py` and `_tracing.py`, read in the locked install, 2026-11-01).
 - The SDK merges `ANTHROPIC_CUSTOM_HEADERS` into the client's headers even then, and
   `copy()` / `with_options()` re-read it; nothing in PydanticAI calls either. So the builder
   resets the client's private `_custom_headers` to `{}` right after construction, with a
@@ -90,7 +98,7 @@ output converts. A test walks each task's wire schema against that list.
   request, and a machine behind a proxy or with its own CA needs them.
 - Each task gets one agent, built once, with `output_type=NativeOutput(<the task's schema
   model>)`, `retries=0`, no tools, and `agent.instrument = False`, which overrides a global
-  `Agent.instrument_all()` default (`agent/__init__.py` at pydantic-ai v2.55.0).
+  `Agent.instrument_all()` default (`agent/__init__.py` at pydantic-ai v2.61.0).
 - The client holds connections, so the builder registers `client.close` with
   `ResourceClosers`. **REQUIRED:** `designing-core-logic` (its adding-a-port reference,
   "An adapter that holds a resource").
@@ -141,7 +149,7 @@ the original with `from`. `anthropic.APITimeoutError` is a subclass of
 `UnexpectedModelBehavior` — only when it carries no usable text; refused text that is
 present goes to validation like any other (`_map_api_errors`, `_process_response`, and
 `_FINISH_REASON_MAP` in `models/anthropic.py`, and `_agent_graph.py`, pydantic-ai-slim
-2.55.0 with anthropic 1.17.0, run over a mocked transport on 2026-10-28).
+2.61.0 with anthropic 2.3.0, run over a mocked transport on 2026-11-01).
 
 Test the timeout before the connection error, or every timeout becomes unavailable, and
 the refusal before the parse failure, or a refusal gets a repair:
