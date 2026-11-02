@@ -166,8 +166,8 @@ dialogs in the MVP; everything happens in the page.
 | Stage | Composer placeholder | Controls | 👉 次 |
 |---|---|---|---|
 | Waiting for the opener or a Partner reply | (disabled) | — | 「Partner の返事を待っています」 |
-| Intent, English directly (each session's default) | 「返したいことを英語で」 | [日本語から書く] (switches the composer to Japanese for the rest of the session; the text stays) | 「返したいことを英語で送ってください（難しければ「日本語から書く」）」 — after a Partner share: 「反応や質問を英語で送ってください（難しければ「日本語から書く」）」 |
-| Intent, Japanese first | 「返したいことを日本語で」 | [英語で直接返す] (switches back for the rest of the session; the text stays) | 「返したいことを日本語で送ってください（英語なら「英語で直接返す」）」 — after a Partner share: 「反応や質問を日本語で送ってください（英語なら「英語で直接返す」）」 |
+| Intent, English directly (each session's default) | 「返したいことを英語で」 | [日本語から書く] (switches the composer to Japanese for the rest of the session; the text stays) | 「返したいことを英語で（難しければ「日本語から書く」）」 — after a Partner share: 「反応や質問を英語で（難しければ「日本語から書く」）」 |
+| Intent, Japanese first | 「返したいことを日本語で」 | [英語で直接返す] (switches back for the rest of the session; the text stays) | 「返したいことを日本語で（英語なら「英語で直接返す」）」 — after a Partner share: 「反応や質問を日本語で（英語なら「英語で直接返す」）」 |
 | English | 「英語にしてみましょう（途中まででOK）」 | [ヒント] [答えを見せて] | 「それを英語にしてみてください（途中まででOK。詰まったら「ヒント」）」 |
 | Hint request (inline under the composer) | 「分からないところ（例: 「久しぶり」が分からない）」 (1–200 characters) + the composer keeps any partial English | [ヒントをもらう] [やめる] | 「分からないところを書いて、ヒントをもらってください」 |
 | After a hint | 「英語の文全体を」 | [ヒント] [答えを見せて] | 「ヒントを使って、英語の文全体を送ってください」 |

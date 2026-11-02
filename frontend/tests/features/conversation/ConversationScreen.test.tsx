@@ -145,9 +145,7 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
     expect(
       within(pane("コーチ")).getByText("1. 返したいことを英語で送ってください"),
     ).toBeInTheDocument();
-    expect(
-      next("返したいことを英語で送ってください（難しければ「日本語から書く」）"),
-    ).toBeVisible();
+    expect(next("返したいことを英語で（難しければ「日本語から書く」）")).toBeVisible();
   });
 
   it("collapses and expands the how-to", async () => {
@@ -418,7 +416,7 @@ const stageRows: StageRow[] = [
   {
     name: "Intent",
     view: intent,
-    next: "返したいことを英語で送ってください（難しければ「日本語から書く」）",
+    next: "返したいことを英語で（難しければ「日本語から書く」）",
     composer: {
       label: "あなたの英語",
       placeholder: "返したいことを英語で",
@@ -429,7 +427,7 @@ const stageRows: StageRow[] = [
   {
     name: "Intent after a Partner share",
     view: at("intent", [OPENER, DONE, SHARE], ["intent", ...SIDE], { turn_index: 2 }),
-    next: "反応や質問を英語で送ってください（難しければ「日本語から書く」）",
+    next: "反応や質問を英語で（難しければ「日本語から書く」）",
     composer: {
       label: "あなたの英語",
       placeholder: "返したいことを英語で",
@@ -608,9 +606,7 @@ describe("ConversationScreen stage table (REQ-003)", () => {
     const japanese = screen.getByRole("textbox", { name: "あなたの日本語" });
     expect(japanese).toHaveAttribute("lang", "ja");
     expect(japanese).toHaveValue("Well");
-    expect(
-      next("返したいことを日本語で送ってください（英語なら「英語で直接返す」）"),
-    ).toBeVisible();
+    expect(next("返したいことを日本語で（英語なら「英語で直接返す」）")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "英語で直接返す" }));
     expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveAttribute(

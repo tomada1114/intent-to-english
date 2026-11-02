@@ -980,9 +980,7 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     expect(field).toBeEnabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        "👉 次: 返したいことを日本語で送ってください（英語なら「英語で直接返す」）",
-      ),
+      screen.getByText("👉 次: 返したいことを日本語で（英語なら「英語で直接返す」）"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /送信/ }));

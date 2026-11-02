@@ -12,8 +12,7 @@ import {
 const OPENER = "Hey! How's it going?";
 const TAGLINE = "英語で話す前に、日本語で言いたいことを決める練習";
 const EMPTY = "まだ会話はありません。最初の会話を始めましょう。";
-const NEXT_AT_INTENT =
-  "👉 次: 返したいことを英語で送ってください（難しければ「日本語から書く」）";
+const NEXT_AT_INTENT = "👉 次: 返したいことを英語で（難しければ「日本語から書く」）";
 
 /** Count the `open` actions the screen posts, across reloads. */
 function countOpens(page: Page) {
