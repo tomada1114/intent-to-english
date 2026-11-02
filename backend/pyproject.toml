@@ -13,7 +13,7 @@ description = "Practice English small talk: say it in Japanese first, build the 
 requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.22",
-    "alembic>=1.20",
+    "alembic>=1.20.1",
     # The model adapter builds anthropic.AsyncAnthropic itself, so the SDK is a direct
     # dependency, from 2.3.0, the release its client options were checked against.
     "anthropic>=2.3.0",
