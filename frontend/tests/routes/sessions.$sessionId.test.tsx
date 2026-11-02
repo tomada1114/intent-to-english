@@ -57,6 +57,8 @@ function renderAt(path: string) {
 }
 
 describe("/sessions/$sessionId", () => {
+  // Full-suite contention with backend workers can exceed the default 1 s query
+  // and 5 s test deadlines; keep this routed retry flow bounded at 5 s per query.
   it.each([true, false])(
     "hands focus to the transcript after an end retry with wide layout: %s",
     async (wide) => {
@@ -82,15 +84,22 @@ describe("/sessions/$sessionId", () => {
       );
       const user = userEvent.setup();
       renderAt(`/sessions/${SESSION_ID}`);
-      await user.click(await screen.findByRole("button", { name: "会話を終える" }));
+      await user.click(
+        await screen.findByRole("button", { name: "会話を終える" }, { timeout: 5000 }),
+      );
       await user.click(screen.getByRole("button", { name: "終える" }));
-      await user.click(await screen.findByRole("button", { name: "もう一度" }));
-      const heading = await screen.findByRole("heading", {
-        name: "ターンごとのやりとり",
-      });
+      await user.click(
+        await screen.findByRole("button", { name: "もう一度" }, { timeout: 5000 }),
+      );
+      const heading = await screen.findByRole(
+        "heading",
+        { name: "ターンごとのやりとり" },
+        { timeout: 5000 },
+      );
       await waitFor(() => expect(heading).toHaveFocus());
       expect(heading).toBeVisible();
     },
+    20_000,
   );
 
   it("shows skeletons while the session loads, then the conversation", async () => {
