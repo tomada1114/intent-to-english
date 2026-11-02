@@ -93,6 +93,8 @@ function sessionLinks() {
 }
 
 describe("HomeScreen", () => {
+  // The two-request focus retry exceeded the default 5 s test budget when the
+  // full suite contends with backend workers; keep a bounded execution budget.
   it("keeps focus on the heading through a failed start retry", async () => {
     const hold = deferred();
     let posts = 0;
@@ -122,7 +124,7 @@ describe("HomeScreen", () => {
     hold.release();
     await screen.findByRole("button", { name: "もう一度" });
     expect(heading).toHaveFocus();
-  });
+  }, 20_000);
 
   it("starts only once when the failed-start retry is activated twice in one render", async () => {
     let posts = 0;

@@ -155,6 +155,8 @@ const MODEL_CODES = [
 ];
 
 describe("ConversationScreen model failure banners (REQ-004)", () => {
+  // This typing/error/retry flow exceeded Vitest's 5 s deadline under full-suite
+  // host load; its response assertions and query deadlines remain unchanged.
   it.each(MODEL_CODES)(
     "shows $code as 「コーチの返事を受け取れませんでした（$reason）。」 and もう一度 resends the action",
     async ({ code, status, reason }) => {
@@ -204,6 +206,7 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
       ]);
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     },
+    20_000,
   );
 
   it("shows a failed auto-sent partner_reply on the left with もう一度 and never resends it by itself", async () => {

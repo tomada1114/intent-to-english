@@ -809,6 +809,8 @@ const sendRows: SendRow[] = [
 ];
 
 describe("ConversationScreen sending (REQ-004)", () => {
+  // Typing, MSW admission and the delayed waiting line exceeded the default
+  // deadlines under host load; bound each wait at 5 s and the whole flow at 20 s.
   it.each(sendRows)(
     "posts $name with the shown version and waits in place",
     async ({ view, act: perform, body, waiting }) => {
@@ -822,17 +824,27 @@ describe("ConversationScreen sending (REQ-004)", () => {
 
       await perform(user);
 
-      await waitFor(() =>
-        expect(server.bodies).toEqual([{ ...body, attempt_id: expect.any(String) }]),
+      await waitFor(
+        () =>
+          expect(server.bodies).toEqual([{ ...body, attempt_id: expect.any(String) }]),
+        { timeout: 5000 },
       );
       // The waiting line shows once the request passes 300 ms.
       if (waiting === "partner") {
         expect(
-          await within(pane("会話")).findByText("Partner が返事を考えています…"),
+          await within(pane("会話")).findByText(
+            "Partner が返事を考えています…",
+            {},
+            { timeout: 5000 },
+          ),
         ).toBeInTheDocument();
       } else {
         expect(
-          await within(pane("コーチ")).findByText("コーチが確認しています…"),
+          await within(pane("コーチ")).findByText(
+            "コーチが確認しています…",
+            {},
+            { timeout: 5000 },
+          ),
         ).toBeInTheDocument();
       }
       expect(within(pane("コーチ")).queryByRole("group", { name: "操作" })).toBeNull();
@@ -840,6 +852,7 @@ describe("ConversationScreen sending (REQ-004)", () => {
       if (field !== null) expect(field).toBeDisabled();
       hold.release();
     },
+    20_000,
   );
 
   it("keeps the text in a disabled composer and blocks a second send while in flight", async () => {
