@@ -256,9 +256,9 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
     const served = serveSession(view, () => ({ ...intent, version: 2 }));
     const user = userEvent.setup();
     renderSession(view);
-    const field = screen.getByRole("textbox", { name: "あなたの日本語" });
+    const field = screen.getByRole("textbox", { name: "あなたの英語" });
     expect(field).toHaveValue("");
-    await user.type(field, "久しぶり");
+    await user.type(field, "Long time");
 
     const banner = pane("会話").getByRole("alert");
     expect(banner).toHaveTextContent(
@@ -278,8 +278,8 @@ describe("ConversationScreen model failure banners (REQ-004)", () => {
       ]),
     );
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-    expect(screen.getByRole("textbox", { name: "あなたの日本語" })).toHaveValue(
-      "久しぶり",
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveValue(
+      "Long time",
     );
   });
 
@@ -981,7 +981,7 @@ describe("ConversationScreen loaded with a last submission (REQ-007)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(
       screen.getByText(
-        "👉 次: 返したいことを日本語で送ってください（英語で返してもOK）",
+        "👉 次: 返したいことを日本語で送ってください（英語なら「英語で直接返す」）",
       ),
     ).toBeInTheDocument();
 

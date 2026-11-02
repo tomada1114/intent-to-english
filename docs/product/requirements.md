@@ -11,9 +11,10 @@
 ## 1. Overview
 
 **What it is.** An English small-talk practice app. An AI friend (the Partner) chats in
-short English lines. Before answering, the learner writes what they really want to say in
-Japanese, then builds the English themselves. An AI coach (the Coach) helps only where they
-get stuck, checks the English against the Japanese intent, and turns every fix into a
+short English lines. The learner answers in English by default; when the English would
+shrink what they mean, they switch to writing it in Japanese first, then build the English
+themselves. An AI coach (the Coach) helps only where they
+get stuck, checks the English against the Japanese intent when there is one, and turns every fix into a
 fill-in-the-blank retry. Then the Partner replies to the learner's English and the
 conversation goes on.
 
@@ -24,8 +25,8 @@ they meant to say given up. The MVP has one user, the owner, on their own Mac. T
 also the owner's portfolio product #1: a product with an LLM built in, with structured
 output and a swappable model provider.
 
-**Core interaction — one turn.** Partner line → the learner's Japanese intent → the
-learner's own English (hints only for the gap they name) → structured feedback (intent
+**Core interaction — one turn.** Partner line → the learner's Japanese intent (when they
+chose to start from Japanese) → the learner's own English (hints only for the gap they name) → structured feedback (intent
 check → fixes in the order of their blanks → their sentence → a numbered fill-in template) → the
 fill-in retry (skippable) → the Partner replies to the learner's latest English. If this
 turn is not good, nothing else matters.
@@ -110,8 +111,8 @@ vault.
 
 ### 3.1 Start and resume a session (F1)
 
-- **New session**: the Coach shows how the turn works (send Japanese first, then try the
-  English; partial English is fine; English directly is fine; how to skip, ask for an answer,
+- **New session**: the Coach shows how the turn works (reply in English; switch to Japanese
+  first when the English won't come, then try the English; partial English is fine; how to skip, ask for an answer,
   or end). The Partner then opens the way friends start a chat: a greeting and one simple
   question ("Hey! How's it going?", "Hi! How was your weekend?"). It never leads with its own
   news, never asks for a topic, and varies the opener across sessions (it differs from the
@@ -124,8 +125,8 @@ vault.
 
 ### 3.2 Japanese intent and the build hint (F2)
 
-- **Input**: the learner's Japanese intent. Sending English directly (with or without
-  Japanese) skips to §3.4; sending partial English or naming a gap goes to §3.3.
+- **Input**: the learner's Japanese intent, in the Japanese-first mode (§3.7). Sending English
+  directly skips to §3.4; sending partial English or naming a gap goes to §3.3.
 - **Coach reply**: one short line ("いいですね！") and the next action. Never lists, counts,
   or restates the points of the Japanese.
 - **Build hint**: most turns get none. At most one line `組み立てのヒント: …`, only when a
@@ -220,7 +221,7 @@ to the Coach goes in its own box.
 
 | Control | Available | Does |
 |---|---|---|
-| Reply in English directly | at the intent stage | sends English without a Japanese intent; feedback checks the English alone (§3.4) |
+| Reply mode (English directly ⇄ Japanese first) | at the intent stage | English directly is every session's default: it sends English without a Japanese intent, and feedback checks the English alone (§3.4). Japanese first sends the intent (§3.2). A switch lasts for the rest of the session |
 | Hint (with "what I can't say", 1–200 characters, and optional partial English) | at the English stage | a gap hint (§3.3); asking again for the same gap gives a bigger piece |
 | Show the answer | at the English stage and the retry stage | one natural complete example for the current spot only; the learner then types it once while looking (skippable); from the next turn, answers are not shown first again |
 | Skip | at the retry stage, and at "type the shown answer once" | ends the retry with one neutral line; the Partner continues from the latest English |

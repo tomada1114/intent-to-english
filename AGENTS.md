@@ -46,12 +46,12 @@ so `just verify` — fails while any entry below is still a placeholder.
   small talk, run locally by its one user. It is for a Japanese speaker around CEFR B1 who can
   think of what to say in Japanese and build simple English, but who, in a live conversation,
   shrinks what they say to the English they already know — the same reactions and short
-  answers, and the thing they meant given up. An AI Partner chats in short English lines;
-  before answering, the learner writes what they really want to say in Japanese and builds the
-  English themselves, and an AI Coach helps only where they are stuck. The full requirements
+  answers, and the thing they meant given up. An AI Partner chats in short English lines; the
+  learner answers in English by default or switches to writing what they really want to say in
+  Japanese first, builds the English themselves, and an AI Coach helps only where they are stuck. The full requirements
   are `docs/product/requirements.md`.
-- **The core interaction** — one turn: the Partner's line → the learner's Japanese intent → the
-  learner's own English (hints only for the gap they name) → feedback that checks the English
+- **The core interaction** — one turn: the Partner's line → the learner's Japanese intent, when
+  they chose to start from Japanese → the learner's own English (hints only for the gap they name) → feedback that checks the English
   against the intent (fixes in sentence order, the learner's sentence, a numbered fill-in
   template) → the fill-in retry, which they may skip → the Partner replies to the learner's
   English. If this turn is not good, nothing else matters.
@@ -61,8 +61,10 @@ so `just verify` — fails while any entry below is still a placeholder.
   answer before the learner tries; more than one user, accounts, or sharing in the MVP;
   notifications, reminders, or practice quotas; links to the owner's vault, Daily notes, or
   Anki; live model calls in automated tests or CI.
-- **Why it is shaped this way** — The Japanese comes first because it keeps what the learner
-  really meant before their English shrinks it, and the part they cannot say is the
+- **Why it is shaped this way** — English is the default because at this level most replies
+  can start there; the reply mode is an explicit switch that lasts for the session, never a
+  guess at the text's language. Japanese first stays one click away because it keeps what the
+  learner really meant before their English shrinks it, and the part they cannot say is the
   vocabulary they actually need. The learner builds the English before any answer appears,
   because a finished sentence shown first removes both the practice and the evidence of where
   they got stuck. Feedback ends in a fill-in retry because reading a fix is not saying it,

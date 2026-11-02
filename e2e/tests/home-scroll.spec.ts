@@ -28,7 +28,7 @@ test("S1 restores the loaded second page and scroll position after a session", a
   const before = await page.evaluate(() => window.scrollY);
   expect(before).toBeGreaterThan(0);
   await last.click();
-  await expect(page.getByRole("textbox", { name: "あなたの日本語" })).toBeEnabled();
+  await expect(page.getByRole("textbox", { name: "あなたの英語" })).toBeEnabled();
   const back = page.getByRole("link", { name: "← 一覧" });
   await expect(back).toHaveAttribute("href", "/");
   await back.click();

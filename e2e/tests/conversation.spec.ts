@@ -13,7 +13,7 @@ const OPENER = "Hey! How's it going?";
 const TAGLINE = "英語で話す前に、日本語で言いたいことを決める練習";
 const EMPTY = "まだ会話はありません。最初の会話を始めましょう。";
 const NEXT_AT_INTENT =
-  "👉 次: 返したいことを日本語で送ってください（英語で返してもOK）";
+  "👉 次: 返したいことを英語で送ってください（難しければ「日本語から書く」）";
 
 /** Count the `open` actions the screen posts, across reloads. */
 function countOpens(page: Page) {
@@ -183,6 +183,7 @@ test("a turn gets its fix, misses the retry once, survives reloads, and is accep
   const turn1 = coach.getByRole("list", { name: "ターン 1" });
   const posted = recordActions(page);
 
+  await page.getByRole("button", { name: "日本語から書く" }).click();
   await send(page, "あなたの日本語", INTENT);
   await expect(turn1.getByText(ACKNOWLEDGE, { exact: true })).toBeVisible();
   await expect(turn1.getByText("組み立てのヒント", { exact: false })).toHaveCount(0);
@@ -249,7 +250,9 @@ test("a turn gets its fix, misses the retry once, survives reloads, and is accep
   await expect(lines.nth(2)).toHaveText(`Partner${QUESTION_REPLY}`);
   expect(QUESTION_REPLY).toContain("?");
   await expect(coach.getByRole("heading", { name: "コーチ · ターン 2" })).toBeVisible();
-  await expect(page.getByText(NEXT_AT_INTENT, { exact: true })).toBeVisible();
+  // 日本語から書く from turn 1 still holds.
+  await expect(coach.getByRole("textbox", { name: "あなたの日本語" })).toBeEnabled();
+  await expect(coach.getByRole("button", { name: "英語で直接返す" })).toBeVisible();
   await expect(coach.getByText("前のターン: 言い直しできました")).toBeVisible();
 
   // Turn 1, selected on the left, ends with the accepted retry.
@@ -268,7 +271,6 @@ test("three direct replies reach the check-in, and ending shows the transcript",
   const lines = timeline.getByRole("listitem");
 
   for (const [index, reply] of DIRECT_REPLIES.entries()) {
-    await coach.getByRole("button", { name: "英語で直接返す" }).click();
     await send(page, "あなたの英語", reply);
     await expect(lines.nth(2 * index + 1)).toHaveText(`You${reply}`);
     if (index < 2) {
@@ -338,6 +340,7 @@ test("an early cancellation and its delayed replay leave an identical replacemen
   page,
 }) => {
   const { id } = await startSession(page);
+  await page.getByRole("button", { name: "日本語から書く" }).click();
   await send(page, "あなたの日本語", INTENT);
   const coach = page.getByRole("region", { name: "コーチ" });
   const field = coach.getByRole("textbox", { name: "あなたの英語" });
