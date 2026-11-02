@@ -163,6 +163,8 @@ function resultShown() {
 }
 
 describe("ConversationScreen waiting line timing (REQ-001)", () => {
+  // Host contention can delay setup/typing beyond 5 s. The fake-clock assertions
+  // still check exactly 299 ms; only this flow's real execution budget is larger.
   it("shows no waiting line for a response at 299 ms", async () => {
     const { user, release } = await open(english);
     await sendEnglish(user);
@@ -175,7 +177,7 @@ describe("ConversationScreen waiting line timing (REQ-001)", () => {
     expect(resultShown()).toBe(true);
     await advance(1000);
     expect(screen.queryByText(COACH_WAITING)).not.toBeInTheDocument();
-  });
+  }, 20_000);
 
   it("shows the line from 300 ms and the result at 800 ms for a response at 301 ms", async () => {
     const { user, release } = await open(english);

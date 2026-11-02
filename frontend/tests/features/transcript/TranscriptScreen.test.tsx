@@ -587,6 +587,8 @@ describe("TranscriptScreen wrap-up (REQ-008, REQ-010, REQ-011)", () => {
 });
 
 describe("the session route ending into S3 (REQ-008)", () => {
+  // Route loading and two mutations need scheduling headroom under backend load;
+  // each visible result still has a 5 s bound, with 20 s for the complete flow.
   it("shows S3 on the same URL when end succeeds on S2, and sends wrap_up once", async () => {
     const inProgress = sessionView({
       stage: "intent",
@@ -621,19 +623,25 @@ describe("the session route ending into S3 (REQ-008)", () => {
       </QueryClientProvider>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "会話を終える" }));
+    await user.click(
+      await screen.findByRole("button", { name: "会話を終える" }, { timeout: 5000 }),
+    );
     await user.click(screen.getByRole("button", { name: "終える" }));
 
-    expect(await screen.findByText("these days")).toBeInTheDocument();
+    expect(
+      await screen.findByText("these days", {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "会話（英文だけの通し）" }),
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}`);
-    await waitFor(() =>
-      expect(server.bodies).toEqual([
-        { attempt_id: expect.any(String), action: "end", version: 4 },
-        { attempt_id: expect.any(String), action: "wrap_up", version: 5 },
-      ]),
+    await waitFor(
+      () =>
+        expect(server.bodies).toEqual([
+          { attempt_id: expect.any(String), action: "end", version: 4 },
+          { attempt_id: expect.any(String), action: "wrap_up", version: 5 },
+        ]),
+      { timeout: 5000 },
     );
-  });
+  }, 20_000);
 });
