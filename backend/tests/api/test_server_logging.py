@@ -9,7 +9,7 @@ import signal
 import socket
 import subprocess
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 
 import anyio
@@ -17,6 +17,10 @@ import httpx
 import pytest
 
 pytestmark = pytest.mark.anyio
+
+# Full-suite host contention has exceeded 15 s (#128). Allow four times that
+# startup budget; a closed output stream still reports an early exit immediately.
+STARTUP_TIMEOUT_SECONDS = 60
 
 # Values enter the failure at request time, never as literals in traceback lines.
 APP_SOURCE = """
@@ -152,25 +156,32 @@ async def owned_server(tmp_path, database_url, fmt):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    ready = anyio.Event()
+    startup_settled = anyio.Event()
+    ready_line = f"Uvicorn running on http://127.0.0.1:{port}"
 
     async def collect():
         assert process.stdout is not None
         async for chunk in process.stdout:
             evidence.chunks.append(chunk)
-            if f"Uvicorn running on http://127.0.0.1:{port}" in evidence.output:
-                ready.set()
+            if ready_line in evidence.output:
+                startup_settled.set()
+        startup_settled.set()
 
     try:
         async with anyio.create_task_group() as tasks:
             tasks.start_soon(collect)
             try:
-                with anyio.fail_after(15):
-                    await ready.wait()
+                with anyio.fail_after(STARTUP_TIMEOUT_SECONDS):
+                    await startup_settled.wait()
+                assert ready_line in evidence.output, (
+                    "Owned Uvicorn exited before startup"
+                )
                 yield evidence
             finally:
                 with anyio.CancelScope(shield=True):
-                    process.terminate()
+                    # A failed startup may have exited before cleanup begins.
+                    with suppress(ProcessLookupError):
+                        process.terminate()
                     with anyio.move_on_after(10) as deadline:
                         await process.wait()
                     if deadline.cancel_called:
@@ -318,3 +329,23 @@ async def test_owned_server_probe_failure_stops_process_and_releases_port(
     assert observed[0].returncode in {0, -signal.SIGTERM}
     assert observed[0].released
     assert "Finished server process" in observed[0].output
+
+
+async def test_owned_server_startup_exit_reports_failure_without_waiting(
+    tmp_path, migrated_sqlite_url, monkeypatch
+):
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "APP_SOURCE",
+        'raise RuntimeError("synthetic startup failure")',
+    )
+
+    with pytest.raises(ExceptionGroup, match="unhandled errors") as raised:
+        async with owned_server(tmp_path, migrated_sqlite_url, "text"):
+            pytest.fail("An exited server must never accept a probe")
+
+    assert len(raised.value.exceptions) == 1
+    assert isinstance(raised.value.exceptions[0], AssertionError)
+    assert str(raised.value.exceptions[0]).splitlines()[0] == (
+        "Owned Uvicorn exited before startup"
+    )
