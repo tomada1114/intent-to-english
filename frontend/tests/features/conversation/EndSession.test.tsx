@@ -282,6 +282,7 @@ describe("ConversationScreen ending while a request is in flight (REQ-010)", () 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderSession(intent);
 
+    await user.click(screen.getByRole("button", { name: "日本語から書く" }));
     await user.type(
       screen.getByRole("textbox", { name: "あなたの日本語" }),
       "久しぶりに映画を見た",

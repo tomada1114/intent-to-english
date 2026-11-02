@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Product | Intent to English — English small-talk practice: Japanese intent first, the learner's own English, structured feedback, fill-in retry |
+| Product | Intent to English — English small-talk practice: English by default with a Japanese-first mode, the learner's own English, structured feedback, fill-in retry |
 | Platforms | Web (React SPA), served locally on the owner's Mac; desktop browsers first (Safari, Chrome) |
 | App type | Conversation (text, session-based, no scoring) with an AI assistant's waiting and failure states |
 | Related | Requirements: `docs/product/requirements.md` · UX flows: `docs/product/ux-flows.md` · Design direction: `docs/design/design-direction.md` |

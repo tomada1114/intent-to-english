@@ -9,10 +9,10 @@ test("S2 fits 320 by 568 with the server-unreachable banner", async ({ page }) =
   expect(created.status()).toBe(201);
   const { id } = (await created.json()) as { id: string };
   await page.goto(`/sessions/${id}`);
-  const field = page.getByRole("textbox", { name: "あなたの日本語" });
+  const field = page.getByRole("textbox", { name: "あなたの英語" });
   await expect(field).toBeEnabled();
   await page.route("**/api/sessions/*/actions", (route) => route.abort());
-  await field.fill("映画を見た");
+  await field.fill("I watched a movie");
   await page.getByRole("button", { name: "送信", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "アプリのサーバーに接続できません。",

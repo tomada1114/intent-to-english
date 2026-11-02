@@ -198,9 +198,9 @@ function rejected(body: Partial<ProblemDetails> & { status: number }) {
   );
 }
 
-async function sendIntent(text: string) {
+async function sendReply(text: string) {
   const user = userEvent.setup();
-  const field = screen.getByRole("textbox", { name: "あなたの日本語" });
+  const field = screen.getByRole("textbox", { name: "あなたの英語" });
   await user.type(field, text);
   await user.keyboard("{Meta>}{Enter}{/Meta}");
   return field;
@@ -211,7 +211,7 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     serveSession(intent, () => english);
     renderSession(intent);
 
-    await sendIntent("久しぶりに映画を見た");
+    await sendReply("I watched a movie");
 
     const field = await screen.findByRole("textbox", { name: "あなたの英語" });
     expect(field).toHaveValue("");
@@ -229,11 +229,11 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     );
     renderSession(intent);
 
-    const field = await sendIntent("久しぶりに映画を見た");
+    const field = await sendReply("I watched a movie");
 
     const message = await screen.findByRole("alert");
     expect(message).toHaveTextContent("Text is too long");
-    expect(field).toHaveValue("久しぶりに映画を見た");
+    expect(field).toHaveValue("I watched a movie");
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAttribute("aria-describedby", message.id);
     expect(field).toBeEnabled();
@@ -243,7 +243,7 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     serveSession(intent, () => rejected({ status: 422 }));
     renderSession(intent);
 
-    const field = await sendIntent("久しぶりに映画を見た");
+    const field = await sendReply("I watched a movie");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The input is outside its limits",
@@ -255,11 +255,11 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     serveSession(intent, () => rejected({ status: 500, code: "internal_error" }));
     renderSession(intent);
 
-    const field = await sendIntent("久しぶりに映画を見た");
+    const field = await sendReply("I watched a movie");
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("コーチの返事を受け取れませんでした。");
-    expect(field).toHaveValue("久しぶりに映画を見た");
+    expect(field).toHaveValue("I watched a movie");
     expect(field).not.toHaveAttribute("aria-invalid");
   });
 
@@ -267,13 +267,13 @@ describe("Composer on the conversation screen (REQ-005)", () => {
     serveSession(intent, () => HttpResponse.error());
     renderSession(intent);
 
-    const field = await sendIntent("久しぶりに映画を見た");
+    const field = await sendReply("I watched a movie");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "アプリのサーバーに接続できません。起動しているか確認してください。",
     );
     await waitFor(() => expect(field).toBeEnabled());
-    expect(field).toHaveValue("久しぶりに映画を見た");
+    expect(field).toHaveValue("I watched a movie");
   });
 
   it("shows a hint's 422 under the gap field and keeps both texts", async () => {

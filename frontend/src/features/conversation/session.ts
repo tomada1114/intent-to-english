@@ -272,7 +272,6 @@ export interface Control {
   key: string;
   label: string;
   input: ActionInput | "toggle_direct" | "open_hint";
-  pressed?: boolean;
 }
 
 export interface Composer {
@@ -302,6 +301,22 @@ function afterLatest<K extends Entry["kind"]>(
   return entries
     .slice(start + 1)
     .findLast((item): item is EntryOf<K> => item.kind === kind);
+}
+
+/**
+ * Whether the session's composer takes English directly, its default. An explicit
+ * switch lasts for the session, so a reload reads it back from the latest reply
+ * (or the interrupted submission), never from the language of the text.
+ */
+export function repliesDirectly(view: SessionView): boolean {
+  const stored = view.last_submission?.action;
+  if (view.stage === "intent" && stored === "intent") return false;
+  if (view.stage === "intent" && stored === "english_direct") return true;
+  const latest = view.entries.findLast(
+    (item) =>
+      item.kind === "intent" || (item.kind === "english" && item.payload.is_direct),
+  );
+  return latest?.kind !== "intent";
 }
 
 /**
@@ -335,10 +350,10 @@ export function stageUi(
       return {
         next: "Partner の返事を待っています",
         composer: {
-          action: "intent",
-          label: JAPANESE,
+          action: local.direct ? "english_direct" : "intent",
+          label: local.direct ? ENGLISH : JAPANESE,
           placeholder: undefined,
-          lang: "ja",
+          lang: local.direct ? "en" : "ja",
           waiting: true,
         },
         controls: [],
@@ -346,9 +361,11 @@ export function stageUi(
     case "intent": {
       const share = lineBeingAnswered(view)?.payload.has_question === false;
       return {
-        next: share
-          ? "反応や、相手への質問を日本語で送ってください（英語で返してもOK）"
-          : "返したいことを日本語で送ってください（英語で返してもOK）",
+        next: `${share ? "反応や質問" : "返したいこと"}を${
+          local.direct
+            ? "英語で（難しければ「日本語から書く」）"
+            : "日本語で（英語なら「英語で直接返す」）"
+        }`,
         composer: local.direct
           ? {
               action: "english_direct",
@@ -367,9 +384,8 @@ export function stageUi(
         controls: only([
           {
             key: "direct",
-            label: "英語で直接返す",
+            label: local.direct ? "日本語から書く" : "英語で直接返す",
             input: "toggle_direct",
-            pressed: local.direct,
           },
         ]),
       };

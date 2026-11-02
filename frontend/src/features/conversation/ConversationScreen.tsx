@@ -39,6 +39,7 @@ import {
   lineBeingAnswered,
   paneFor,
   previousTurnLine,
+  repliesDirectly,
   restoredFields,
   type SessionView,
   stageUi,
@@ -65,9 +66,9 @@ const CANCELLED = "中止しました。";
 const STALE = "別の画面でこの会話が進みました。最新の状態を読み込みました。";
 
 const HOW_TO = [
-  "1. 返したいことを、まず日本語で送ってください",
-  "2. それを自分で英語にしてみてください（途中まででOK。詰まったら「ヒント」）",
-  "3. 最初から英語で返すときは「英語で直接返す」",
+  "1. 返したいことを英語で送ってください",
+  "2. うまく言えないときは「日本語から書く」。日本語を送ってから英語にします（途中まででOK。詰まったら「ヒント」）",
+  "3. 切り替えはこの会話のあいだ続きます。戻すときは「英語で直接返す」",
   "4. 「答えを見せて」「スキップ」「会話を終える」はいつでも使えます",
 ];
 
@@ -143,11 +144,7 @@ export function ConversationScreen({
   // A failed or interrupted submission's text comes back in the composer.
   const [text, setText] = useState(() => restoredFrom(view).text ?? "");
   const [gap, setGap] = useState(() => restoredFrom(view).gap ?? "");
-  const [directTurn, setDirectTurn] = useState<number | null>(() =>
-    view.stage === "intent" && view.last_submission?.action === "english_direct"
-      ? view.turn_index
-      : null,
-  );
+  const [direct, setDirect] = useState(() => repliesDirectly(view));
   const [hintOpen, setHintOpen] = useState(() => restoredFrom(view).gap !== undefined);
   const [howToOpen, setHowToOpen] = useState(true);
   const [rewriting, setRewriting] = useState(
@@ -461,7 +458,6 @@ export function ConversationScreen({
   });
   useEffect(() => markUnread(arrival), [arrival]);
 
-  const direct = directTurn === view.turn_index && view.stage === "intent";
   const showHint = hintOpen && view.stage === "english";
   const ui = stageUi(view, { direct, hintOpen: showHint });
 
@@ -524,7 +520,7 @@ export function ConversationScreen({
 
   function runControl(control: Control) {
     if (control.input === "toggle_direct") {
-      setDirectTurn(direct ? null : view.turn_index);
+      setDirect(!direct);
     } else if (control.input === "open_hint") {
       setHintOpen(true);
     } else if (control.input.action === "end") {
@@ -791,7 +787,7 @@ export function ConversationScreen({
     );
 
   const footer = ui !== null && !viewingPast && (
-    <div className="space-y-3 bg-surface px-4 pt-3 pb-4 shadow-[0_-1px_0_var(--color-line)] lg:px-5">
+    <div className="space-y-3 bg-surface px-4 pt-3 pb-4 shadow-[0_-1px_0_var(--color-line)] max-sm:pt-2 lg:px-5">
       <div role="status" className="space-y-1">
         {waitingPane === "coach" ? (
           lineShown && (
@@ -897,7 +893,6 @@ export function ConversationScreen({
               key={control.key}
               ref={control.key === "hint" ? hintButtonRef : undefined}
               type="button"
-              aria-pressed={control.pressed}
               onClick={() => runControl(control)}
               className={SECONDARY_BUTTON}
             >

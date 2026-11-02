@@ -166,7 +166,8 @@ dialogs in the MVP; everything happens in the page.
 | Stage | Composer placeholder | Controls | 👉 次 |
 |---|---|---|---|
 | Waiting for the opener or a Partner reply | (disabled) | — | 「Partner の返事を待っています」 |
-| Intent | 「返したいことを日本語で」 (「返したいことを英語で」 after [英語で直接返す]) | [英語で直接返す] (switches the composer to English for this turn) | 「返したいことを日本語で送ってください（英語で返してもOK）」 — after a Partner share: 「反応や、相手への質問を日本語で送ってください（英語で返してもOK）」 |
+| Intent, English directly (each session's default) | 「返したいことを英語で」 | [日本語から書く] (switches the composer to Japanese for the rest of the session; the text stays) | 「返したいことを英語で（難しければ「日本語から書く」）」 — after a Partner share: 「反応や質問を英語で（難しければ「日本語から書く」）」 |
+| Intent, Japanese first | 「返したいことを日本語で」 | [英語で直接返す] (switches back for the rest of the session; the text stays) | 「返したいことを日本語で（英語なら「英語で直接返す」）」 — after a Partner share: 「反応や質問を日本語で（英語なら「英語で直接返す」）」 |
 | English | 「英語にしてみましょう（途中まででOK）」 | [ヒント] [答えを見せて] | 「それを英語にしてみてください（途中まででOK。詰まったら「ヒント」）」 |
 | Hint request (inline under the composer) | 「分からないところ（例: 「久しぶり」が分からない）」 (1–200 characters) + the composer keeps any partial English | [ヒントをもらう] [やめる] | 「分からないところを書いて、ヒントをもらってください」 |
 | After a hint | 「英語の文全体を」 | [ヒント] [答えを見せて] | 「ヒントを使って、英語の文全体を送ってください」 |
@@ -181,8 +182,8 @@ dialogs in the MVP; everything happens in the page.
   (§3.8; confirmation policy per ux-guidelines § Feedback). A failed end shows
   「会話を終えられませんでした。」.
 - **New session**: the right pane opens with the how-to block 「進め方」 (the prototype's four
-  lines, adapted to the controls: 「1. 返したいことを、まず日本語で送ってください」「2. それを自分で英語にしてみてください
-  （途中まででOK。詰まったら「ヒント」）」「3. 最初から英語で返すときは「英語で直接返す」」「4. 「答えを見せて」「スキップ」
+  lines, adapted to the controls: 「1. 返したいことを英語で送ってください」「2. うまく言えないときは「日本語から書く」。日本語を送ってから英語にします
+  （途中まででOK。詰まったら「ヒント」）」「3. 切り替えはこの会話のあいだ続きます。戻すときは「英語で直接返す」」「4. 「答えを見せて」「スキップ」
   「会話を終える」はいつでも使えます」), collapsible, shown at the top of turn 1 only.
 - **Loading the session**: both panes show skeleton blocks; the composer appears with the state.
 - **Model error**: an inline banner in the pane that expected the result — 「コーチの返事を受け取れ
@@ -280,8 +281,9 @@ dialogs in the MVP; everything happens in the page.
 
 ### F-2 One turn (the core interaction)
 
-1. Intent: the learner sends Japanese → 💡 「いいですね！」, at most one 組み立てのヒント → English.
-   (Or [英語で直接返す] → the composer takes English → step 3.)
+1. Intent: by default the learner sends English → step 3. After [日本語から書く], which lasts for
+   the session until [英語で直接返す], they send Japanese → 💡 「いいですね！」, at most one
+   組み立てのヒント → English.
 2. English: the learner sends English (full or partial). Stuck → [ヒント] with the gap →
    a gap hint → English again; asking again for the same gap gives a bigger piece.
 3. Feedback: no fix needed → one line → step 6. Fixes → the feedback card → Retry.
@@ -302,7 +304,7 @@ dialogs in the MVP; everything happens in the page.
                      |           |              |            |
                      |    [答えを見せて] -------+-------> [Answer shown] -> [type once | スキップ]
                      |                          |
-             [英語で直接返す] ----------------->+-- no fix ------------------------> [done]
+             [English directly] --------------->+-- no fix ------------------------> [done]
 Any Coach or Partner call: [error banner + もう一度] — the stage stays, the text stays.
 ```
 

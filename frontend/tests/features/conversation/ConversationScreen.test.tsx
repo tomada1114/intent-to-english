@@ -143,11 +143,9 @@ describe("ConversationScreen auto-sent actions (REQ-001)", () => {
       within(pane("コーチ")).getByRole("button", { name: "進め方" }),
     ).toHaveAttribute("aria-expanded", "true");
     expect(
-      within(pane("コーチ")).getByText("1. 返したいことを、まず日本語で送ってください"),
+      within(pane("コーチ")).getByText("1. 返したいことを英語で送ってください"),
     ).toBeInTheDocument();
-    expect(
-      next("返したいことを日本語で送ってください（英語で返してもOK）"),
-    ).toBeVisible();
+    expect(next("返したいことを英語で（難しければ「日本語から書く」）")).toBeVisible();
   });
 
   it("collapses and expands the how-to", async () => {
@@ -412,27 +410,27 @@ const stageRows: StageRow[] = [
       },
     },
     next: "Partner の返事を待っています",
-    composer: { label: "あなたの日本語", placeholder: null, disabled: true },
+    composer: { label: "あなたの英語", placeholder: null, disabled: true },
     controls: [],
   },
   {
     name: "Intent",
     view: intent,
-    next: "返したいことを日本語で送ってください（英語で返してもOK）",
+    next: "返したいことを英語で（難しければ「日本語から書く」）",
     composer: {
-      label: "あなたの日本語",
-      placeholder: "返したいことを日本語で",
+      label: "あなたの英語",
+      placeholder: "返したいことを英語で",
       disabled: false,
     },
-    controls: ["英語で直接返す"],
+    controls: ["日本語から書く"],
   },
   {
     name: "Intent after a Partner share",
     view: at("intent", [OPENER, DONE, SHARE], ["intent", ...SIDE], { turn_index: 2 }),
-    next: "反応や、相手への質問を日本語で送ってください（英語で返してもOK）",
+    next: "反応や質問を英語で（難しければ「日本語から書く」）",
     composer: {
-      label: "あなたの日本語",
-      placeholder: "返したいことを日本語で",
+      label: "あなたの英語",
+      placeholder: "返したいことを英語で",
       disabled: false,
     },
     controls: [],
@@ -593,25 +591,78 @@ describe("ConversationScreen stage table (REQ-003)", () => {
     ).toBeInTheDocument();
   });
 
-  it("switches the composer to English with 英語で直接返す, a toggle back to Japanese", async () => {
+  it("opens in English, and 日本語から書く and 英語で直接返す switch the composer both ways", async () => {
     const user = userEvent.setup();
     serveSession(intent);
     renderSession(intent);
 
-    const toggle = screen.getByRole("button", { name: "英語で直接返す" });
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await user.click(toggle);
-
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveAttribute(
       "lang",
       "en",
     );
-    await user.click(toggle);
-    expect(screen.getByRole("textbox", { name: "あなたの日本語" })).toHaveAttribute(
+    await user.type(screen.getByRole("textbox", { name: "あなたの英語" }), "Well");
+    await user.click(screen.getByRole("button", { name: "日本語から書く" }));
+
+    const japanese = screen.getByRole("textbox", { name: "あなたの日本語" });
+    expect(japanese).toHaveAttribute("lang", "ja");
+    expect(japanese).toHaveValue("Well");
+    expect(next("返したいことを日本語で（英語なら「英語で直接返す」）")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "英語で直接返す" }));
+    expect(screen.getByRole("textbox", { name: "あなたの英語" })).toHaveAttribute(
       "lang",
-      "ja",
+      "en",
     );
+  });
+
+  it("keeps 日本語から書く for the next turn of the same session", async () => {
+    const user = userEvent.setup();
+    const nextIntent = at(
+      "intent",
+      [OPENER, INTENT, ACK, DONE, SHARE],
+      intent.allowed_actions,
+      {
+        turn_index: 2,
+        version: 2,
+      },
+    );
+    serveSession(intent, () => nextIntent);
+    renderSession(intent);
+
+    await user.click(screen.getByRole("button", { name: "日本語から書く" }));
+    await compose(user, "あなたの日本語", "久しぶりに映画を見た");
+
+    expect(
+      await screen.findByRole("textbox", { name: "あなたの日本語" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "英語で直接返す" })).toBeVisible();
+  });
+
+  it.each([
+    {
+      name: "the latest reply started from Japanese",
+      entries: [OPENER, INTENT, ACK, DONE, SHARE],
+      label: "あなたの日本語",
+    },
+    {
+      name: "the latest reply went back to direct English",
+      entries: [
+        OPENER,
+        INTENT,
+        ACK,
+        DONE,
+        SHARE,
+        entry("english", { text: "Nice", is_direct: true }, 2),
+        SHARE,
+      ],
+      label: "あなたの英語",
+    },
+  ])("restores the session's mode after a reload when $name", ({ entries, label }) => {
+    const view = at("intent", entries, intent.allowed_actions, { turn_index: 3 });
+    serveSession(view);
+    renderSession(view);
+
+    expect(screen.getByRole("textbox", { name: label })).toBeInTheDocument();
   });
 
   it("opens the hint box under the composer, keeps the partial English, and Esc closes it", async () => {
@@ -718,17 +769,17 @@ const sendRows: SendRow[] = [
   {
     name: "intent",
     view: intent,
-    act: (user) => compose(user, "あなたの日本語", "久しぶりに映画を見た"),
+    act: async (user) => {
+      await user.click(screen.getByRole("button", { name: "日本語から書く" }));
+      await compose(user, "あなたの日本語", "久しぶりに映画を見た");
+    },
     body: { action: "intent", text: "久しぶりに映画を見た", version: 1 },
     waiting: "coach",
   },
   {
     name: "english_direct",
     view: intent,
-    act: async (user) => {
-      await user.click(screen.getByRole("button", { name: "英語で直接返す" }));
-      await compose(user, "あなたの英語", "I watched a movie");
-    },
+    act: (user) => compose(user, "あなたの英語", "I watched a movie"),
     body: { action: "english_direct", text: "I watched a movie", version: 1 },
     waiting: "coach",
   },
@@ -864,6 +915,7 @@ describe("ConversationScreen sending (REQ-004)", () => {
     const user = userEvent.setup();
     renderSession(intent);
 
+    await user.click(screen.getByRole("button", { name: "日本語から書く" }));
     await compose(user, "あなたの日本語", "久しぶりに映画を見た");
     const field = screen.getByRole("textbox", { name: "あなたの日本語" });
     await waitFor(() => expect(field).toBeDisabled());
@@ -879,6 +931,7 @@ describe("ConversationScreen sending (REQ-004)", () => {
     const server = serveSession(intent, () => english);
     const user = userEvent.setup();
     renderSession(intent);
+    await user.click(screen.getByRole("button", { name: "日本語から書く" }));
     const field = screen.getByRole("textbox", { name: "あなたの日本語" });
     await user.type(field, "久しぶりに映画を見た");
 
@@ -920,6 +973,7 @@ describe("ConversationScreen focus and announcements (REQ-009)", () => {
     const user = userEvent.setup();
     renderSession(intent);
 
+    await user.click(screen.getByRole("button", { name: "日本語から書く" }));
     await compose(user, "あなたの日本語", "久しぶりに映画を見た");
 
     const field = await screen.findByRole("textbox", { name: "あなたの英語" });
@@ -1061,6 +1115,7 @@ describe("ConversationScreen pane scrolling", () => {
       geometry(scroller, from);
       fireEvent.scroll(scroller);
 
+      await user.click(screen.getByRole("button", { name: "日本語から書く" }));
       await compose(user, "あなたの日本語", "久しぶりに映画を見た");
       await screen.findByText("💡 いいですね！");
 
